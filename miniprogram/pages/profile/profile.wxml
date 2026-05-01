@@ -1,0 +1,61 @@
+<!-- pages/profile/profile.wxml - 个人中心 -->
+<view class="page">
+
+  <!-- 导航栏 -->
+  <view class="nav-bar">
+    <view class="nav-back" bindtap="goBack">
+      <text class="nav-back-icon">‹</text>
+    </view>
+    <text class="nav-title">个人中心</text>
+    <view class="nav-placeholder"></view>
+  </view>
+
+  <!-- 用户信息卡片 -->
+  <view class="profile-card">
+    <view class="avatar-wrap">
+      <image
+        wx:if="{{avatarUrl}}"
+        class="avatar"
+        src="{{avatarUrl}}"
+        mode="aspectFill"
+      />
+      <view wx:else class="avatar avatar-default">
+        <text class="avatar-letter">{{userInfo.nickname ? userInfo.nickname[0] : '我'}}</text>
+      </view>
+    </view>
+    <view class="profile-info">
+      <text class="profile-name">{{userInfo.nickname || '未设置昵称'}}</text>
+      <text class="profile-id">ID: {{userInfo.user_id || ''}}</text>
+      <text wx:if="{{userInfo.created_at}}" class="profile-meta">
+        加入于 {{userInfo.created_at.slice(0,10)}}
+      </text>
+    </view>
+  </view>
+
+  <!-- 编辑区域 -->
+  <view class="section-card">
+    <view class="form-row">
+      <text class="form-label">昵称</text>
+      <input
+        class="form-input"
+        type="nickname"
+        placeholder="输入昵称"
+        value="{{nickname}}"
+        bindinput="onNicknameInput"
+      />
+    </view>
+    <view class="form-action">
+      <view class="save-btn" bindtap="saveProfile">
+        <text>保存</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 退出登录 -->
+  <view class="logout-section">
+    <view class="logout-btn" bindtap="logout">
+      <text>退出登录</text>
+    </view>
+  </view>
+
+</view>

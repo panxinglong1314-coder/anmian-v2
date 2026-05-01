@@ -1,0 +1,62 @@
+/* pages/subscribe/subscribe.wxss */
+
+.page { min-height: 100vh; background: #0D1B2A; display: flex; flex-direction: column; }
+
+/* 顶部 */
+.sub-header { padding: calc(40px + env(safe-area-inset-top)) 24px 24px; background: linear-gradient(180deg, rgba(36,52,71,0.8) 0%, rgba(13,27,42,0) 100%); display: flex; flex-direction: column; align-items: center; gap: 8px; border-bottom: 1rpx solid rgba(255,255,255,0.06); }
+.sub-badge-icon { font-size: 40px; }
+.sub-title { font-size: 20px; font-weight: 600; color: #F0F4F8; }
+.sub-tagline { font-size: 13px; color: #8BA3B9; }
+
+.sub-status { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 4px; padding: 10px 20px; border-radius: 20px; }
+.premium-status { background: linear-gradient(135deg,rgba(245,200,105,0.2),rgba(245,200,105,0.05)); border: 1rpx solid rgba(245,200,105,0.3); }
+.free-status { background: rgba(36,52,71,0.5); border: 1rpx solid rgba(255,255,255,0.08); }
+.status-icon { font-size: 16px; color: #F5C869; }
+.status-text { font-size: 14px; color: #F5C869; font-weight: 500; }
+.status-expire { font-size: 11px; color: rgba(245,200,105,0.7); }
+
+/* 内容区 */
+.sub-content { flex: 1; padding: 20px 20px 40px; overflow-y: auto; }
+
+/* 月付/年付切换 */
+.billing-toggle { display: flex; gap: 4px; margin-bottom: 16px; background: rgba(36,52,71,0.5); border-radius: 14px; padding: 4px; }
+.toggle-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px; border-radius: 10px; font-size: 14px; color: #8BA3B9; }
+.toggle-btn.active { background: rgba(245,200,105,0.15); color: #F5C869; font-weight: 500; }
+.discount-tag { font-size: 10px; padding: 2px 6px; border-radius: 6px; background: rgba(126,200,163,0.2); color: #7EC8A3; }
+
+/* 套餐卡片 */
+.plan-cards { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.plan-card { display: flex; flex-direction: column; gap: 6px; padding: 20px; border-radius: 18px; background: rgba(36,52,71,0.4); border: 1rpx solid rgba(255,255,255,0.08); position: relative; }
+.plan-card.selected { background: rgba(245,200,105,0.08); border-color: rgba(245,200,105,0.4); }
+.plan-card.recommended { border-color: rgba(245,200,105,0.25); }
+.recommend-badge { position: absolute; top: -8px; right: 16px; font-size: 10px; padding: 3px 10px; border-radius: 8px; background: linear-gradient(135deg,rgba(245,200,105,0.8),rgba(245,200,105,0.4)); color: #0D1B2A; font-weight: 600; }
+.plan-name { font-size: 15px; color: #F0F4F8; font-weight: 600; }
+.plan-price-row { display: flex; align-items: baseline; gap: 2px; }
+.price-symbol { font-size: 16px; color: #F5C869; }
+.price-num { font-size: 28px; font-weight: 600; color: #F5C869; }
+.price-unit { font-size: 13px; color: rgba(245,200,105,0.7); }
+.price-monthly-equivalent { font-size: 11px; color: #8BA3B9; }
+.plan-quota { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.quota-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8BA3B9; }
+.quota-icon { font-size: 14px; }
+
+/* 功能对比 */
+.section-title { font-size: 13px; font-weight: 500; color: #8BA3B9; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; margin-top: 8px; }
+.compare-table { border-radius: 14px; overflow: hidden; background: rgba(36,52,71,0.4); border: 1rpx solid rgba(255,255,255,0.06); margin-bottom: 20px; }
+.compare-row { display: flex; border-bottom: 1rpx solid rgba(255,255,255,0.06); }
+.compare-row:last-child { border-bottom: none; }
+.compare-header { background: rgba(36,52,71,0.6); }
+.compare-header .compare-cell { color: #8BA3B9; font-weight: 500; font-size: 11px; }
+.compare-cell { flex: 1; padding: 10px 8px; font-size: 11px; color: #8BA3B9; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.4; }
+.compare-feature { flex: 1.2; justify-content: flex-start; font-weight: 500; color: #F0F4F8; }
+.compare-check { color: #7EC8A3; font-weight: 600; }
+
+/* 订阅按钮 */
+.sub-btn { margin-top: 16px; width: 100%; padding: 20px; border-radius: 20rpx; background: linear-gradient(135deg,rgba(245,200,105,0.5),rgba(245,200,105,0.25)); border: 1rpx solid rgba(245,200,105,0.4); color: #0D1B2A; font-size: 16px; font-weight: 600; text-align: center; box-shadow: 0 0 30rpx rgba(245,200,105,0.2); }
+.premium-note { margin-top: 14px; padding: 16px; border-radius: 14px; background: rgba(245,200,105,0.08); border: 1rpx solid rgba(245,200,105,0.2); text-align: center; font-size: 13px; color: #F5C869; }
+.free-note { margin-top: 14px; padding: 16px; border-radius: 14px; background: rgba(36,52,71,0.5); border: 1rpx solid rgba(255,255,255,0.08); text-align: center; font-size: 13px; color: #8BA3B9; }
+
+.restore-row { margin-top: 14px; text-align: center; font-size: 13px; color: #8BA3B9; padding: 10px; }
+.terms-row { margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; font-size: 11px; color: #8BA3B9; }
+.terms-link { color: rgba(107,159,212,0.8); }
+.cancel-note { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; align-items: center; font-size: 11px; color: rgba(139,163,185,0.5); text-align: center; }

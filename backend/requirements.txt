@@ -1,0 +1,42 @@
+# 睡前大脑关机助手 - 后端依赖
+
+# Web 框架
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+starlette==0.35.1
+PyJWT>=2.8.0
+
+# 数据验证
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# HTTP 客户端
+httpx==0.26.0
+
+# Redis
+redis==5.0.1
+
+# 数据库（可选，PostgreSQL）
+# psycopg2-binary==2.9.9
+# asyncpg==0.29.0
+# sqlalchemy[asyncio]==2.0.25
+
+# 机器学习（可选，sklearn 用于反刍检测）
+# scikit-learn==1.4.0
+
+# 异步支持
+anyio==4.2.0
+
+# 测试
+pytest==7.4.4
+pytest-asyncio==0.23.3
+httpx==0.26.0
+
+# 开发
+python-dotenv==1.0.0
+edge-tts>=6.1.0
+
+# 腾讯云（签名手写，无需 SDK）
+tencentcloud-sdk-python>=3.1.0
+websocket-client>=1.8.0
+websockets>=12.0

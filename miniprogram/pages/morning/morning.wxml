@@ -1,0 +1,173 @@
+<!-- pages/morning/morning.wxml -->
+<!-- Tab 3: 早晨回访 - 1分钟睡眠日记对话 -->
+
+<view class="page">
+
+  <!-- ========== 顶部问候区 ========== -->
+  <view class="morning-header">
+    <text class="greeting">{{greetingText}}</text>
+    <text class="date-text">{{todayDate}}</text>
+  </view>
+
+  <!-- ========== 状态：不在回访时间 ========== -->
+  <view wx:if="{{phase === 'not-time'}}" class="state-not-time">
+    <view class="not-time-icon">🌙</view>
+    <text class="not-time-title">现在不是回访时间</text>
+    <text class="not-time-sub">早晨回访开放时间为早上 7:00 - 12:00\n睡前记得来「今晚聊聊」哦</text>
+    <view class="moon-glow"></view>
+  </view>
+
+  <!-- ========== 状态：今日已完成 ========== -->
+  <view wx:if="{{phase === 'completed'}}" class="state-completed">
+    <view class="completed-badge">
+      <text class="completed-icon">✅</text>
+      <text class="completed-label">今日回访已完成</text>
+    </view>
+
+    <view wx:if="{{sleepReport}}" class="mini-report-card">
+      <view class="mini-report-row">
+        <view class="mini-stat">
+          <text class="mini-stat-value">{{sleepReport.se}}%</text>
+          <text class="mini-stat-label">睡眠效率</text>
+        </view>
+        <view class="mini-stat">
+          <text class="mini-stat-value">{{sleepReport.tst}}h</text>
+          <text class="mini-stat-label">实际睡眠</text>
+        </view>
+        <view class="mini-stat">
+          <text class="mini-stat-value">{{sleepReport.score}}</text>
+          <text class="mini-stat-label">睡眠评分</text>
+        </view>
+        <view class="mini-stat">
+          <text class="mini-stat-value">{{sleepReport.qualityEmoji}}</text>
+          <text class="mini-stat-label">主观感受</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="go-record-btn" bindtap="onGoToRecord">
+      <text>📖 查看我的完整记录</text>
+    </view>
+  </view>
+
+  <!-- ========== 状态：问卷进行中 ========== -->
+  <view wx:if="{{phase === 'questionnaire'}}" class="state-questionnaire">
+
+    <!-- AI 语音气泡 -->
+    <view wx:if="{{aiBubble}}" class="ai-bubble-container">
+      <view class="ai-avatar-small">🌙</view>
+      <view class="ai-bubble">
+        <text>{{aiBubble}}</text>
+        <view class="ai-speaking-indicator">
+          <view class="ai-wave-small">
+            <view class="wave-dot"></view>
+            <view class="wave-dot"></view>
+            <view class="wave-dot"></view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 进度条 -->
+    <view class="question-progress">
+      <view class="progress-dots">
+        <view
+          wx:for="{{questions.length}}"
+          wx:key="index"
+          class="progress-dot {{index <= currentQuestionIndex ? 'active' : ''}}"
+        ></view>
+      </view>
+      <text class="progress-label">{{currentQuestionIndex + 1}} / {{questions.length}}</text>
+    </view>
+
+    <!-- 当前问题卡片 -->
+    <view wx:if="{{currentQuestionIndex >= 0 && currentQuestionIndex < questions.length}}" class="question-card">
+      <text class="question-text">{{questions[currentQuestionIndex].text}}</text>
+
+      <!-- 选项列表 -->
+      <view class="options-list">
+        <view
+          wx:for="{{questions[currentQuestionIndex].options}}"
+          wx:key="index"
+          class="option-pill {{answers[questions[currentQuestionIndex].id] === item.value ? 'selected' : ''}}"
+          bindtap="onOptionSelect"
+          data-question-id="{{questions[currentQuestionIndex].id}}"
+          data-value="{{item.value}}"
+        >
+          <text class="option-label">{{item.label}}</text>
+          <text wx:if="{{item.desc && !item.emoji}}" class="option-desc">{{item.desc}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- TTS 进度条 -->
+    <view wx:if="{{isSpeaking}}" class="tts-progress-bar">
+      <view class="tts-track"><view class="tts-fill" style="width: {{ttsProgress}}%"></view></view>
+    </view>
+
+  </view>
+
+  <!-- ========== 状态：睡眠报告 ========== -->
+  <view wx:if="{{phase === 'report'}}" class="state-report">
+
+    <view class="report-header">
+      <text class="report-title">🌅 睡眠报告</text>
+      <text class="report-date">{{todayDate}}</text>
+    </view>
+
+    <!-- SE 圆环仪表盘 -->
+    <view class="se-gauge-container">
+      <view class="se-ring-outer">
+        <view
+          class="se-ring-fill"
+          style="background: conic-gradient(#F5C869 {{sePercent * 3.6}}deg, rgba(36,52,71,0.3) {{sePercent * 3.6}}deg);"
+        ></view>
+        <view class="se-ring-inner">
+          <text class="se-value">{{sePercent}}%</text>
+          <text class="se-label">睡眠效率</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 睡眠数据卡片 -->
+    <view class="report-data-card">
+      <view class="data-row">
+        <view class="data-item">
+          <text class="data-icon">⏱️</text>
+          <text class="data-value">{{tstHours}}h</text>
+          <text class="data-label">实际睡眠</text>
+        </view>
+        <view class="data-divider"></view>
+        <view class="data-item">
+          <text class="data-icon">😴</text>
+          <text class="data-value">{{solMinutes}}min</text>
+          <text class="data-label">入睡用时</text>
+        </view>
+        <view class="data-divider"></view>
+        <view class="data-item">
+          <text class="data-icon">{{sleepQualityEmoji}}</text>
+          <text class="data-value">{{sleepQualityLabel}}</text>
+          <text class="data-label">睡眠感受</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- SOL 提示 -->
+    <view class="sol-tip-card" wx:if="{{solMinutes > 0}}">
+      <text class="sol-tip-label">💡 睡眠小贴士</text>
+      <text class="sol-tip-text" wx:if="{{solMinutes <= 15}}">入睡较快，睡眠质量不错，继续保持！</text>
+      <text class="sol-tip-text" wx:elif="{{solMinutes <= 25}}">入睡时间略长，建议睡前减少屏幕使用。</text>
+      <text class="sol-tip-text" wx:else>入睡困难可能是压力导致，「今晚聊聊」可以帮到你。</text>
+    </view>
+
+    <!-- 查看记录按钮 -->
+    <view class="report-action">
+      <view class="btn-record" bindtap="onGoToRecord">
+        <text>📖 查看我的记录</text>
+      </view>
+      <text class="report-footer-hint">数据已保存到「我的记录」中</text>
+    </view>
+
+  </view>
+
+</view>

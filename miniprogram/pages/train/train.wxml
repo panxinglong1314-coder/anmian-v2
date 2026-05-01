@@ -1,0 +1,195 @@
+<!-- pages/train/train.wxml -->
+<!-- Tab 2: 睡前训练 - 毛玻璃界面 -->
+
+<view class="page">
+
+  <!-- ===== 顶部毛玻璃标题栏 ===== -->
+  <view class="train-header">
+    <text class="header-title">睡前训练</text>
+    <text class="header-subtitle">给大脑做个放松spa</text>
+  </view>
+
+  <!-- ===== 训练列表（滚动区域） ===== -->
+  <scroll-view
+    class="train-list"
+    scroll-y="true"
+    enhanced="true"
+  >
+
+    <!-- 4-7-8 呼吸法 -->
+    <view class="train-card glass-card" bindtap="onSelectTrain" data-type="breathing_478">
+      <view class="card-glow card-glow-green"></view>
+      <view class="card-icon">🌬️</view>
+      <view class="card-content">
+        <view class="card-title">4-7-8 呼吸法</view>
+        <view class="card-desc">科学呼吸，4秒吸气 → 7秒屏息 → 8秒呼气，重复4轮</view>
+        <view class="card-meta">
+          <text class="meta-tag">约 3 分钟</text>
+          <text class="meta-tag">科学验证</text>
+          <text class="meta-tag">入门推荐</text>
+        </view>
+      </view>
+      <view class="card-arrow">›</view>
+    </view>
+
+    <!-- 身体扫描 -->
+    <view class="train-card glass-card" bindtap="onSelectTrain" data-type="body_scan">
+      <view class="card-glow card-glow-blue"></view>
+      <view class="card-icon">🧘</view>
+      <view class="card-content">
+        <view class="card-title">身体扫描冥想</view>
+        <view class="card-desc">从脚趾到头顶，逐部位放松，释放身体积攒的紧张</view>
+        <view class="card-meta">
+          <text class="meta-tag">约 5 分钟</text>
+          <text class="meta-tag">深度放松</text>
+        </view>
+      </view>
+      <view class="card-arrow">›</view>
+    </view>
+
+    <!-- 白噪音 -->
+    <view class="train-card glass-card" bindtap="onSelectTrain" data-type="white_noise">
+      <view class="card-glow card-glow-gold"></view>
+      <view class="card-icon">🌧️</view>
+      <view class="card-content">
+        <view class="card-title">白噪音·雨声</view>
+        <view class="card-desc">轻柔的雨声，屏蔽外界干扰，沉浸式助眠体验</view>
+        <view class="card-meta">
+          <text class="meta-tag">持续播放</text>
+          <text class="meta-tag">入睡推荐</text>
+        </view>
+      </view>
+      <view class="card-arrow">›</view>
+    </view>
+
+    <!-- 渐进式肌肉放松 -->
+    <view class="train-card glass-card" bindtap="onSelectTrain" data-type="muscle_relax">
+      <view class="card-glow card-glow-coral"></view>
+      <view class="card-icon">💆</view>
+      <view class="card-content">
+        <view class="card-title">渐进式肌肉放松</view>
+        <view class="card-desc">交替收紧和放松各肌肉群，从头到脚彻底放松</view>
+        <view class="card-meta">
+          <text class="meta-tag">约 8 分钟</text>
+          <text class="meta-tag">深度疗愈</text>
+        </view>
+      </view>
+      <view class="card-arrow">›</view>
+    </view>
+
+    <!-- 引导想象 -->
+    <view class="train-card glass-card" bindtap="onSelectTrain" data-type="guided_imagery">
+      <view class="card-glow card-glow-blue"></view>
+      <view class="card-icon">🏔️</view>
+      <view class="card-content">
+        <view class="card-title">引导想象·森林</view>
+        <view class="card-desc">跟随轻柔的引导，想象自己漫步在宁静的森林中</view>
+        <view class="card-meta">
+          <text class="meta-tag">约 6 分钟</text>
+          <text class="meta-tag">想象疗法</text>
+        </view>
+      </view>
+      <view class="card-arrow">›</view>
+    </view>
+
+    <!-- 底部间距 -->
+    <view style="height: 40rpx;"></view>
+
+  </scroll-view>
+
+  <!-- ===== 训练弹窗（毛玻璃全屏浮层） ===== -->
+  <view wx:if="{{activeTrain}}" class="train-overlay" bindtap="onCloseTrain">
+
+    <view class="train-modal glass-card-strong" catchtap="">
+
+      <!-- 关闭按钮 -->
+      <view class="modal-close" bindtap="onCloseTrain">✕</view>
+
+      <!-- 训练内容 -->
+      <view class="modal-content">
+
+        <!-- 呼吸引导特殊界面 -->
+        <block wx:if="{{activeTrain.type === 'breathing_478'}}">
+          <view class="breathing-circle-container">
+            <view class="breathing-circle circle-{{currentPhase}}">
+              <text class="circle-phase">{{currentPhaseText || '准备开始'}}</text>
+            </view>
+          </view>
+
+          <view class="breathing-info">
+            <text class="breathing-cycle">第 {{currentCycle || 1}} / {{totalCycles || 4}} 轮</text>
+            <text class="breathing-tip">{{phaseTip || '吸气...'}}</text>
+          </view>
+
+          <view class="progress-wrap glass-bar">
+            <view class="progress-bar">
+              <view class="progress-fill" style="width: {{breathingProgress || 0}}%"></view>
+            </view>
+          </view>
+
+          <button class="btn-start glass-btn-primary" bindtap="{{isPlaying ? 'onPauseTrain' : 'onStartTrain'}}">
+            {{isPlaying ? '⏸ 暂停' : '▶ 开始训练'}}
+          </button>
+        </block>
+
+        <!-- 白噪音界面 -->
+        <block wx:elif="{{activeTrain.type === 'white_noise'}}">
+          <view class="noise-visual">
+            <view class="noise-wave noise-wave-1"></view>
+            <view class="noise-wave noise-wave-2"></view>
+            <view class="noise-wave noise-wave-3"></view>
+          </view>
+          <view class="noise-info">
+            <text class="noise-title">🌧️ 雨声</text>
+            <text class="noise-subtitle">在轻柔的雨声中慢慢入睡</text>
+          </view>
+          <view class="noise-controls">
+            <button class="glass-btn {{playing ? 'glass-btn-active' : ''}}" bindtap="onToggleSound">
+              {{playing ? '⏸ 暂停' : '▶ 播放'}}
+            </button>
+            <view class="volume-wrap glass-bar">
+              <text class="volume-label">音量</text>
+              <slider
+                class="volume-slider"
+                min="0"
+                max="100"
+                value="{{volume}}"
+                activeColor="#7EC8A3"
+                backgroundColor="rgba(36,52,71,0.8)"
+                bindchange="onVolumeChange"
+              />
+            </view>
+          </view>
+        </block>
+
+        <!-- 其他训练通用界面 -->
+        <block wx:else>
+          <view class="train-visual">
+            <text class="train-emoji">{{activeTrain.icon}}</text>
+          </view>
+          <view class="train-info">
+            <text class="train-title">{{activeTrain.title}}</text>
+            <text class="train-desc">{{activeTrain.desc}}</text>
+          </view>
+          <view class="train-timer">
+            <text class="timer-display">{{elapsedTime || '00:00'}}</text>
+            <text class="timer-total">/ {{activeTrain.duration}}</text>
+          </view>
+          <view class="progress-wrap glass-bar">
+            <view class="progress-bar">
+              <view class="progress-fill" style="width: {{trainProgress || 0}}%"></view>
+            </view>
+          </view>
+          <view class="train-actions">
+            <button class="glass-btn" bindtap="onCloseTrain">结束</button>
+            <button class="glass-btn-primary" bindtap="{{isPlaying ? 'onPauseTrain' : 'onStartTrain'}}">
+              {{isPlaying ? '⏸ 暂停' : '▶ 开始'}}
+            </button>
+          </view>
+        </block>
+
+      </view>
+    </view>
+  </view>
+
+</view>

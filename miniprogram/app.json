@@ -1,0 +1,46 @@
+{
+  "pages": [
+    "pages/chat/chat",
+    "pages/record/record",
+    "pages/worries/worries",
+    "pages/profile/profile",
+    "pages/subscribe/subscribe",
+    "pages/train/train",
+    "pages/privacy/privacy",
+    "pages/morning/morning"
+  ],
+  "plugins": {},
+  "__usePrivacyCheck__": true,
+  "requiredBackgroundModes": ["audio"],
+  "permission": {
+    "scope.record": {
+      "desc": "需要获取录音权限，用于语音对话功能"
+    }
+  },
+  "window": {
+    "navigationBarBackgroundColor": "#0D1B2A",
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "知眠",
+    "backgroundColor": "#0D1B2A"
+  },
+  "tabBar": {
+    "color": "#8BA3B9",
+    "selectedColor": "#F5C869",
+    "backgroundColor": "#0D1B2A",
+    "list": [
+      {
+        "pagePath": "pages/chat/chat",
+        "text": "今晚聊聊",
+        "iconPath": "assets/tab_moon.png",
+        "selectedIconPath": "assets/tab_moon_active.png"
+      },
+      {
+        "pagePath": "pages/record/record",
+        "text": "我的记录",
+        "iconPath": "assets/tab_book.png",
+        "selectedIconPath": "assets/tab_book_active.png"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

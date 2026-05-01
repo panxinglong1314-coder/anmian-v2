@@ -1,0 +1,30 @@
+{
+  "pages": [
+    "pages/chat/chat",
+    "pages/record/record"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#0D1B2A",
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "知眠",
+    "backgroundColor": "#0D1B2A"
+  },
+  "tabBar": {
+    "color": "#8BA3B9",
+    "selectedColor": "#F5C869",
+    "backgroundColor": "#0D1B2A",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/chat/chat",
+        "text": "今晚聊聊"
+      },
+      {
+        "pagePath": "pages/record/record",
+        "text": "我的记录"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

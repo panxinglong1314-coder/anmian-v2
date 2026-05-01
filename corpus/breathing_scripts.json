@@ -1,0 +1,370 @@
+{
+  "breathing_scripts": {
+    "478": {
+      "name": "4-7-8呼吸法",
+      "name_en": "4-7-8 Breathing",
+      "description": "经典抗焦虑呼吸法，激活副交感神经，适合焦虑激活明显的用户",
+      "origin": "Andrew Weil博士开发，基于古代瑜伽呼吸术",
+      "contraindications": ["严重心脏病患者慎用", "孕妇不宜屏气"],
+      "default_cycles": 4,
+      "cycle_duration_seconds": 19,
+      "total_duration_seconds": 76,
+      "evidence_rating": "1A（2025中国指南放松训练Ⅰ级推荐）",
+      "instructions": [
+        {
+          "phase": "inhale",
+          "duration_seconds": 4,
+          "emoji": "🌬️",
+          "physical_guide": "用鼻子慢慢吸气，感受空气从鼻腔进入，流经喉咙，充满肺部，感受胸腔轻轻扩张",
+          "mental_focus": "把注意力放在'充满'的感觉上，想象气体像温暖的光一样填满身体",
+          "tts_pace": "slow",
+          "ssml_break_ms": 400
+        },
+        {
+          "phase": "hold",
+          "duration_seconds": 7,
+          "emoji": "⏸️",
+          "physical_guide": "轻轻屏住呼吸，让气体在体内停留。不要用力，自然保持即可",
+          "mental_focus": "感受身体内部的平静，气体正在为身体补充氧气，放松每一个细胞",
+          "tts_pace": "very_slow",
+          "ssml_break_ms": 700
+        },
+        {
+          "phase": "exhale",
+          "duration_seconds": 8,
+          "emoji": "🌬️",
+          "physical_guide": "用嘴巴慢慢呼气，像吹蜡烛一样，但更轻柔、更长。感受气体从身体流出，带走紧张和担忧",
+          "mental_focus": "想象呼气带走了今天所有的烦恼和思绪，身体越来越轻，越来越沉入床铺",
+          "tts_pace": "very_slow",
+          "ssml_break_ms": 800
+        }
+      ],
+      "intro_script": "让我们来做4-7-8呼吸。这是一种能够快速激活副交感神经的呼吸方式，帮助你从紧绷的状态中放松下来。请找一个舒服的姿势躺着，双手放在身体两侧。现在，我们开始。",
+      "transition_script": "做得很好。再做一轮，感受比上一次更容易了。随着练习，这个呼吸会越来越自然。",
+      "outro_script": "很好，你做得很好。经过{n}轮呼吸，你的心跳应该已经慢下来了，身体也更加放松了。现在，我们继续保持这个呼吸的节奏，进入下一个放松练习。"
+    },
+    "box_breathing": {
+      "name": "方形呼吸法",
+      "name_en": "Box Breathing",
+      "description": "也称4-4-4-4呼吸，适合需要结构感、正在紧张性头痛的用户",
+      "default_cycles": 6,
+      "cycle_duration_seconds": 16,
+      "total_duration_seconds": 96,
+      "evidence_rating": "1A（2025中国指南放松训练Ⅰ级推荐）",
+      "instructions": [
+        {
+          "phase": "inhale",
+          "duration_seconds": 4,
+          "emoji": "⬜",
+          "physical_guide": "用鼻子平静地吸气，数4下：1...2...3...4...",
+          "mental_focus": "想象正在画方形的上边，吸气为这条边充入能量"
+        },
+        {
+          "phase": "hold_in",
+          "duration_seconds": 4,
+          "emoji": "⏹",
+          "physical_guide": "屏住呼吸，数4下：1...2...3...4...",
+          "mental_focus": "想象方形的右边，气体在体内停留，保持这份平静"
+        },
+        {
+          "phase": "exhale",
+          "duration_seconds": 4,
+          "emoji": "⬜",
+          "physical_guide": "用嘴巴呼气，数4下：1...2...3...4...",
+          "mental_focus": "想象方形的下边，呼气像一条线段，平稳地落在地上"
+        },
+        {
+          "phase": "hold_out",
+          "duration_seconds": 4,
+          "emoji": "⏹",
+          "physical_guide": "自然地屏住呼吸（在下一个吸气前），数4下：1...2...3...4...",
+          "mental_focus": "想象方形的左边，大自然在等待下一个循环，不需要着急"
+        }
+      ],
+      "intro_script": "我们来做一个方形呼吸法。这是一种被运动员和军人常用的呼吸技术，用来在压力情境下快速恢复平静。它叫做'方形'，因为每一步的时长都一样，像在画一个正方形。准备好了吗？我们开始。"
+    },
+    "diaphragmatic": {
+      "name": "腹式呼吸",
+      "name_en": "Diaphragmatic Breathing",
+      "description": "深度腹式呼吸，激活副交感神经，适合浅呼吸、胸部紧张的用户",
+      "default_cycles": 5,
+      "cycle_duration_seconds": 12,
+      "evidence_rating": "1A（2025中国指南放松训练Ⅰ级推荐）",
+      "instructions": [
+        {
+          "phase": "inhale",
+          "duration_seconds": 5,
+          "emoji": "🌊",
+          "physical_guide": "一只手放在胸口，一只手放在肚脐上方。用鼻子慢慢吸气，让空气先充满腹部——你会感觉到腹部下的手被轻轻推起，而胸口的手基本不动",
+          "mental_focus": "想象空气像潮水一样，从下往上慢慢淹没，先填满腹部，再慢慢上升到胸腔"
+        },
+        {
+          "phase": "exhale",
+          "duration_seconds": 6,
+          "emoji": "🌊",
+          "physical_guide": "用嘴巴轻轻呼气，像轻轻叹息一样。感受腹部下的手落下去，胸腔也轻轻下沉",
+          "mental_focus": "想象所有的紧张和杂念随着呼气，像退潮一样离开身体，海滩变得干净平静"
+        }
+      ],
+      "intro_script": "我们来学习一种最自然的呼吸方式——腹式呼吸。你的横膈膜是位于胸腔和腹腔之间的一块肌肉，它才是呼吸的真正引擎。当我们焦虑时，呼吸会变得很浅，只用胸部呼吸。现在，让我们重新学习用腹部呼吸。请你躺好，一只手轻轻放在胸口，一只手放在肚脐上方。"
+    }
+  },
+
+  "mindfulness_scripts": {
+    "body_scan": {
+      "name": "身体扫描正念",
+      "name_en": "Mindfulness Body Scan",
+      "description": "引导注意力逐部位扫描身体，培养对身体感受的非反应性觉察（第三波CBT核心技术）",
+      "origin": "源于正念减压疗法MBSR，SleepioRx等dCBT-I采用",
+      "default_duration_minutes": 8,
+      "evidence_rating": "2A（2024-2025 dCBT-I系统评价推荐）",
+      "contraindications": ["严重创伤后应激障碍者需在治疗师指导下进行"],
+      "instructions": [
+        {
+          "body_part": "脚趾",
+          "duration_seconds": 30,
+          "guide": "先把注意力带到脚趾。不要试图改变任何东西，只是觉察。感受脚趾的触感、温度、重量。有感觉很好，没有感觉也很好。",
+          "acceptance_phrase": "脚趾可以完全放松"
+        },
+        {
+          "body_part": "双脚",
+          "duration_seconds": 30,
+          "guide": "现在把注意力移到整只脚。感受脚掌和床的接触，脚跟的重量。允许脚自然放松，不需要用力。",
+          "acceptance_phrase": "脚可以完全沉入床铺"
+        },
+        {
+          "body_part": "小腿",
+          "duration_seconds": 30,
+          "guide": "注意力向上移到小腿。感受小腿肌肉，是否有紧绷感？只是觉察，不评判。紧绷也很好，那是身体在保护你。",
+          "acceptance_phrase": "小腿的紧张可以慢慢融化"
+        },
+        {
+          "body_part": "大腿",
+          "duration_seconds": 30,
+          "guide": "现在感受大腿。感受裤子或床单与大腿的触感。感受大腿骨的重量。想象所有的重量都交给床去承担。",
+          "acceptance_phrase": "大腿已经完全放松"
+        },
+        {
+          "body_part": "臀部",
+          "duration_seconds": 30,
+          "guide": "感受臀部与座椅或床的接触点。日常我们常常忽略这个部位。让它自然沉下去，不需要主动用力。",
+          "acceptance_phrase": "臀部可以完全放下"
+        },
+        {
+          "body_part": "下背部",
+          "duration_seconds": 30,
+          "guide": "现在感受下背部。有时候下背部储存了很多压力。只要觉察到它的存在就好，不需要做任何事。",
+          "acceptance_phrase": "下背部不需要支撑任何东西"
+        },
+        {
+          "body_part": "腹部",
+          "duration_seconds": 30,
+          "guide": "感受腹部的起伏。吸气时腹部轻轻隆起，呼气时落下。像海洋的波浪，不需要控制，自然发生。",
+          "acceptance_phrase": "呼吸带动腹部自然起伏"
+        },
+        {
+          "body_part": "胸部",
+          "duration_seconds": 30,
+          "guide": "现在感受胸腔。感受心跳的节奏。你不需要让它变慢或变快，只是觉察。这是一个活着的、身体在休息的身体。",
+          "acceptance_phrase": "心跳正在自然地工作"
+        },
+        {
+          "body_part": "双手",
+          "duration_seconds": 30,
+          "guide": "把注意力带回手。双手可以微微张开，或者自然垂放。感受手掌的温热，感受手指的轻微触感。",
+          "acceptance_phrase": "双手已经完全放松"
+        },
+        {
+          "body_part": "手臂",
+          "duration_seconds": 30,
+          "guide": "感受从肩膀到手腕的整条手臂。如果有紧绷，就觉察那个紧绷，然后允许它存在，不需要赶走它。",
+          "acceptance_phrase": "手臂的重量完全交给床"
+        },
+        {
+          "body_part": "肩膀",
+          "duration_seconds": 30,
+          "guide": "感受肩膀。这个部位特别容易积累情绪和压力。现在，只是觉察。不需要释放，不需要放松，只是看着它。",
+          "acceptance_phrase": "肩膀可以完全卸下重担"
+        },
+        {
+          "body_part": "颈部",
+          "duration_seconds": 30,
+          "guide": "感受颈部的姿态。头部放在枕头上，颈部可以完全不用力。让头部沉入枕头，感受枕头在支撑你。",
+          "acceptance_phrase": "颈部完全放松"
+        },
+        {
+          "body_part": "面部",
+          "duration_seconds": 30,
+          "guide": "现在感受面部。眉心可以舒展，嘴角可以微微放松。眼睛轻轻合上，眼睑变得很重。感受脸部的每一块肌肉。",
+          "acceptance_phrase": "面部所有肌肉都放松"
+        },
+        {
+          "body_part": "全身整体",
+          "duration_seconds": 60,
+          "guide": "现在，把注意力扩大，感受整个身体。从脚趾到头顶，是一个连接的整体。感受它们一起呼吸，一起休息。身体知道如何睡眠，你只需要给它时间和空间。",
+          "acceptance_phrase": "整个身体都在休息"
+        }
+      ],
+      "intro_script": "我们来做一个身体扫描。这是一种正念练习，帮助你与身体建立温柔的连接。不需要做任何事，只是觉察。这不是为了让身体变得不同，只是观看。这是身体本来的样子。准备好了吗？我们慢慢开始。",
+      "outro_script": "很好。现在，你的身体已经充分休息了。我们接下来进入睡眠。"
+    },
+
+    "open_awareness": {
+      "name": "开放 awareness 正念",
+      "name_en": "Open Awareness Practice",
+      "description": "培养对当下体验的开放性觉察，不过度聚焦于单一对象（第三波CBT-ACT融合技术）",
+      "origin": "源于接纳与承诺疗法ACT，正念减压MBSR",
+      "default_duration_minutes": 5,
+      "evidence_rating": "2A（2024系统评价推荐用于失眠伴焦虑）",
+      "instructions": [
+        {
+          "step": 1,
+          "duration_seconds": 60,
+          "guide": "现在，我们不是聚焦在任何特定的事物上，而是向一切体验敞开。把注意力放在'正在听'这件事上——不要聚焦某个声音，而是觉察声音本身的存在，以及它消失后留下的空间。",
+          "acceptance_teaching": "思绪来了，像云一样飘过。你不需要跟随它，也不需要赶走它。你是这个广阔的天空，思绪只是经过的云。"
+        },
+        {
+          "step": 2,
+          "duration_seconds": 60,
+          "guide": "感受此刻床铺对身体的支撑。不是在分析，只是感受这个接触。是温暖的、被支撑的、安全的。身体正在休息。",
+          "acceptance_teaching": "即使身体有一点点不适感，它也只是众多体验中的一种。不适感来了，也会走。你不需要为它做任何事。"
+        },
+        {
+          "step": 3,
+          "duration_seconds": 60,
+          "guide": "现在，把注意力轻轻放在呼吸上——但不是控制它，只是观察它。吸气时知道在吸气，呼气时知道在呼气。不需要让呼吸变得特别，只需要知道呼吸本来的样子。",
+          "acceptance_teaching": "如果思绪开始讲述故事，你不需要评判自己'又走神了'。意识到走神，就是正念本身。这就是练习。再次把注意力轻轻带回来。"
+        }
+      ],
+      "intro_script": "接下来，我们做一个不同的练习。不是聚焦，也不是放松，而是一种更广阔的觉察。我邀请你成为一位安静的观察者，观看内心世界和周围世界的一切发生。不需要做任何事，不需要达到任何状态。这是一种'无为'的练习。准备好了吗？",
+      "outro_script": "很好。无论刚才发生了什么——思绪纷飞、完全平静、或者两者交替——都是完美的。这就是正念。现在，轻轻地，让注意力停留在对当下的开放觉察中。你可以闭眼，睡眠来的时候，跟随它。"
+    },
+
+    "loving_kindness": {
+      "name": "慈心冥想",
+      "name_en": "Loving Kindness / Metta",
+      "description": "培育温暖善意，减少睡前对人际冲突的反复担忧（2025指南对社交型失眠者推荐）",
+      "default_duration_minutes": 5,
+      "evidence_rating": "2B（2024研究支持用于睡前反刍）",
+      "instructions": [
+        {
+          "step": 1,
+          "duration_seconds": 90,
+          "guide": "首先，把温暖的注意力带给自己。想象自己是一个需要照顾的朋友。在心里默默对自己说：'愿我今夜安眠。愿我免除担忧。愿我被温柔对待。'不需要勉强，感受是否能生起一点点温暖。如果有，就让它留着。如果没有也没关系。",
+          "phrase_to_self": "愿我今夜安眠，愿我免除担忧"
+        },
+        {
+          "step": 2,
+          "duration_seconds": 90,
+          "guide": "现在，如果今晚有让你放不下的人——那个你与之有冲突、或让你担心的人——把温暖的注意力也送给他们。不需要原谅，不需要和解，只是承认：他们也只是另一个在生活里挣扎的人，他们也希望好好休息。心里默念：'愿你也安眠。愿你免除担忧。'",
+          "phrase_to_self": "愿你今夜安眠"
+        },
+        {
+          "step": 3,
+          "duration_seconds": 60,
+          "guide": "最后，把温暖的善意散发给所有在黑夜里也睡不着的人——此刻可能还有很多人也躺在床上，和你一样。心里默默说：'愿我们所有人都能安眠。'这不需要你做任何事，只需要一个善意的愿望。",
+          "phrase_to_self": "愿所有人今夜安眠"
+        }
+      ],
+      "intro_script": "如果你今晚的担忧与人际关系有关，我们做一个慈心冥想。这是一种非常古老的善意练习。它不要求你原谅任何人，也不要求你改变任何想法。只是让一点点温暖的感受有机会存在。这对睡前反复思考人际问题的人特别有帮助。准备好了吗？"
+    }
+  },
+
+  "paradoxical_intention": {
+    "name": "矛盾意向法",
+    "name_en": "Paradoxical Intention",
+    "description": "通过'努力保持清醒'来消除对入睡的焦虑（2025中国指南A级推荐，用于睡眠努力过度型失眠）",
+    "contraindications": ["严重抑郁症患者慎用"],
+    "evidence_rating": "1A（2025中国指南认知疗法Ⅰ级推荐）",
+    "instructions": [
+      {
+        "phase": "psychoeducation",
+        "guide": "我们来做一个看起来违反常理，但非常有效的事情。你有没有注意到：越'努力'想要睡着，反而越睡不着？那是因为努力会激活大脑的警觉系统，让它认为'睡眠是一件需要努力的危险的事'。所以，今晚，我要你做一件相反的事。",
+        "explanation": "不要去想'我要怎么睡着'，而是轻轻地把目标改成：'今晚，我就躺着，闭眼休息就好。睡着是bonus，没睡着也不算失败。'这是一种对睡眠的放手，而不是紧握。"
+      },
+      {
+        "phase": "instruction",
+        "guide": "现在，我要邀请你做一件奇怪的事：轻轻地把眼睛睁开，盯着天花板的某个点，然后对自己说——'今晚，我要尽我所能地保持清醒。我不会睡着的，我只是在休息。'不是真的努力不睡，而是轻轻地把'必须睡着'的压力放下。",
+        "mental_focus": "当你真的放下'必须睡着'的压力时，大脑的警觉系统就会关闭。奇怪的是，当你不再尝试入睡，入睡反而更容易了。这就是'矛盾意向法'。"
+      },
+      {
+        "phase": "reframe",
+        "guide": "想象睡眠不是一件需要达成的任务，而是身体自然会发生的本能。就像心跳不需要你命令一样，呼吸也不需要你命令。睡眠也一样。它是身体的自动状态，你只需要给它时间和空间。",
+        "reframed_goal": "今晚的任务：闭眼休息，仅此而已。睡着是身体的决定，不是你的责任。"
+      }
+    ],
+    "intro_script": "接下来这个技术，可能会让你觉得奇怪，甚至有点反直觉。但它有非常强的科学证据支持。2025年最新中国失眠治疗指南将它列为最高级别的推荐。它叫做'矛盾意向法'。",
+    "tts_guidance": "现在，轻轻地把眼睛睁开一点，看向你头顶的天花板。不用盯着什么具体的东西，只是微微睁开眼睛。然后对自己说：'今晚，我不会强迫自己入睡。我只是在休息。'把这个想法轻轻地放在心里。完全放松，不用做任何事。"
+  },
+
+  "sleep_effort_reduction": {
+    "name": "睡眠努力 reduction",
+    "name_en": "Sleep Effort Reduction",
+    "description": "针对'睡眠努力过度'型失眠者的元认知干预（2024-2025年新兴技术，研究证据积极）",
+    "evidence_rating": "2B（2024-2025研究新兴推荐）",
+    "instructions": [
+      {
+        "step": "recognition",
+        "guide": "我们来做一个观察。你躺在床上尝试入睡的时候，有多少'努力'在参与？比如：监控自己是否快睡着了、计算已经躺了多久、反复告诉自己'快睡快睡'、或者监测周围的声音确保没有干扰。这些都是睡眠努力。",
+        "reflection_prompt": "在你的入睡尝试中，有多少精力花在了这些'努力'上？1-10分，大概是多少？"
+      },
+      {
+        "step": "normalization",
+        "guide": "很多失眠的人花了大量精力在'尝试入睡'上，以至于睡眠本身——一件本来完全自动、只需要发生的事——变成了一场需要赢的比赛。问题是：当你把睡眠变成一场比赛，身体就会进入比赛模式，警觉系统就会启动，你就更睡不着了。",
+        "insight": "睡眠和努力是互相排斥的。越努力，越清醒。这不是你的问题，这是大脑的正常反应。"
+      },
+      {
+        "step": "intention",
+        "guide": "今晚，我邀请你做一个小小的实验：把'我要如何入睡'这个问题，暂时放在一边。不是放弃睡眠，而是把入睡这件事，交给身体去处理。你只需要做一件事：躺着，闭眼，休息。至于睡不睡，那是身体的事，不是你今晚的责任。",
+        "new_permission": "今晚，你被允许不睡着。你被允许只是躺着。睡眠是你给身体的礼物，而不是你需要赢得的奖杯。"
+      }
+    ],
+    "intro_script": "如果你每次睡前都花了大量精力'尝试'入睡，那我们做一个元认知练习。这个练习不改变你的想法，只是改变你与'尝试入睡'本身的关系。准备好了吗？"
+  },
+
+  "selection_logic": {
+    "description": "根据2025指南推荐强度和用户失眠类型选择技术",
+    "decision_tree": [
+      {
+        "condition": "焦虑激活明显，心跳快，呼吸浅快",
+        "recommend": "478",
+        "reason": "激活副交感神经最快，1A推荐"
+      },
+      {
+        "condition": "需要结构感，思绪纷乱无法聚焦",
+        "recommend": "box_breathing",
+        "reason": "可预测的节奏镇静思维，1A推荐"
+      },
+      {
+        "condition": "胸部紧张，呼吸浅，气体不够",
+        "recommend": "diaphragmatic",
+        "reason": "充分调动横膈膜，1A推荐"
+      },
+      {
+        "condition": "对入睡有强烈焦虑，越努力越睡不着（睡眠努力过度型）",
+        "recommend": "paradoxical_intention",
+        "reason": "2025指南A级推荐，直接针对睡眠努力过度"
+      },
+      {
+        "condition": "身体感觉迟钝，与身体失去连接",
+        "recommend": "body_scan",
+        "reason": "第三波CBT核心，2A推荐"
+      },
+      {
+        "condition": "睡前反复思考人际关系，社交型反刍",
+        "recommend": "loving_kindness",
+        "reason": "针对人际反刍，2B推荐"
+      },
+      {
+        "condition": "思绪不断评判自己的睡眠状态",
+        "recommend": "open_awareness",
+        "reason": "培养非反应性觉察，2A推荐"
+      },
+      {
+        "condition": "不确定/无偏好",
+        "recommend": "478",
+        "reason": "证据最强，适用最广"
+      }
+    ]
+  }
+}

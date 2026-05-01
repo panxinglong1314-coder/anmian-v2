@@ -1,0 +1,25 @@
+# Environment
+.env
+*.env.bak.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+
+# Node
+node_modules/
+miniprogram_npm/
+
+# Logs
+*.log
+uvicorn.log
+
+# Backups
+backend_backup_*/
+miniprogram_backup_*/
+
+# Data
+vector_index/
+redis_data/

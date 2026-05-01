@@ -1,0 +1,255 @@
+<!-- pages/record/record.wxml -->
+<view class="page">
+
+  <view class="record-header">
+    <text class="header-title">我的记录</text>
+    <view class="share-btn" bindtap="onShare">
+      <text class="share-icon">↗️</text>
+      <text class="share-text">分享周报</text>
+    </view>
+  </view>
+
+  <scroll-view class="record-content" scroll-y="true">
+
+    <view class="stats-row">
+      <view class="stat-card">
+        <view class="stat-value glow-gold">{{stats.streak || 0}}</view>
+        <view class="stat-unit">天</view>
+        <view class="stat-label">连续使用</view>
+      </view>
+      <view class="stat-card">
+        <view class="stat-value glow-green">{{stats.total || 0}}</view>
+        <view class="stat-unit">次</view>
+        <view class="stat-label">总对话</view>
+      </view>
+      <view class="stat-card">
+        <view class="stat-value" style="color:{{sleepScoreColor}}">{{sleepScore || '--'}}</view>
+        <view class="stat-unit">分</view>
+        <view class="stat-label">昨晚睡眠</view>
+      </view>
+    </view>
+
+    <!-- 焦虑状态摘要（顶部直接显示） -->
+    <view wx:if="{{insight}}" class="insight-summary-card" bindtap="scrollToAnxiety">
+      <text class="insight-summary-icon">🧠</text>
+      <text class="insight-summary-text">{{insight}}</text>
+      <text class="insight-summary-arrow">›</text>
+    </view>
+
+    <view class="section-card dashboard-card" bindtap="showSleepDashboardPanel">
+      <view class="section-header">
+        <text class="section-title">📊 睡眠效率</text>
+        <view class="section-header-right">
+          <text wx:if="{{sleepDashboard.hasData}}" class="dashboard-emoji">{{sleepDashboard.trendEmoji}}</text>
+          <text class="section-period">查看详情 ›</text>
+        </view>
+      </view>
+      
+      <view wx:if="{{sleepDashboard.hasData}}" class="dashboard-preview">
+        <view class="dashboard-main-stat">
+          <view class="dashboard-se-value" style="color: {{sleepDashboard.stats.avg_se >= 85 ? '#7EC8A3' : sleepDashboard.stats.avg_se >= 70 ? '#F5C869' : '#E8846B'}}">
+            {{sleepDashboard.stats.avg_se}}<text class="dashboard-se-unit">%</text>
+          </view>
+          <view class="dashboard-se-label">平均睡眠效率</view>
+        </view>
+        <view class="dashboard-sub-stats">
+          <view class="dashboard-sub-stat">
+            <text class="sub-stat-value">{{sleepDashboard.stats.avg_tst_hours}}h</text>
+            <text class="sub-stat-label">平均睡眠</text>
+          </view>
+          <view class="dashboard-sub-stat">
+            <text class="sub-stat-value">{{sleepDashboard.stats.total_records}}天</text>
+            <text class="sub-stat-label">记录天数</text>
+          </view>
+          <view class="dashboard-sub-stat">
+            <text class="sub-stat-value">{{sleepDashboard.stats.avg_quality}}</text>
+            <text class="sub-stat-label">平均质量</text>
+          </view>
+        </view>
+        <view class="dashboard-message">{{sleepDashboard.stats.se_message}}</view>
+      </view>
+      
+      <view wx:else class="dashboard-empty">
+        <text class="dashboard-empty-icon">🌙</text>
+        <text class="dashboard-empty-text">还没有睡眠记录</text>
+        <text class="dashboard-empty-hint">开始记录你的第一晚睡眠吧</text>
+      </view>
+    </view>
+
+    <view class="section-card">
+      <view class="section-header">
+        <text class="section-title">😴 本周睡眠</text>
+        <text class="section-period">近7天</text>
+      </view>
+
+      <view wx:if="{{showSleepRating}}" class="sleep-rating-card">
+        <view class="rating-title">昨晚睡得怎么样？</view>
+        <view class="rating-stars">
+          <view
+            wx:for="{{[1,2,3,4,5]}}"
+            wx:key="index"
+            class="star {{item <= sleepRating ? 'star-on' : ''}}"
+            bindtap="rateSleep"
+            data-score="{{item}}"
+          >★</view>
+        </view>
+        <view class="rating-hint">{{sleepRating ? sleepLabels[sleepRating-1] : '点星评分'}}</view>
+      </view>
+
+      <view class="sleep-timeline">
+        <view class="timeline-item">
+          <view class="timeline-dot dot-sleep"></view>
+          <view class="timeline-content">
+            <text class="timeline-label">入睡时间</text>
+            <text class="timeline-value">{{sleepData.bedTime || '--:--'}}</text>
+          </view>
+        </view>
+        <view class="timeline-line"></view>
+        <view class="timeline-item">
+          <view class="timeline-dot dot-wake"></view>
+          <view class="timeline-content">
+            <text class="timeline-label">起床时间</text>
+            <text class="timeline-value">{{sleepData.wakeTime || '--:--'}}</text>
+          </view>
+        </view>
+        <view class="timeline-line"></view>
+        <view class="timeline-item">
+          <view class="timeline-dot dot-duration"></view>
+          <view class="timeline-content">
+            <text class="timeline-label">睡眠时长</text>
+            <text class="timeline-value">{{sleepData.duration || '--'}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="sleep-bars">
+        <view
+          wx:for="{{weeklySleep}}"
+          wx:key="index"
+          class="sleep-bar-col"
+        >
+          <view class="sleep-bar-bg">
+            <view
+              class="sleep-bar sleep-bar-{{item.quality}}"
+              style="height: {{item.hours * 10}}%"
+            ></view>
+          </view>
+          <text class="sleep-bar-day">{{item.day}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card" id="anxiety-section">
+      <view class="section-header">
+        <text class="section-title">🌙 焦虑趋势</text>
+        <text class="section-period">近7天</text>
+      </view>
+
+      <view class="trend-chart">
+        <view
+          wx:for="{{weekly}}"
+          wx:key="index"
+          class="trend-col"
+        >
+          <view class="trend-bar-bg">
+            <view
+              class="trend-bar trend-{{item.level}}"
+              style="height: {{item.score * 10}}%"
+            ></view>
+          </view>
+          <text class="trend-day">{{item.day}}</text>
+        </view>
+      </view>
+
+      <view class="trend-insight">
+        <text class="insight-text">{{insight || '记录越多，规律越清晰'}}</text>
+      </view>
+    </view>
+
+  </scroll-view>
+
+  <view wx:if="{{showSleepDashboard}}" class="report-overlay" bindtap="hideSleepDashboard">
+    <view class="report-sheet" catchtap="stopProp">
+      <view class="sheet-handle"></view>
+      <view class="sheet-header">
+        <text class="sheet-title">📊 睡眠效率仪表盘</text>
+        <view class="sheet-close" bindtap="hideSleepDashboard">✕</view>
+      </view>
+
+      <scroll-view class="sheet-content" scroll-y="true">
+        <view class="report-section" wx:if="{{sleepDashboard.hasData}}">
+          <view class="report-section-title">核心指标（近7天）</view>
+          <view class="se-big-display">
+            <view class="se-circle" style="border-color: {{sleepDashboard.stats.avg_se >= 85 ? '#7EC8A3' : sleepDashboard.stats.avg_se >= 70 ? '#F5C869' : '#E8846B'}}">
+              <text class="se-circle-value">{{sleepDashboard.stats.avg_se}}</text>
+              <text class="se-circle-unit">%</text>
+            </view>
+            <view class="se-circle-label">平均睡眠效率</view>
+          </view>
+          
+          <view class="dashboard-kpi-row">
+            <view class="dashboard-kpi">
+              <text class="kpi-value">{{sleepDashboard.stats.avg_tst_hours}}h</text>
+              <text class="kpi-label">平均睡眠时长</text>
+            </view>
+            <view class="dashboard-kpi">
+              <text class="kpi-value">{{sleepDashboard.stats.avg_quality}}</text>
+              <text class="kpi-label">平均睡眠质量</text>
+            </view>
+            <view class="dashboard-kpi">
+              <text class="kpi-value">{{sleepDashboard.stats.total_records}}</text>
+              <text class="kpi-label">记录天数</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="report-section" wx:if="{{sleepDashboard.hasData && sleepDashboard.trend.length > 0}}">
+          <view class="report-section-title">睡眠效率趋势</view>
+          <view class="se-trend-chart">
+            <view 
+              wx:for="{{sleepDashboard.trend}}" 
+              wx:key="date"
+              class="se-trend-col"
+            >
+              <view class="se-trend-bar-bg">
+                <view 
+                  class="se-trend-bar {{item.se >= 85 ? 'se-good' : item.se >= 70 ? 'se-fair' : 'se-poor'}}"
+                  style="height: {{item.se}}%"
+                ></view>
+              </view>
+              <text class="se-trend-day">{{item.date.slice(5)}}</text>
+              <text class="se-trend-value">{{item.se}}%</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="report-section" wx:if="{{sleepDashboard.recommendation}}">
+          <view class="report-section-title">🎯 睡眠改善建议</view>
+          <view class="recommendation-card">
+            <view class="rec-item">
+              <text class="rec-icon">⏰</text>
+              <view class="rec-content">
+                <text class="rec-title">睡眠窗口建议</text>
+                <text class="rec-text">{{sleepDashboard.recommendation.tib_suggestion}}</text>
+              </view>
+            </view>
+            <view class="rec-item">
+              <text class="rec-icon">💡</text>
+              <view class="rec-content">
+                <text class="rec-title">综合建议</text>
+                <text class="rec-text">{{sleepDashboard.recommendation.general_advice}}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <view wx:if="{{!sleepDashboard.hasData}}" class="dashboard-empty-detail">
+          <text class="dashboard-empty-icon">📝</text>
+          <text class="dashboard-empty-title">开始记录你的睡眠</text>
+          <text class="dashboard-empty-desc">每晚睡前设定睡眠时间，早上记录实际睡眠情况，即可获得个性化的睡眠效率分析。</text>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+</view>

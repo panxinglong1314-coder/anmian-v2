@@ -1,0 +1,146 @@
+<!-- pages/subscribe/subscribe.wxml -->
+<view class="page">
+
+  <view class="sub-header">
+    <view class="sub-badge-icon">🌙</view>
+    <view class="sub-title">知眠</view>
+    <view class="sub-tagline">睡个好觉，是最好的自律</view>
+
+    <view wx:if="{{isPremium}}" class="sub-status premium-status">
+      <text class="status-icon">✓</text>
+      <text class="status-text">{{currentPlanName}}</text>
+      <text class="status-expire">有效期至 {{expireDate}}</text>
+    </view>
+    <view wx:if="{{!isPremium}}" class="sub-status free-status">
+      <text class="status-text">免费版</text>
+    </view>
+  </view>
+
+  <scroll-view class="sub-content" scroll-y="true">
+
+    <!-- 月付/年付切换 -->
+    <view class="billing-toggle">
+      <view class="toggle-btn {{billingCycle === 'monthly' ? 'active' : ''}}" bindtap="setBillingCycle" data-cycle="monthly">月付</view>
+      <view class="toggle-btn {{billingCycle === 'yearly' ? 'active' : ''}}" bindtap="setBillingCycle" data-cycle="yearly">
+        年付
+        <text class="discount-tag">85折</text>
+      </view>
+    </view>
+
+    <!-- 套餐卡片 -->
+    <view class="plan-cards">
+      <view wx:for="{{planList}}" wx:key="id"
+            class="plan-card {{item.id === selectedPlan ? 'selected' : ''}} {{item.recommended ? 'recommended' : ''}}"
+            bindtap="selectPlan" data-plan="{{item.id}}">
+        <view wx:if="{{item.recommended}}" class="recommend-badge">推荐</view>
+        <view class="plan-name">{{item.name}}</view>
+        <view class="plan-price-row">
+          <text class="price-symbol">¥</text>
+          <text class="price-num">{{billingCycle === 'monthly' ? item.priceMonthly : item.priceYearly}}</text>
+          <text class="price-unit">/{{billingCycle === 'monthly' ? '月' : '年'}}</text>
+        </view>
+        <view wx:if="{{billingCycle === 'yearly' && item.priceMonthly > 0}}" class="price-monthly-equivalent">≈ ¥{{item.priceMonthly}}/月</view>
+        <view class="plan-quota">
+          <view class="quota-row">
+            <text class="quota-icon">🎙️</text>
+            <text class="quota-text">AI 语音 {{item.voice}}</text>
+          </view>
+          <view class="quota-row">
+            <text class="quota-icon">💬</text>
+            <text class="quota-text">AI 文本 {{item.text}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 功能对比 -->
+    <view class="section-title">功能对比</view>
+    <view class="compare-table">
+      <view class="compare-row compare-header">
+        <view class="compare-cell compare-feature">功能</view>
+        <view class="compare-cell">免费版</view>
+        <view class="compare-cell">基础 Pro</view>
+        <view class="compare-cell">核心 Pro</view>
+      </view>
+      <view class="compare-row">
+        <view class="compare-cell compare-feature">AI 语音对话</view>
+        <view class="compare-cell">3分钟/天</view>
+        <view class="compare-cell">15小时/月</view>
+        <view class="compare-cell">30小时/月</view>
+      </view>
+      <view class="compare-row">
+        <view class="compare-cell compare-feature">AI 文本对话</view>
+        <view class="compare-cell">10分钟/天</view>
+        <view class="compare-cell">15小时/月</view>
+        <view class="compare-cell">30小时/月</view>
+      </view>
+      <view class="compare-row">
+        <view class="compare-cell compare-feature">CBT-I 睡眠改善</view>
+        <view class="compare-cell compare-check">✓</view>
+        <view class="compare-cell compare-check">✓</view>
+        <view class="compare-cell compare-check">✓</view>
+      </view>
+      <view class="compare-row">
+        <view class="compare-cell compare-feature">睡眠日报</view>
+        <view class="compare-cell">3天历史</view>
+        <view class="compare-cell">30天历史</view>
+        <view class="compare-cell">永久</view>
+      </view>
+      <view class="compare-row">
+        <view class="compare-cell compare-feature">睡前熄灯仪式</view>
+        <view class="compare-cell">—</view>
+        <view class="compare-cell compare-check">✓</view>
+        <view class="compare-cell compare-check">✓</view>
+      </view>
+      <view class="compare-row">
+        <view class="compare-cell compare-feature">睡眠限制算法</view>
+        <view class="compare-cell">—</view>
+        <view class="compare-cell compare-check">✓</view>
+        <view class="compare-cell compare-check">✓</view>
+      </view>
+      <view class="compare-row">
+        <view class="compare-cell compare-feature">睡眠日记</view>
+        <view class="compare-cell">基础</view>
+        <view class="compare-cell compare-check">完整</view>
+        <view class="compare-cell compare-check">完整</view>
+      </view>
+      <view class="compare-row">
+        <view class="compare-cell compare-feature">情绪记录</view>
+        <view class="compare-cell compare-check">✓</view>
+        <view class="compare-cell compare-check">✓</view>
+        <view class="compare-cell compare-check">✓</view>
+      </view>
+    </view>
+
+    <!-- 订阅按钮 -->
+    <button wx:if="{{!isPremium && selectedPlan !== 'free'}}" class="sub-btn" bindtap="subscribe">
+      立即开通 {{currentPrice}}
+    </button>
+    <view wx:if="{{isPremium}}" class="premium-note">
+      <text>👑 您已是 {{currentPlanName}} 会员，到期时间：{{expireDate}}</text>
+    </view>
+    <view wx:if="{{!isPremium && selectedPlan === 'free'}}" class="free-note">
+      <text>当前为免费版，选择上方套餐即可升级</text>
+    </view>
+
+    <!-- 恢复购买 -->
+    <view class="restore-row" bindtap="restorePurchase">
+      <text>恢复购买</text>
+    </view>
+
+    <!-- 条款 -->
+    <view class="terms-row">
+      <text>订阅即表示同意</text>
+      <text class="terms-link" bindtap="openTerms">《用户协议》</text>
+      <text>和</text>
+      <text class="terms-link" bindtap="openPrivacy">《隐私政策》</text>
+    </view>
+
+    <view class="cancel-note">
+      <text>• 取消后到期前仍可使用功能</text>
+      <text>• 取消订阅：设置 → Apple ID → 订阅</text>
+    </view>
+
+  </scroll-view>
+
+</view>

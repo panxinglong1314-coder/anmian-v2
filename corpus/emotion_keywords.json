@@ -1,0 +1,72 @@
+{
+  "emotion_categories": {
+    "anxiety": {
+      "level_mild": {
+        "keywords": ["担心", "害怕", "怕", "紧张", "不安", "焦虑", "烦恼", "发愁", "犯愁", "静不下心", "脑子停不下来"],
+        "description": "轻度激活状态，可以继续进行 CBT 对话",
+        "recommended_action": "CONTINUE",
+        "language_style": "supportive"
+      },
+      "level_moderate": {
+        "keywords": ["心跳快", "心跳加速", "胸口闷", "肩膀紧", "手心出汗", "停不下来", "一直想", "控制不住", "反复", "翻来覆去", "很难受", "很烦躁", "非常焦虑"],
+        "description": "中度激活，需要注意节奏，避免追问细节",
+        "recommended_action": "CONTINUE_WITH_CARE",
+        "language_style": "gentle"
+      },
+      "level_severe": {
+        "keywords": ["活不下去", "活着没意思", "不想活了", "死了算了", "彻底完蛋", "彻底崩溃", "想死", "想自杀", "自残", "喘不过气", "要窒息", "手在抖", "全身发抖"],
+        "description": "严重激活，触发安全协议",
+        "recommended_action": "IMMEDIATE_SAFETY",
+        "language_style": "stable"
+      }
+    },
+    "sadness": {
+      "mild": ["有点难过", "心情不好", "失落", "郁闷", "有点丧", "开心不起来", "低落"],
+      "moderate": ["很难过", "伤心", "痛苦", "难受", "委屈", "沮丧", "绝望感"],
+      "severe": ["活不下去", "没有希望", "一切都没有意义", "极度悲伤", "想死"],
+      "recommended_action_by_level": {
+        "mild": "CONTINUE",
+        "moderate": "CONTINUE_WITH_CARE",
+        "severe": "IMMEDIATE_SAFETY"
+      }
+    },
+    "anger": {
+      "mild": ["有点烦", "不爽", "不舒服", "烦躁"],
+      "moderate": ["很生气", "愤怒", "气死了", "恼火", "不满"],
+      "severe": ["恨", "要疯了", "崩溃", "想发泄"],
+      "recommended_action_by_level": {
+        "mild": "CONTINUE",
+        "moderate": "CONTINUE_WITH_CARE",
+        "severe": "CONTINUE_WITH_CARE"
+      }
+    },
+    "frustration": {
+      "mild": ["有点挫败", "不顺", "不太顺"],
+      "moderate": ["很受挫", "失败感", "无力感", "挫折感"],
+      "severe": ["彻底失败", "完全不行", "无能为力"],
+      "recommended_action_by_level": {
+        "mild": "CONTINUE",
+        "moderate": "CONTINUE",
+        "severe": "CONTINUE_WITH_CARE"
+      }
+    }
+  },
+  "worry_domains": {
+    "工作": ["工作", "上班", "领导", "同事", "老板", "职场", "辞职", "晋升", "加薪", "KPI", "汇报", "面试", "加班"],
+    "人际关系": ["人际", "朋友", "友情", "关系", "同事关系", "和xx的关系", "冲突", "矛盾", "孤独"],
+    "亲密关系": ["感情", "恋爱", "分手", "离婚", "婚姻", "另一半", "老公", "老婆", "男/女朋友"],
+    "家庭": ["家庭", "父母", "亲子", "孩子", "妈妈", "爸爸", "家人"],
+    "健康": ["健康", "身体", "生病", "体检", "医院", "症状", "疾病"],
+    "财务": ["钱", "金钱", "负债", "贷款", "理财", "投资", "破产", "经济"],
+    "未来": ["未来", "前途", "方向", "迷茫", "选择", "规划"],
+    "学业": ["考试", "成绩", "学习", "升学", "毕业", "论文", "导师"]
+  },
+  "cognitive_distortion_signals": {
+    "catastrophizing": ["万一", "完了", "彻底完了", "一切完蛋", "灾难"],
+    "black_and_white": ["要么", "否则", "不是", "就是", "百分之百", "零"],
+    "mind_reading": ["肯定", "一定", "他觉得", "别人肯定", "所有人都会"],
+    "overgeneralization": ["总是", "从来没有", "每次都", "所有事都", "永远"],
+    "should_statements": ["应该", "不应该", "必须", "不得不", "天经地义"],
+    "fortune_telling": ["肯定会的", "一定会", "肯定不", "预测", "我敢打赌"]
+  }
+}

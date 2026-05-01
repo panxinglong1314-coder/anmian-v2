@@ -1,0 +1,53 @@
+<view class="privacy-container">
+  <view class="section">
+    <view class="title">隐私政策</view>
+    <view class="content">
+      <view class="p">知眠（以下简称"我们"）非常重视用户的隐私保护。本隐私政策说明我们如何收集、使用、存储和保护您的个人信息。</view>
+      
+      <view class="subtitle">1. 信息收集</view>
+      <view class="p">我们可能会收集以下信息：</view>
+      <view class="p">• 微信openid、昵称、头像（用于用户身份识别）</view>
+      <view class="p">• 语音录音（用于语音对话功能，经您授权后使用）</view>
+      <view class="p">• 睡眠记录、担忧记录（您主动输入的内容）</view>
+      <view class="p">• 设备信息（用于优化服务体验）</view>
+
+      <view class="subtitle">2. 信息使用</view>
+      <view class="p">我们使用您的信息用于：</view>
+      <view class="p">• 提供睡前陪伴对话服务</view>
+      <view class="p">• 生成睡眠分析报告</view>
+      <view class="p">• 改进AI对话质量</view>
+
+      <view class="subtitle">3. 信息保护</view>
+      <view class="p">我们采用加密技术保护您的数据，不会将您的个人信息出售给第三方。</view>
+
+      <view class="subtitle">4. 录音权限</view>
+      <view class="p">使用语音对话功能需要录音权限。录音仅用于实时语音识别，不会长期存储。</view>
+
+      <view class="subtitle">5. 联系我们</view>
+      <view class="p">如有隐私相关问题，请联系：support@sleepai.chat</view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="title">用户协议</view>
+    <view class="content">
+      <view class="subtitle">1. 服务说明</view>
+      <view class="p">知眠是一款基于AI的睡前陪伴小程序，提供语音对话、睡眠记录等服务。本服务仅供参考，不能替代专业医疗建议。</view>
+
+      <view class="subtitle">2. 使用规则</view>
+      <view class="p">• 用户需年满18周岁</view>
+      <view class="p">• 不得利用本服务传播违法内容</view>
+      <view class="p">• 不得恶意攻击或干扰服务正常运行</view>
+
+      <view class="subtitle">3. 免责声明</view>
+      <view class="p">本服务提供的建议仅供参考，不构成医疗诊断或治疗建议。如有严重睡眠问题，请咨询专业医生。</view>
+
+      <view class="subtitle">4. 协议变更</view>
+      <view class="p">我们保留随时修改本协议的权利，修改后的协议将在小程序内公布。</view>
+    </view>
+  </view>
+
+  <view class="footer">
+    <view class="update-time">更新时间：2025年1月</view>
+  </view>
+</view>

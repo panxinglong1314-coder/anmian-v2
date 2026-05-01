@@ -1,0 +1,792 @@
+{
+  "worry_scenarios": {
+    "description": "中文睡前担忧场景集。每套场景 = 典型担忧内容 + 情绪关键词 + 担忧强度 + 适配的CBT-I技术推荐。用于帮助AI识别用户担忧类型并选择对应的干预技术。",
+    "scenarios": [
+      {
+        "id": "work",
+        "category": "工作",
+        "icon": "💼",
+        "description": "工作场景的睡前担忧",
+        "typical_worries": [
+          "明天有重要会议/面试/汇报",
+          "项目进度落后，deadline快到了",
+          "和领导/同事关系紧张",
+          "工作选择/职业发展迷茫",
+          "下班后还在想工作的事",
+          "工作太多做不完",
+          "工作犯错，担心被发现"
+        ],
+        "emotion_keywords": [
+          "压力",
+          "焦虑",
+          "紧张",
+          "睡不着",
+          "脑子停不下来",
+          "越想越清醒",
+          "担心搞砸",
+          "害怕失败",
+          "心累",
+          "委屈",
+          "憋屈"
+        ],
+        "cognitive_distortion_tendencies": [
+          "灾难化思维",
+          "过度概括",
+          "应该陈述",
+          "心理时间旅行(担心未来)"
+        ],
+        "anxiety_level_range": [
+          4,
+          9
+        ],
+        "recommended_techniques": {
+          "primary": "paradoxical_intention",
+          "secondary": [
+            "cognitive_restructuring",
+            "open_awareness"
+          ],
+          "closure_variants": [
+            "standard",
+            "anxious_closure"
+          ],
+          "rationale": "工作担忧常伴随「睡眠努力过度」——越想入睡越清醒。矛盾意向法直接打破这个循环。"
+        },
+        "cbt_phase_priority": "cognitive_restructuring",
+        "example_prompts": [
+          "脑子停不下来，一直在想明天的工作",
+          "项目搞砸了，老板会不会发现",
+          "睡不着，脑子里全是明天的事"
+        ],
+        "clue_phrases": [
+          "工作",
+          "老板",
+          "同事",
+          "项目",
+          "deadline",
+          "开会",
+          "面试",
+          "汇报",
+          "下班了还在想"
+        ]
+      },
+      {
+        "id": "exam",
+        "category": "考试/学业",
+        "icon": "📝",
+        "description": "考试和学业相关的睡前担忧",
+        "typical_worries": [
+          "下周/明天有重要考试",
+          "复习不完了，知识点太多",
+          "考试紧张，手心出汗",
+          "上次没考好，这次一定要过",
+          "高考/考研/考公的压力",
+          "担心成绩出来后不理想",
+          "毕业论文/答辩",
+          "学习效率低，自责"
+        ],
+        "emotion_keywords": [
+          "紧张",
+          "焦虑",
+          "害怕考不好",
+          "心虚",
+          "自责",
+          "压力大",
+          "睡不着",
+          "脑子嗡嗡的",
+          "越想越慌"
+        ],
+        "cognitive_distortion_tendencies": [
+          "灾难化思维",
+          "全或无思维",
+          "过度责任感",
+          "心理时间旅行(反复担忧结果)"
+        ],
+        "anxiety_level_range": [
+          5,
+          10
+        ],
+        "recommended_techniques": {
+          "primary": "paradoxical_intention",
+          "secondary": [
+            "body_scan",
+            "478_breathing"
+          ],
+          "closure_variants": [
+            "standard",
+            "rumination_break"
+          ],
+          "rationale": "考试担忧者常陷入「过度准备」的强迫性思维，且有明确的入睡障碍（睡不着→影响发挥→更担心）。矛盾意向法解除睡眠压力，身体扫描帮助降低生理激活。"
+        },
+        "cbt_phase_priority": "relaxation_induction",
+        "example_prompts": [
+          "明天有考试睡不着怎么办",
+          "复习不完了，知识点记不住",
+          "越想睡着越睡不着，焦虑死了",
+          "害怕明天考试紧张到发抖"
+        ],
+        "clue_phrases": [
+          "考试",
+          "复习",
+          "知识点",
+          "成绩",
+          "考不好",
+          "高考",
+          "考研",
+          "考公",
+          "答辩",
+          "毕业论文",
+          "学习"
+        ]
+      },
+      {
+        "id": "relationship",
+        "category": "人际关系",
+        "icon": "💔",
+        "description": "与家人、伴侣、朋友、同事等人际关系相关的睡前担忧",
+        "typical_worries": [
+          "和某个人发生了矛盾冷战",
+          "不知道怎么处理和某人的关系",
+          "担心让别人失望",
+          "分手/离婚的情绪还没过去",
+          "原生家庭的问题反复出现",
+          "社交恐惧，担心人际交往",
+          "觉得自己说错了话，一直后悔",
+          "亲密关系中的不确定性"
+        ],
+        "emotion_keywords": [
+          "委屈",
+          "憋屈",
+          "愤怒",
+          "受伤",
+          "不甘心",
+          "后悔",
+          "失落",
+          "孤独",
+          "想不通",
+          "心里堵",
+          "胸口闷",
+          "辗转反侧"
+        ],
+        "cognitive_distortion_tendencies": [
+          "读心术",
+          "情绪推理",
+          "个人化归因",
+          "关系焦虑型认知扭曲"
+        ],
+        "anxiety_level_range": [
+          4,
+          9
+        ],
+        "recommended_techniques": {
+          "primary": "loving_kindness",
+          "secondary": [
+            "rumination_break",
+            "cognitive_restructuring"
+          ],
+          "closure_variants": [
+            "rumination_break",
+            "anxious_closure"
+          ],
+          "rationale": "人际关系担忧者常在睡前反复「复盘」对话，是典型的社交反刍。慈心冥想将对抗性的思维模式转变为善意，降低激活度；矛盾意向法打断反刍循环。"
+        },
+        "cbt_phase_priority": "cognitive_restructuring",
+        "example_prompts": [
+          "和男朋友/女朋友吵架了睡不着",
+          "一直想今天说错的那句话",
+          "原生家庭让我很难受，说不清楚",
+          "和最好的朋友闹掰了"
+        ],
+        "clue_phrases": [
+          "吵架",
+          "矛盾",
+          "冷战",
+          "分手",
+          "朋友",
+          "家人",
+          "原生家庭",
+          "说错话",
+          "后悔",
+          "人际",
+          "社交",
+          "委屈",
+          "憋屈",
+          "受伤"
+        ]
+      },
+      {
+        "id": "health",
+        "category": "健康担忧",
+        "icon": "🏥",
+        "description": "对身体症状或健康状况的担忧",
+        "typical_worries": [
+          "身体某个地方不舒服，担心是大病",
+          "不敢去医院检查，怕查出问题",
+          "失眠本身引发更多担忧（对睡眠的焦虑）",
+          "新冠后遗症/甲流后的身体不适",
+          "体检报告有异常指标",
+          "某亲戚得了重病，担心遗传",
+          "怀疑自己心脏/大脑有问题（惊恐发作）",
+          "身体疲惫但睡不着"
+        ],
+        "emotion_keywords": [
+          "害怕",
+          "恐惧",
+          "担心",
+          "焦虑",
+          "不安",
+          "无助",
+          "绝望",
+          "无力感",
+          "胸口紧",
+          "心慌",
+          "手麻",
+          "发抖"
+        ],
+        "cognitive_distortion_tendencies": [
+          "灾难化思维",
+          "躯体症状放大",
+          "健康焦虑",
+          "惊恐发作相关认知扭曲"
+        ],
+        "anxiety_level_range": [
+          5,
+          10
+        ],
+        "recommended_techniques": {
+          "primary": "body_scan",
+          "secondary": [
+            "open_awareness",
+            "loving_kindness"
+          ],
+          "closure_variants": [
+            "anxious_closure",
+            "post_worry_closure"
+          ],
+          "rationale": "健康焦虑者对身体感觉高度敏感，身体扫描帮助将身体感觉正常化（仅仅是感觉，不是疾病）；开放觉察培养与身体感觉的非反应性关系；慈心冥想在严重担忧时提供情绪温暖。"
+        },
+        "cbt_phase_priority": "relaxation_induction",
+        "note_on_medical_reassurance": "AI应避免提供医学诊断或否定用户的症状体验。重点放在：感受是真实的，但它不等于危险。必要时提示用户寻求专业医疗支持。",
+        "example_prompts": [
+          "身体一直不舒服但查不出问题",
+          "害怕自己得了什么大病",
+          "不敢去体检，怕结果不好",
+          "睡不着然后开始心慌手抖"
+        ],
+        "clue_phrases": [
+          "身体",
+          "不舒服",
+          "体检",
+          "医院",
+          "检查",
+          "指标",
+          "心脏",
+          "头疼",
+          "心慌",
+          "手抖",
+          "症状",
+          "病",
+          "新冠",
+          "后遗症"
+        ]
+      },
+      {
+        "id": "future_uncertainty",
+        "category": "未来不确定性",
+        "icon": "🌫️",
+        "description": "对人生方向、生活选择等抽象未来的担忧",
+        "typical_worries": [
+          "不知道自己想要什么/职业方向迷茫",
+          "30岁/35岁危机，对未来感到不确定",
+          "要不要换城市/换工作/结婚/生孩子",
+          "人生选择的对错",
+          "对未来的无力感",
+          "觉得自己在浪费时间",
+          "别人都很好，只有自己迷茫"
+        ],
+        "emotion_keywords": [
+          "迷茫",
+          "焦虑",
+          "无力",
+          "空虚",
+          "不满足",
+          "落后于同龄人",
+          "年龄焦虑",
+          "不知道想要什么",
+          "算了不睡了"
+        ],
+        "cognitive_distortion_tendencies": [
+          "社会比较",
+          "全或无思维",
+          "情感推理",
+          "灾难化（将不确定性等同于危险）"
+        ],
+        "anxiety_level_range": [
+          3,
+          7
+        ],
+        "recommended_techniques": {
+          "primary": "open_awareness",
+          "secondary": [
+            "loving_kindness",
+            "cognitive_restructuring"
+          ],
+          "closure_variants": [
+            "peaceful_closure",
+            "post_worry_closure"
+          ],
+          "rationale": "未来不确定性担忧的核心是对「不知道答案」的难以忍受。开放觉察帮助将不确定性接纳为生命的一部分（而不是需要立即解决的问题）；慈心冥想在存在性焦虑时提供温暖的陪伴感。"
+        },
+        "cbt_phase_priority": "worry_capture",
+        "example_prompts": [
+          "不知道自己到底想要什么",
+          "觉得自己的人生没有方向",
+          "同龄人都结婚了，只有我还迷茫",
+          "未来有太多不确定，睡不着"
+        ],
+        "clue_phrases": [
+          "未来",
+          "方向",
+          "迷茫",
+          "不知道",
+          "选择",
+          "人生",
+          "同龄人",
+          "结婚",
+          "工作",
+          "城市",
+          "孩子",
+          "年龄",
+          "30岁",
+          "浪费时间"
+        ]
+      },
+      {
+        "id": "financial",
+        "category": "财务/经济",
+        "icon": "💰",
+        "description": "财务压力和经济焦虑相关的睡前担忧",
+        "typical_worries": [
+          "收入不够，月光甚至负债",
+          "房贷/车贷压力大",
+          "担心失业或降薪",
+          "不知道怎么理财",
+          "看到同龄人都赚钱了自己焦虑",
+          "投资亏损，睡不着觉"
+        ],
+        "emotion_keywords": [
+          "焦虑",
+          "压力大",
+          "睡不着",
+          "迷茫",
+          "担心",
+          "紧张",
+          "心累",
+          "无助"
+        ],
+        "cognitive_distortion_tendencies": [
+          "灾难化思维",
+          "过度概括",
+          "社会比较",
+          "全或无思维"
+        ],
+        "anxiety_level_range": [
+          4,
+          8
+        ],
+        "recommended_techniques": {
+          "primary": "worry_externalization",
+          "secondary": [
+            "cognitive_restructuring",
+            "breathing"
+          ],
+          "closure_variants": [
+            "standard",
+            "rumination_break"
+          ],
+          "rationale": "财务担忧容易形成反刍循环。写下来加认知重构打破自动化思维。"
+        },
+        "cbt_phase_priority": "cognitive_restructuring",
+        "example_prompts": [
+          "最近因为钱的事睡不着",
+          "房贷压力大，越想越清醒",
+          "看到别人都赚钱了自己很焦虑"
+        ],
+        "clue_phrases": [
+          "钱",
+          "工资",
+          "房贷",
+          "负债",
+          "经济",
+          "财务",
+          "收入",
+          "压力",
+          "月光"
+        ]
+      },
+      {
+        "id": "family_parenting",
+        "category": "家庭/育儿",
+        "icon": "👨‍👩‍👧",
+        "description": "家庭责任和育儿压力相关的睡前担忧",
+        "typical_worries": [
+          "育儿压力大，觉得自己做不好父母",
+          "和孩子关系紧张，经常争吵",
+          "担心孩子的教育问题",
+          "父母年纪大了，担心他们的健康",
+          "家庭责任太重，喘不过气"
+        ],
+        "emotion_keywords": [
+          "焦虑",
+          "压力",
+          "自责",
+          "无助",
+          "心累",
+          "担心",
+          "疲惫"
+        ],
+        "cognitive_distortion_tendencies": [
+          "过度责任感",
+          "应该陈述",
+          "灾难化思维"
+        ],
+        "anxiety_level_range": [
+          4,
+          8
+        ],
+        "recommended_techniques": {
+          "primary": "pmr",
+          "secondary": [
+            "cognitive_restructuring",
+            "worry_externalization"
+          ],
+          "closure_variants": [
+            "standard",
+            "rumination_break"
+          ],
+          "rationale": "育儿焦虑常伴随躯体紧张。PMR 帮助释放身体压力，写下担忧减少思维反刍。"
+        },
+        "cbt_phase_priority": "worry_capture",
+        "example_prompts": [
+          " parenting 压力好大",
+          "和孩子吵架了睡不着",
+          "觉得自己不是好父母"
+        ],
+        "clue_phrases": [
+          "孩子",
+          "育儿",
+          "父母",
+          "家庭",
+          "教育",
+          "抚养",
+          "争吵"
+        ]
+      },
+      {
+        "id": "intimate_relationship",
+        "category": "亲密关系",
+        "icon": "💕",
+        "description": "伴侣关系和婚姻问题相关的睡前担忧",
+        "typical_worries": [
+          "和伴侣沟通困难",
+          "怀疑伴侣不忠",
+          "感情变淡，不知道还能不能继续",
+          "信任破裂后难以修复",
+          "性生活不和谐",
+          "想分手/离婚但犹豫不决"
+        ],
+        "emotion_keywords": [
+          "焦虑",
+          "不安",
+          "伤心",
+          "迷茫",
+          "愤怒",
+          "无助",
+          "睡不着"
+        ],
+        "cognitive_distortion_tendencies": [
+          "读心术",
+          "灾难化思维",
+          "情绪推理",
+          "过度概括"
+        ],
+        "anxiety_level_range": [
+          5,
+          9
+        ],
+        "recommended_techniques": {
+          "primary": "loving_kindness",
+          "secondary": [
+            "cognitive_restructuring",
+            "open_awareness"
+          ],
+          "closure_variants": [
+            "standard",
+            "rumination_break"
+          ],
+          "rationale": "亲密关系焦虑常伴随愤怒和自我批评。慈心冥想帮助软化对抗情绪。"
+        },
+        "cbt_phase_priority": "cognitive_restructuring",
+        "example_prompts": [
+          "和伴侣吵架了睡不着",
+          "怀疑他/她出轨",
+          "不知道这段感情还要不要继续"
+        ],
+        "clue_phrases": [
+          "伴侣",
+          "婚姻",
+          "出轨",
+          "信任",
+          "夫妻",
+          "分手",
+          "离婚",
+          "感情"
+        ]
+      }
+    ],
+    "worry_intensity_mapping": {
+      "description": "担忧强度（emotion_level 1-10）与最适配仪式变体的映射",
+      "mild_worries": {
+        "level_range": [
+          1,
+          3
+        ],
+        "description": "用户已较平静，担忧不影响入睡",
+        "closure_intensity": "light",
+        "recommended_techniques": [
+          "478_breathing",
+          "pmr_short"
+        ],
+        "closure_strategy": "简短收尾即可，不需要深度安抚"
+      },
+      "moderate_worries": {
+        "level_range": [
+          4,
+          6
+        ],
+        "description": "有明确担忧内容，但能表达和讨论",
+        "closure_intensity": "moderate",
+        "recommended_techniques": [
+          "paradoxical_intention",
+          "loving_kindness",
+          "body_scan"
+        ],
+        "closure_strategy": "担忧外化 + 安全感确认 + 自然入睡引导"
+      },
+      "severe_worries": {
+        "level_range": [
+          7,
+          10
+        ],
+        "description": "强烈情绪，明显影响入睡，伴有生理激活",
+        "closure_intensity": "severe",
+        "recommended_techniques": [
+          "loving_kindness",
+          "body_scan",
+          "pmr_tiny"
+        ],
+        "closure_strategy": "深度安抚 + 担忧箱可视化 + 多次安全确认 + 呼吸锚定 + 允许性入睡许可"
+      }
+    },
+    "clue_phrase_matching": {
+      "description": "用于从用户输入中识别担忧类型的关键词匹配表。AI实际处理时使用LLM判断，此表仅作为规则兜底。",
+      "matching_rules": [
+        {
+          "if_contains_any": [
+            "考试",
+            "复习",
+            "高考",
+            "考研",
+            "考公",
+            "成绩",
+            "考不好",
+            "知识点"
+          ],
+          "assign_category": "exam"
+        },
+        {
+          "if_contains_any": [
+            "工作",
+            "老板",
+            "同事",
+            "项目",
+            "deadline",
+            "开会",
+            "上班",
+            "辞职",
+            "面试"
+          ],
+          "assign_category": "work"
+        },
+        {
+          "if_contains_any": [
+            "吵架",
+            "分手",
+            "冷战",
+            "朋友",
+            "家人",
+            "原生家庭",
+            "委屈",
+            "憋屈",
+            "受伤",
+            "矛盾"
+          ],
+          "assign_category": "relationship"
+        },
+        {
+          "if_contains_any": [
+            "身体",
+            "医院",
+            "体检",
+            "检查",
+            "心脏",
+            "心慌",
+            "手抖",
+            "症状",
+            "病"
+          ],
+          "assign_category": "health"
+        },
+        {
+          "if_contains_any": [
+            "未来",
+            "方向",
+            "迷茫",
+            "选择",
+            "人生",
+            "不知道想要什么",
+            "同龄人"
+          ],
+          "assign_category": "future_uncertainty"
+        },
+        {
+          "if_contains_any": [
+            "钱",
+            "工资",
+            "房贷",
+            "负债",
+            "经济",
+            "财务",
+            "收入",
+            "压力",
+            "月光"
+          ],
+          "assign_category": "financial"
+        },
+        {
+          "if_contains_any": [
+            "孩子",
+            "育儿",
+            "父母",
+            "家庭",
+            "教育",
+            "抚养",
+            "争吵"
+          ],
+          "assign_category": "family_parenting"
+        },
+        {
+          "if_contains_any": [
+            "伴侣",
+            "婚姻",
+            "出轨",
+            "信任",
+            "夫妻",
+            "分手",
+            "离婚",
+            "感情"
+          ],
+          "assign_category": "intimate_relationship"
+        }
+      ],
+      "fallback": "如果以上都不匹配，使用标准模板 + standard_moderate"
+    },
+    "scenario_to_technique_routing": {
+      "description": "根据识别的担忧场景，自动路由到最合适的CBT-I技术序列",
+      "work": {
+        "phase_sequence": [
+          "worry_capture",
+          "cognitive_restructuring",
+          "paradoxical_intention",
+          "relaxation_induction"
+        ],
+        "primary_script": "paradoxical_intention",
+        "secondary_script": "478_breathing",
+        "special_note": "工作担忧常伴随「努力入睡」的强迫性意图，需优先使用矛盾意向法解除睡眠压力"
+      },
+      "exam": {
+        "phase_sequence": [
+          "worry_capture",
+          "cognitive_restructuring",
+          "paradoxical_intention",
+          "relaxation_induction"
+        ],
+        "primary_script": "paradoxical_intention",
+        "secondary_script": "478_breathing",
+        "special_note": "考试担忧对「睡不着会影响发挥」有强烈的灾难化思维，需要先做认知重构再进入矛盾意向"
+      },
+      "relationship": {
+        "phase_sequence": [
+          "worry_capture",
+          "cognitive_restructuring",
+          "loving_kindness",
+          "relaxation_induction"
+        ],
+        "primary_script": "loving_kindness",
+        "secondary_script": "rumination_break",
+        "special_note": "人际关系担忧极易转化为反刍思维，优先使用慈心冥想，必要时加反刍中断"
+      },
+      "health": {
+        "phase_sequence": [
+          "worry_capture",
+          "open_awareness",
+          "body_scan",
+          "relaxation_induction"
+        ],
+        "primary_script": "body_scan",
+        "secondary_script": "open_awareness",
+        "special_note": "健康焦虑者对身体感觉高度敏感，严禁否定其症状体验。重点：感觉是真实的，但不等同于危险。"
+      },
+      "future_uncertainty": {
+        "phase_sequence": [
+          "worry_capture",
+          "cognitive_restructuring",
+          "open_awareness",
+          "peaceful_closure"
+        ],
+        "primary_script": "open_awareness",
+        "secondary_script": "loving_kindness",
+        "special_note": "存在性焦虑不适合用认知重构「纠正」思维。重点：接受不确定性作为生命的一部分"
+      },
+      "financial": {
+        "phase_sequence": [
+          "worry_capture",
+          "cognitive_restructuring",
+          "relaxation_induction"
+        ],
+        "primary_script": "worry_externalization",
+        "secondary_script": "cognitive_restructuring",
+        "special_note": "财务担忧容易形成反刍循环。写下来加认知重构打破自动化思维。"
+      },
+      "family_parenting": {
+        "phase_sequence": [
+          "worry_capture",
+          "worry_capture",
+          "relaxation_induction"
+        ],
+        "primary_script": "pmr",
+        "secondary_script": "cognitive_restructuring",
+        "special_note": "育儿焦虑常伴随躯体紧张。PMR 帮助释放身体压力，写下担忧减少思维反刍。"
+      },
+      "intimate_relationship": {
+        "phase_sequence": [
+          "worry_capture",
+          "cognitive_restructuring",
+          "relaxation_induction"
+        ],
+        "primary_script": "loving_kindness",
+        "secondary_script": "cognitive_restructuring",
+        "special_note": "亲密关系焦虑常伴随愤怒和自我批评。慈心冥想帮助软化对抗情绪。"
+      }
+    }
+  }
+}
