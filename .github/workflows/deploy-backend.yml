@@ -15,32 +15,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Test SSH Connection
-        id: ssh_test
-        continue-on-error: true
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: 22
-          timeout: 10s
-          debug: true
-          script: echo "SSH_OK"
-
-      - name: Check SSH Result
-        if: steps.ssh_test.outcome != 'success'
+      - name: Verify SSH Key Format
         run: |
-          echo "❌ SSH CONNECTION FAILED"
-          echo "Please check:"
-          echo "1. SERVER_HOST is correct (current: '${{ secrets.SERVER_HOST }}')"
-          echo "2. SERVER_USER is correct (current: '${{ secrets.SERVER_USER }}')"
-          echo "3. SERVER_SSH_KEY is valid PEM format starting with '-----BEGIN RSA PRIVATE KEY-----'"
-          echo "4. Server firewall allows port 22"
-          exit 1
+          echo "Checking SSH key format..."
+          KEY='${{ secrets.SERVER_SSH_KEY }}'
+          if [ -z "$KEY" ]; then
+            echo "❌ SERVER_SSH_KEY is empty"
+            exit 1
+          fi
+          if echo "$KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
+            echo "⚠️ Key is in OpenSSH format, converting..."
+          elif echo "$KEY" | grep -q "BEGIN RSA PRIVATE KEY"; then
+            echo "✅ Key is in RSA PEM format"
+          else
+            echo "❌ Key format unknown. Must start with -----BEGIN RSA PRIVATE KEY-----"
+            exit 1
+          fi
+          echo "Key length: $(echo "$KEY" | wc -c) bytes"
+          echo "Key lines: $(echo "$KEY" | wc -l) lines"
+          echo "First line: $(echo "$KEY" | head -1)"
+          echo "Last line: $(echo "$KEY" | tail -1)"
 
-      - name: Deploy to server
-        if: steps.ssh_test.outcome == 'success'
+      - name: Deploy to server via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -49,6 +45,7 @@ jobs:
           port: 22
           timeout: 30s
           command_timeout: 5m
+          debug: true
           script: |
             cd /home/ubuntu/anmian
             git fetch origin
