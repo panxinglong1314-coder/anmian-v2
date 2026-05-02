@@ -1,3 +1,4 @@
+# CI/CD test trigger - backend deploy
 """
 睡前大脑关机助手 - FastAPI 后端 v2
 接 腾讯云全家桶：流式TTS + 实时ASR + 千问对话
@@ -61,6 +62,9 @@ class Settings(BaseSettings):
     tencentcloud_secret_id: str = ""
     tencentcloud_secret_key: str = ""
     tencentcloud_region: str = "ap-guangzhou"
+
+    # MiniMax 对话 API
+    minimax_api_key: str = ""
 
     # MiniMax GroupID（TTS 专用，留作备用）
     minimax_group_id: str = ""
@@ -723,6 +727,62 @@ async def qwen_chat(messages: list[dict], stream: bool = True) -> AsyncGenerator
             yield "抱歉，服务暂时不稳定，请稍后再试。"
 
 
+# ==================== MiniMax Chat ====================
+
+async def minimax_chat(messages: list[dict], stream: bool = True) -> AsyncGenerator[str, None]:
+    """调用 MiniMax Chat API（OpenAI 兼容格式）"""
+    if not settings.minimax_api_key:
+        yield "抱歉，AI 服务暂不可用，请稍后再试。"
+        return
+
+    headers = {
+        "Authorization": f"Bearer {settings.minimax_api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "MiniMax-M2.7",
+        "messages": messages,
+        "temperature": 0.5,
+        "max_tokens": 512,
+        "stream": stream
+    }
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            async with client.stream(
+                "POST",
+                "https://api.minimaxi.com/anthropic/v1/messages",
+                headers=headers,
+                json=payload
+            ) as resp:
+                async for line in resp.aiter_lines():
+                    if not line.strip() or line.strip() == "event: ping":
+                        continue
+                    if line.startswith("data: "):
+                        data = line[6:]
+                        try:
+                            chunk = json.loads(data)
+                            # 解析 content_block_delta 中的 text_delta
+                            if chunk.get("type") == "content_block_delta":
+                                delta = chunk.get("delta", {})
+                                if delta.get("type") == "text_delta":
+                                    text = delta.get("text", "")
+                                    if text:
+                                        yield text
+                            # 解析 message_delta（部分厂商可能输出）
+                            elif chunk.get("type") == "message_delta":
+                                delta = chunk.get("delta", {})
+                                if delta.get("type") == "text_delta":
+                                    text = delta.get("text", "")
+                                    if text:
+                                        yield text
+                        except json.JSONDecodeError:
+                            continue
+        except Exception as e:
+            print(f"[MiniMax Chat Error] {e}")
+            yield "抱歉，服务暂时不稳定，请稍后再试。"
+
+
 def _build_enhanced_system_prompt(
     user_id: str, session_id: str, cbt_result: dict, user_message: str, memory: dict = None,
     profile: dict = None
@@ -1283,7 +1343,7 @@ async def chat(req: ChatRequest):
 
     # 4. 流式生成
     response_text = ""
-    async for chunk in qwen_chat(full_messages):
+    async for chunk in minimax_chat(full_messages):
         response_text += chunk
 
     # 5. 保存
@@ -1323,7 +1383,7 @@ async def chat_stream(req: ChatRequest):
         full_messages.append({"role": "user", "content": req.message})
 
         full_resp = ""
-        async for chunk in qwen_chat(full_messages):
+        async for chunk in minimax_chat(full_messages):
             full_resp += chunk
             yield f"data: {json.dumps({'event': 'chunk', 'data': chunk}, ensure_ascii=False)}\n\n"
 
@@ -1465,7 +1525,7 @@ async def chat_cbt(req: ChatRequest):
     full_messages.append({"role": "user", "content": req.message})
 
     response_text = ""
-    async for chunk in qwen_chat(full_messages):
+    async for chunk in minimax_chat(full_messages):
         response_text += chunk
 
     # L2: 记录对话到日志（用于L3训练数据积累）
@@ -1618,7 +1678,7 @@ async def _chat_events(req: ChatRequest):
     llm_error = False
 
     try:
-        async for chunk in qwen_chat(full_messages):
+        async for chunk in minimax_chat(full_messages):
             full_resp += chunk
             tts_buffer += chunk
             yield {"event": "chunk", "data": chunk}
