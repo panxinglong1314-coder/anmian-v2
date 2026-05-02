@@ -131,3 +131,4 @@ uvicorn main:app --reload --port 8000
 - [ ] 服务器部署
 - [ ] 小程序审核上线
 - [ ] 种子用户内测
+# CI/CD Test Trigger
