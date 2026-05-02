@@ -1,7 +1,7 @@
 // pages/subscribe/subscribe.js
 
 const app = getApp()
-const API = app.globalData.apiBaseUrl || 'https://sleepai.chat'
+const API = app.globalData.apiBaseUrl || 'http://124.222.43.248'
 
 // 定价方案
 const PLANS = {

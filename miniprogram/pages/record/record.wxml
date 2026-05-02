@@ -8,6 +8,18 @@
 
   <!-- 头部 -->
   <view class="record-header">
+    <view class="header-user" bindtap="goToProfile">
+      <image
+        wx:if="{{userInfo.avatar_url}}"
+        class="header-avatar"
+        src="{{userInfo.avatar_url}}"
+        mode="aspectFill"
+      />
+      <view wx:else class="header-avatar header-avatar-default">
+        <text class="header-avatar-letter">{{userInfo.nickname ? userInfo.nickname[0] : '我'}}</text>
+      </view>
+      <text class="header-nickname">{{userInfo.nickname || '我'}}</text>
+    </view>
     <text class="header-title">我的记录</text>
     <view class="share-btn" bindtap="onShare">
       <text class="share-icon">分享</text>

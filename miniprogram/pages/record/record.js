@@ -98,6 +98,9 @@ Page({
     worryList: [],
     unreviewedCount: 0,
 
+    // 用户信息
+    userInfo: null,
+
     // 睡眠限制
     sleepRestriction: null,
     restrictionPhaseClass: '',
@@ -127,6 +130,7 @@ Page({
 
   onLoad() {
     this.initDate()
+    this.loadUserInfo()
     this.loadData()
     this.checkSleepRating()
     this.initShare()
@@ -135,6 +139,31 @@ Page({
 
   onShow() {
     this.loadData(true)
+    this.loadUserInfo()
+  },
+
+  // 加载用户信息
+  async loadUserInfo() {
+    const token = app.getToken()
+    if (!token) return
+    try {
+      const res = await wx.request({
+        url: `${API}/api/v1/user/profile`,
+        method: 'GET',
+        header: { Authorization: `Bearer ${token}` },
+        timeout: 15000,
+      })
+      if (res.statusCode === 200 && res.data) {
+        this.setData({ userInfo: res.data })
+      }
+    } catch (e) {
+      console.error('[loadUserInfo]', e)
+    }
+  },
+
+  // 跳转到个人中心
+  goToProfile() {
+    wx.navigateTo({ url: '/pages/profile/profile' })
   },
 
   initDate() {

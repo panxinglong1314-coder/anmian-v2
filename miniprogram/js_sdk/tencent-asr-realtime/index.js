@@ -24,7 +24,7 @@ try { app = getApp() } catch (e) {}
 class RealtimeASRHandler {
   constructor(options = {}) {
     // 后端 API 地址（不需要 credentials）
-    this.apiBaseUrl = options.apiBaseUrl || 'https://sleepai.chat'
+    this.apiBaseUrl = options.apiBaseUrl || 'http://124.222.43.248:8000'
     // WebSocket 版本用 wss
     this.wsBaseUrl = this.apiBaseUrl.replace('http://', 'ws://').replace('https://', 'wss://')
     this.userId = options.userId || 'anon_default'

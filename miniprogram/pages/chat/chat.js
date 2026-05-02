@@ -193,10 +193,36 @@ Page({
   onPrivacyAgree() {
     wx.setStorageSync('privacy_agreed', true)
     this.setData({ showPrivacyModal: false })
+    // 先走微信官方隐私协议，再走录音权限
+    this._requirePrivacyAndAuth()
+  },
+
+  _requirePrivacyAndAuth() {
+    if (!wx.getPrivacySetting) {
+      // 低版本基础库兜底
+      this._requestRecordAuth()
+      return
+    }
+    wx.getPrivacySetting({
+      success: (res) => {
+        if (res.needAuthorization) {
+          wx.requirePrivacyAuthorize({
+            success: () => this._requestRecordAuth(),
+            fail: () => wx.showToast({ title: '需同意微信隐私协议方可使用语音', icon: 'none' })
+          })
+        } else {
+          this._requestRecordAuth()
+        }
+      },
+      fail: () => this._requestRecordAuth()
+    })
+  },
+
+  _requestRecordAuth() {
     wx.authorize({
       scope: 'scope.record',
       success: () => console.log('[Privacy] 录音权限已授权'),
-      fail: () => wx.showToast({ title: '请在系统设置中允许麦克风', icon: 'none' })
+      fail: () => wx.showToast({ title: '需要录音权限才能使用睡眠模式', icon: 'none', duration: 2000 })
     })
   },
 
@@ -207,30 +233,53 @@ Page({
   },
 
   enterSleepMode() {
-    // 先检查隐私协议
+    // 先检查自定义隐私协议
     if (!wx.getStorageSync('privacy_agreed')) {
       this.setData({ showPrivacyModal: true })
       return
     }
-    // 请求录音权限
-    wx.getSetting({
+    // 再走微信官方隐私协议与录音授权
+    this._checkPrivacyAndEnter()
+  },
+
+  _checkPrivacyAndEnter() {
+    const proceed = () => {
+      wx.getSetting({
+        success: (res) => {
+          if (!res.authSetting['scope.record']) {
+            wx.authorize({
+              scope: 'scope.record',
+              success: () => {
+                console.log('[Auth] record authorized')
+                this._doEnterSleepMode()
+              },
+              fail: () => {
+                console.log('[Auth] record denied')
+                wx.showToast({ title: '需要录音权限才能使用睡眠模式', icon: 'none', duration: 2000 })
+              }
+            })
+          } else {
+            this._doEnterSleepMode()
+          }
+        }
+      })
+    }
+    if (!wx.getPrivacySetting) {
+      proceed()
+      return
+    }
+    wx.getPrivacySetting({
       success: (res) => {
-        if (!res.authSetting['scope.record']) {
-          wx.authorize({
-            scope: 'scope.record',
-            success: () => {
-              console.log('[Auth] record authorized')
-              this._doEnterSleepMode()
-            },
-            fail: () => {
-              console.log('[Auth] record denied')
-              wx.showToast({ title: '需要录音权限才能使用睡眠模式', icon: 'none', duration: 2000 })
-            }
+        if (res.needAuthorization) {
+          wx.requirePrivacyAuthorize({
+            success: () => proceed(),
+            fail: () => wx.showToast({ title: '需同意微信隐私协议方可使用语音', icon: 'none' })
           })
         } else {
-          this._doEnterSleepMode()
+          proceed()
         }
-      }
+      },
+      fail: () => proceed()
     })
   },
 
