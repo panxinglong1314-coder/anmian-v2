@@ -1814,9 +1814,25 @@ Page({
         this._recordingFilePath = res.tempFilePath
         this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
         console.log('[ASR-WS] onStop, socketReady:', this._asrSocketReady, 'fallback:', this._fallbackUploadASR)
-        if (this._asrSocket && this._asrSocketReady) {
-          console.log('[ASR-WS] sending end marker')
-          this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
+        if (this._asrSocket && this._asrSocketReady && res.tempFilePath) {
+          // 真机兼容：通过 WebSocket 发送完整录音文件
+          const fs = wx.getFileSystemManager()
+          fs.readFile({
+            filePath: res.tempFilePath,
+            encoding: 'binary',
+            success: (readRes) => {
+              console.log('[ASR-WS] sending file, size:', readRes.data.byteLength)
+              this._asrSocket.send({ data: readRes.data })
+              setTimeout(() => {
+                console.log('[ASR-WS] sending end marker')
+                this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
+              }, 100)
+            },
+            fail: (err) => {
+              console.error('[ASR-WS] read file fail:', err)
+              this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
+            }
+          })
         } else if (this._fallbackUploadASR && res.tempFilePath) {
           console.log('[ASR-WS] fallback to uploadFile')
           this._sendVoiceToASR(res.tempFilePath)
@@ -1838,10 +1854,9 @@ Page({
 
     recorderManager.onFrameRecorded((res) => {
       if (this._recordingState !== 'asr') return
-      console.log('[ASR-FE] onFrameRecorded, frameSize:', res.frameBuffer.byteLength, 'isLastFrame:', res.isLastFrame)
-      if (this._asrSocket && this._asrSocketReady) {
-        this._asrSocket.send({ data: res.frameBuffer })
-      }
+      // 真机上 onFrameRecorded 只在最后触发一次，数据通过 onStop 统一发送
+      // console.log('[ASR-FE] onFrameRecorded, frameSize:', res.frameBuffer.byteLength, 'isLastFrame:', res.isLastFrame)
+      // 保留音量检测用于 VAD（即使只在最后触发）
       const volume = this._calcPCMVolume(res.frameBuffer)
       if (volume > 0.012) {
         if (this._silenceTimer) clearTimeout(this._silenceTimer)
