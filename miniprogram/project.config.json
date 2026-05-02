@@ -39,7 +39,12 @@
       "ignore": [],
       "disablePlugins": [],
       "outputPath": ""
-    }
+    },
+    "compileWorklet": false,
+    "packNpmManually": false,
+    "localPlugins": false,
+    "useCompilerPlugins": false,
+    "swc": false
   },
   "compileType": "miniprogram",
   "libVersion": "3.4.10",

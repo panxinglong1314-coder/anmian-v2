@@ -365,6 +365,16 @@ Page({
     this._asrSocket.onOpen(() => {
       this._asrSocketReady = true
       console.log('[ASR-WS] socket open')
+      // 设置 6 秒超时：如果 WebSocket 没有返回结果，自动降级
+      this._asrTimeout = setTimeout(() => {
+        console.log('[ASR-WS] timeout, fallback to upload')
+        this._fallbackUploadASR = true
+        if (this._asrSocket) {
+          this._asrSocket.close()
+          this._asrSocket = null
+        }
+        this._asrSocketReady = false
+      }, 6000)
     })
 
     this._asrSocket.onMessage((res) => {
@@ -380,6 +390,7 @@ Page({
           this.setData({ statusText: '正在听：' + data.text })
         }
         if (data.is_final || data.slice_type === 2) {
+          if (this._asrTimeout) { clearTimeout(this._asrTimeout); this._asrTimeout = null }
           this._asrSocket.close()
           this._asrSocket = null
           this._asrSocketReady = false
@@ -397,6 +408,7 @@ Page({
 
     this._asrSocket.onError((err) => {
       console.error('[ASR-WS] socket error:', err)
+      if (this._asrTimeout) { clearTimeout(this._asrTimeout); this._asrTimeout = null }
       this._fallbackUploadASR = true
       this.setData({ _asrPending: false })
       if (err && err.errMsg && err.errMsg.includes('url not in domain list')) {
@@ -406,6 +418,7 @@ Page({
 
     this._asrSocket.onClose(() => {
       this._asrSocketReady = false
+      if (this._asrTimeout) { clearTimeout(this._asrTimeout); this._asrTimeout = null }
     })
 
     // 开始正式录音（PCM，用于 fallback 上传 ASR；frameSize 保证 onFrameRecorded 正常触发）
@@ -428,9 +441,17 @@ Page({
   _stop正式录音() {
     if (this._volumeSim) clearInterval(this._volumeSim)
     if (this._silenceTimer) clearTimeout(this._silenceTimer)
+    if (this._asrTimeout) { clearTimeout(this._asrTimeout); this._asrTimeout = null }
     this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
     recorderManager.stop()
     // onStop 统一回调会处理后续（发送 end 标记 或 fallback）
+    // 额外保险：如果 3 秒后还在 pending，强制 fallback
+    setTimeout(() => {
+      if (this._recordingFilePath && this.data._asrPending) {
+        console.log('[ASR] force fallback after stop timeout')
+        this._sendVoiceToASR(this._recordingFilePath)
+      }
+    }, 3000)
   },
 
   // ================================================
