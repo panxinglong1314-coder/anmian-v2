@@ -1832,6 +1832,7 @@ Page({
 
     recorderManager.onFrameRecorded((res) => {
       if (this._recordingState !== 'asr') return
+      console.log('[ASR-FE] onFrameRecorded, frameSize:', res.frameBuffer.byteLength, 'isLastFrame:', res.isLastFrame)
       if (this._asrSocket && this._asrSocketReady) {
         this._asrSocket.send({ data: res.frameBuffer })
       }
