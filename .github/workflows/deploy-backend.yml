@@ -23,8 +23,10 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd /home/ubuntu/anmian
-            echo "[CI/CD] Pulling latest code..."
-            git pull origin main
+            echo "[CI/CD] Pulling latest code from ${{ github.ref_name }}..."
+            git fetch origin
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
             
             echo "[CI/CD] Installing dependencies..."
             source venv/bin/activate
@@ -37,11 +39,11 @@ jobs:
             sleep 5
             for i in {1..10}; do
               if curl -sf http://127.0.0.1:8000/api/v1/admin/dashboard > /dev/null 2>&1; then
-                echo "[CI/CD] ✅ Service is healthy"
+                echo "[CI/CD] Service is healthy"
                 exit 0
               fi
-              echo "[CI/CD] Waiting... ($i/10)"
+              echo "[CI/CD] Waiting..."
               sleep 2
             done
-            echo "[CI/CD] ❌ Health check failed"
+            echo "[CI/CD] Health check failed"
             exit 1
