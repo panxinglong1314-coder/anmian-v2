@@ -8,9 +8,6 @@ on:
       - '.github/workflows/deploy-backend.yml'
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -18,25 +15,32 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Verify Secrets
-        run: |
-          echo "[Verify] Checking secrets..."
-          if [ -z "${{ secrets.SERVER_HOST }}" ]; then echo "❌ SERVER_HOST is empty"; exit 1; fi
-          if [ -z "${{ secrets.SERVER_USER }}" ]; then echo "❌ SERVER_USER is empty"; exit 1; fi
-          if [ -z "${{ secrets.SERVER_SSH_KEY }}" ]; then echo "❌ SERVER_SSH_KEY is empty"; exit 1; fi
-          echo "✅ All secrets are set"
-          echo "Host length: $(echo '${{ secrets.SERVER_HOST }}' | wc -c)"
-          echo "User length: $(echo '${{ secrets.SERVER_USER }}' | wc -c)"
-          echo "Key length: $(echo '${{ secrets.SERVER_SSH_KEY }}' | wc -c)"
+      - name: Test SSH Connection
+        id: ssh_test
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
+          timeout: 10s
+          debug: true
+          script: echo "SSH_OK"
 
-      - name: Add host key
+      - name: Check SSH Result
+        if: steps.ssh_test.outcome != 'success'
         run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -p 22 -t rsa 124.222.43.248 >> ~/.ssh/known_hosts 2>/dev/null || true
-          ssh-keyscan -p 22 -t ed25519 124.222.43.248 >> ~/.ssh/known_hosts 2>/dev/null || true
-          cat ~/.ssh/known_hosts | wc -l
+          echo "❌ SSH CONNECTION FAILED"
+          echo "Please check:"
+          echo "1. SERVER_HOST is correct (current: '${{ secrets.SERVER_HOST }}')"
+          echo "2. SERVER_USER is correct (current: '${{ secrets.SERVER_USER }}')"
+          echo "3. SERVER_SSH_KEY is valid PEM format starting with '-----BEGIN RSA PRIVATE KEY-----'"
+          echo "4. Server firewall allows port 22"
+          exit 1
 
-      - name: Deploy to server via SSH
+      - name: Deploy to server
+        if: steps.ssh_test.outcome == 'success'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -45,15 +49,8 @@ jobs:
           port: 22
           timeout: 30s
           command_timeout: 5m
-          debug: true
-          script_stop: false
-          sync: false
           script: |
-            set -x
-            echo "[DEBUG] Connected as: $(whoami)"
-            echo "[DEBUG] Hostname: $(hostname)"
-            cd /home/ubuntu/anmian || exit 1
-            echo "[DEBUG] In project dir"
+            cd /home/ubuntu/anmian
             git fetch origin
             git checkout ${{ github.ref_name }}
             git pull origin ${{ github.ref_name }}
@@ -66,7 +63,6 @@ jobs:
                 echo "✅ Service is healthy"
                 exit 0
               fi
-              echo "Waiting..."
               sleep 2
             done
             echo "❌ Health check failed"
