@@ -8,59 +8,87 @@ on:
       - '.github/workflows/deploy-backend.yml'
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
-      - name: Verify SSH Key Format
+      - name: Verify Secrets
         run: |
-          echo "Checking SSH key format..."
+          echo "SERVER_HOST=${{ secrets.SERVER_HOST }}"
+          echo "SERVER_USER=${{ secrets.SERVER_USER }}"
           KEY='${{ secrets.SERVER_SSH_KEY }}'
           if [ -z "$KEY" ]; then
             echo "❌ SERVER_SSH_KEY is empty"
             exit 1
           fi
-          if echo "$KEY" | grep -q "BEGIN OPENSSH PRIVATE KEY"; then
-            echo "⚠️ Key is in OpenSSH format, converting..."
-          elif echo "$KEY" | grep -q "BEGIN RSA PRIVATE KEY"; then
-            echo "✅ Key is in RSA PEM format"
-          else
-            echo "❌ Key format unknown. Must start with -----BEGIN RSA PRIVATE KEY-----"
-            exit 1
-          fi
           echo "Key length: $(echo "$KEY" | wc -c) bytes"
           echo "Key lines: $(echo "$KEY" | wc -l) lines"
-          echo "First line: $(echo "$KEY" | head -1)"
-          echo "Last line: $(echo "$KEY" | tail -1)"
+          FIRST=$(echo "$KEY" | head -1)
+          LAST=$(echo "$KEY" | tail -1)
+          echo "First line: $FIRST"
+          echo "Last line: $LAST"
+          if echo "$KEY" | grep -q "BEGIN RSA PRIVATE KEY"; then
+            echo "✅ Key format: RSA PEM (PKCS#1)"
+          elif echo "$KEY" | grep -q "BEGIN PRIVATE KEY"; then
+            echo "✅ Key format: PKCS#8"
+          else
+            echo "⚠️ Key format check: $FIRST"
+          fi
 
-      - name: Deploy to server via SSH
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Test SSH Connection
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
           timeout: 30s
-          command_timeout: 5m
           debug: true
           script: |
+            echo "✅ SSH connection successful"
+            whoami
+            pwd
+
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 10m
+          script: |
+            set -e
             cd /home/ubuntu/anmian
+            echo "Current branch: $(git branch --show-current)"
+            echo "Git status:"
+            git status --short
+            echo "Pulling latest code..."
             git fetch origin
             git checkout ${{ github.ref_name }}
             git pull origin ${{ github.ref_name }}
+            echo "Installing dependencies..."
             source venv/bin/activate
             pip install -r backend/requirements.txt -q
+            echo "Restarting service..."
             sudo systemctl restart anmian-backend.service
+            echo "Waiting for service to start..."
             sleep 5
-            for i in {1..10}; do
+            for i in {1..15}; do
               if curl -sf http://127.0.0.1:8000/api/v1/admin/dashboard > /dev/null 2>&1; then
-                echo "✅ Service is healthy"
+                echo "✅ Service is healthy after $i checks"
                 exit 0
               fi
+              echo "  Check $i/15..."
               sleep 2
             done
             echo "❌ Health check failed"
+            sudo systemctl status anmian-backend.service --no-pager | tail -20
             exit 1
