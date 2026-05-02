@@ -701,7 +701,7 @@ class DialogueEvaluator:
 
 
     # ---------- LLM-as-a-Judge 二次复核 ----------
-    def llm_review(self, session_log: dict, api_key: str, base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1") -> dict:
+    def llm_review(self, session_log: dict, api_key: str, base_url: str = "https://api.minimaxi.com/v1") -> dict:
         """使用千问对会话做二次人工级评估"""
         turns = session_log.get("turns", [])
         if not turns:
@@ -751,7 +751,7 @@ class DialogueEvaluator:
                 f"{base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json={
-                    "model": "qwen-turbo",
+                    "model": "MiniMax-M2.7",
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.3,
                     "max_tokens": 800,
