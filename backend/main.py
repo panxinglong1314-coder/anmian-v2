@@ -2065,11 +2065,11 @@ class TencentASRStreamConnector:
     边收前端 PCM 边转发给腾讯，边把识别结果回传
     """
     def __init__(self, appid: str, secret_id: str, secret_key: str,
-                 voice_id: str = "16k_zh", engine_model_type: str = "16k_zh"):
+                 voice_id: str = None, engine_model_type: str = "16k_zh"):
         self.appid = appid
         self.secret_id = secret_id
         self.secret_key = secret_key
-        self.voice_id = voice_id
+        self.voice_id = voice_id or str(uuid.uuid4())
         self.engine_model_type = engine_model_type
         self.ws = None
         self._result_queue: asyncio.Queue[dict] = asyncio.Queue()
@@ -2240,13 +2240,15 @@ class TencentASRConnector:
 @app.websocket("/api/v1/asr/ws")
 async def asr_websocket(websocket: WebSocket):
     """
-    前端 WebSocket 客户端接入点（真正双向流式 ASR）
+    前端 WebSocket 客户端接入点（ASR 识别）
 
     协议：
     - 前端 → 后端：二进制 PCM 数据帧（16kHz 单声道 PCM）
     - 前端 → 后端：{"type": "end"}  JSON 结束标记
-    - 后端 → 前端：{"text": "...", "slice_type": 0|1|2, "is_final": bool}
+    - 后端 → 前端：{"text": "...", "slice_type": 2, "is_final": true}
     - 后端 → 前端：{"done": true}  识别完成
+
+    实现：缓存前端 PCM 数据，用腾讯 ASR SDK（SentenceRecognition）识别
     """
     await websocket.accept()
 
@@ -2259,69 +2261,54 @@ async def asr_websocket(websocket: WebSocket):
         await websocket.close()
         return
 
-    connector = TencentASRStreamConnector(str(appid), secret_id, secret_key)
+    pcm_buffer = bytearray()
+    frame_count = 0
+
     try:
-        await connector.connect()
+        while True:
+            data = await websocket.receive()
+            if "bytes" in data:
+                pcm = data["bytes"]
+                if len(pcm) > 0:
+                    pcm_buffer.extend(pcm)
+                    frame_count += 1
+            elif "text" in data:
+                text_data = data["text"]
+                ctrl = json.loads(text_data)
+                if ctrl.get("type") == "end":
+                    print(f"[ASR-WS] received END, frames: {frame_count}, bytes: {len(pcm_buffer)}")
+                    break
+    except WebSocketDisconnect:
+        print(f"[ASR-WS] frontend disconnected")
     except Exception as e:
-        print(f"[ASR-WS] connect error: {e}")
-        await websocket.send_json({"error": f"ASR 连接失败: {e}"})
-        await websocket.close()
-        return
+        print(f"[ASR-WS] receive error: {e}")
 
-    async def forward_frontend_to_tencent():
-        """把前端 PCM 帧实时转发给腾讯 ASR"""
-        try:
-            while True:
-                data = await websocket.receive()
-                if "bytes" in data:
-                    pcm = data["bytes"]
-                    if len(pcm) > 0:
-                        await connector.send_pcm(pcm)
-                elif "text" in data:
-                    ctrl = json.loads(data["text"])
-                    if ctrl.get("type") == "end":
-                        await connector.send_end()
-                        break
-        except WebSocketDisconnect:
-            await connector.send_end()
-        except Exception as e:
-            print(f"[ASR-WS] frontend forward error: {e}")
-            await connector.send_end()
-
-    async def forward_tencent_to_frontend():
-        """把腾讯 ASR 结果实时回传给前端"""
-        final_text = ""
-        try:
-            while True:
-                result = await connector.get_result(timeout=1.0)
-                if result is None:
-                    if connector._done.is_set():
-                        break
-                    continue
-                await websocket.send_json(result)
-                if result.get("is_final"):
-                    final_text = result.get("text", "")
-        except Exception as e:
-            print(f"[ASR-WS] tencent forward error: {e}")
+    # 识别
+    try:
+        if len(pcm_buffer) > 0:
+            print(f"[ASR-WS] recognizing {len(pcm_buffer)} bytes PCM...")
+            connector = TencentASRConnector(str(appid), secret_id, secret_key)
+            text = await connector.recognize(bytes(pcm_buffer))
+            print(f"[ASR-WS] result: '{text}'")
+            if text and text.strip():
+                await websocket.send_json({"text": text, "slice_type": 2, "is_final": True})
+            else:
+                await websocket.send_json({"text": "", "slice_type": 2, "is_final": True})
+        else:
+            print("[ASR-WS] no audio data received")
+            await websocket.send_json({"text": "", "slice_type": 2, "is_final": True})
+    except Exception as e:
+        print(f"[ASR-WS] recognition error: {e}")
+        await websocket.send_json({"error": str(e)})
 
     try:
-        # 并发运行：一端收前端转发给腾讯，一端收腾讯结果转发给前端
-        await asyncio.gather(
-            forward_frontend_to_tencent(),
-            forward_tencent_to_frontend(),
-            return_exceptions=True
-        )
-        # 确保腾讯侧已结束
-        await connector.wait_done(timeout=5.0)
         await websocket.send_json({"done": True})
-    except Exception as e:
-        print(f"[ASR-WS] session error: {e}")
-        try:
-            await websocket.send_json({"error": str(e)})
-        except Exception:
-            pass
-    finally:
-        await connector.close()
+    except Exception:
+        pass
+    try:
+        await websocket.close()
+    except Exception:
+        pass
 
 # ---------- 呼吸引导 ----------
 @app.get("/api/v1/breathing/478")
