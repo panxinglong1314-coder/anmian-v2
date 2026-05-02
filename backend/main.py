@@ -730,7 +730,7 @@ async def qwen_chat(messages: list[dict], stream: bool = True) -> AsyncGenerator
 # ==================== MiniMax Chat ====================
 
 async def minimax_chat(messages: list[dict], stream: bool = True) -> AsyncGenerator[str, None]:
-    """调用 MiniMax Chat API（OpenAI 兼容格式）"""
+    """调用 MiniMax Chat API（Anthropic 兼容格式，过滤 thinking 过程）"""
     if not settings.minimax_api_key:
         yield "抱歉，AI 服务暂不可用，请稍后再试。"
         return
@@ -747,6 +747,8 @@ async def minimax_chat(messages: list[dict], stream: bool = True) -> AsyncGenera
         "stream": stream
     }
 
+    in_thinking_block = False
+
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             async with client.stream(
@@ -762,14 +764,27 @@ async def minimax_chat(messages: list[dict], stream: bool = True) -> AsyncGenera
                         data = line[6:]
                         try:
                             chunk = json.loads(data)
-                            # 解析 content_block_delta 中的 text_delta
+                            # 跟踪 content_block 类型
+                            if chunk.get("type") == "content_block_start":
+                                block = chunk.get("content_block", {})
+                                if block.get("type") == "thinking":
+                                    in_thinking_block = True
+                                elif block.get("type") == "text":
+                                    in_thinking_block = False
+                                continue
+                            if chunk.get("type") == "content_block_stop":
+                                in_thinking_block = False
+                                continue
+                            # 跳过 thinking 块的内容
+                            if in_thinking_block:
+                                continue
+                            # 解析 text_delta
                             if chunk.get("type") == "content_block_delta":
                                 delta = chunk.get("delta", {})
                                 if delta.get("type") == "text_delta":
                                     text = delta.get("text", "")
                                     if text:
                                         yield text
-                            # 解析 message_delta（部分厂商可能输出）
                             elif chunk.get("type") == "message_delta":
                                 delta = chunk.get("delta", {})
                                 if delta.get("type") == "text_delta":
