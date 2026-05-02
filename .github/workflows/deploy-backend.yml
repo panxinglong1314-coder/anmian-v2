@@ -21,21 +21,29 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 5m
+          debug: true
+          script_stop: false
           script: |
-            cd /home/ubuntu/anmian
-            echo "[CI/CD] Pulling latest code from ${{ github.ref_name }}..."
+            set -x
+            echo "[DEBUG] Starting deployment..."
+            echo "[DEBUG] Current user: $(whoami)"
+            echo "[DEBUG] Current directory: $(pwd)"
+            cd /home/ubuntu/anmian || exit 1
+            echo "[DEBUG] In project directory"
             git fetch origin
+            echo "[DEBUG] Fetched origin"
             git checkout ${{ github.ref_name }}
+            echo "[DEBUG] Checked out ${{ github.ref_name }}"
             git pull origin ${{ github.ref_name }}
-            
-            echo "[CI/CD] Installing dependencies..."
+            echo "[DEBUG] Pulled latest code"
             source venv/bin/activate
             pip install -r backend/requirements.txt -q
-            
-            echo "[CI/CD] Restarting service..."
+            echo "[DEBUG] Dependencies installed"
             sudo systemctl restart anmian-backend.service
-            
-            echo "[CI/CD] Waiting for health check..."
+            echo "[DEBUG] Service restarted"
             sleep 5
             for i in {1..10}; do
               if curl -sf http://127.0.0.1:8000/api/v1/admin/dashboard > /dev/null 2>&1; then
