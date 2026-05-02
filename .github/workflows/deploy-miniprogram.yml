@@ -2,7 +2,7 @@ name: Upload MiniProgram (Experience Version)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ develop ]
     paths:
       - 'miniprogram/**'
       - '.github/workflows/deploy-miniprogram.yml'
