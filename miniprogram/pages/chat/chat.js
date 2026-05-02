@@ -356,11 +356,65 @@ Page({
     try { recorderManager.stop() } catch (e) {}
     this.setData({ isRecording: true, isListening: false, audioLevel: 8, statusText: '正在听...', statusHint: '说完后稍等，我会回应' })
 
-    // 【修复】禁用 WebSocket ASR，使用更稳定的 HTTP uploadFile 方式
+    // 建立 WebSocket ASR
+    this._fallbackUploadASR = false
+    const wsUrl = `${API.replace(/^http/, 'ws')}/api/v1/asr/ws`
+    this._asrSocket = wx.connectSocket({ url: wsUrl })
+    this._asrSocketReady = false
+
+    this._asrSocket.onOpen(() => {
+      this._asrSocketReady = true
+      console.log('[ASR-WS] socket open')
+    })
+
+    this._asrSocket.onMessage((res) => {
+      console.log('[ASR-WS] onMessage raw:', res.data)
+      try {
+        const data = JSON.parse(res.data)
+        if (data.error) {
+          console.error('[ASR-WS] error:', data.error)
+          this._fallbackUploadASR = true
+      this.setData({ _asrPending: false })
+          return
+        }
+        if (data.slice_type === 2) {
+          this.setData({ statusText: '正在听：' + data.text })
+        }
+        if (data.is_final || data.slice_type === 2) {
+          this._asrSocket.close()
+          this._asrSocket = null
+          this._asrSocketReady = false
+          this.setData({ _asrPending: false })
+          if (data.text && data.text.trim()) {
+            this._sendToAI(data.text.trim(), true)
+          } else {
+            this._playTTS('不好意思没听清楚，你可以慢慢再说一次吗？', true)
+          }
+        }
+      } catch (e) {
+        console.error('[ASR-WS] parse error:', e)
+      }
+    })
+
+    this._asrSocket.onError((err) => {
+      console.error('[ASR-WS] socket error:', err)
+      this._fallbackUploadASR = true
+      this.setData({ _asrPending: false })
+      if (err && err.errMsg && err.errMsg.includes('url not in domain list')) {
+        wx.showToast({ title: '请在开发者工具「详情」中勾选「不校验合法域名」', icon: 'none', duration: 3000 })
+      }
+    })
+
+    this._asrSocket.onClose(() => {
+      this._asrSocketReady = false
+    })
+
+    // 开始正式录音（PCM，用于 fallback 上传 ASR；frameSize 保证 onFrameRecorded 正常触发）
     this._recordingState = 'asr'
     recorderManager.start({
-      format: 'mp3', sampleRate: 16000,
-      numberOfChannels: 1, encodeBitRate: 48000, duration: 15000
+      format: 'pcm', sampleRate: 16000,
+      numberOfChannels: 1, encodeBitRate: 64000, duration: 15000,
+      frameSize: 1280
     })
 
     this._volumeSim = setInterval(() => {
@@ -375,17 +429,9 @@ Page({
   _stop正式录音() {
     if (this._volumeSim) clearInterval(this._volumeSim)
     if (this._silenceTimer) clearTimeout(this._silenceTimer)
-    if (this._asrTimeout) { clearTimeout(this._asrTimeout); this._asrTimeout = null }
     this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
     recorderManager.stop()
     // onStop 统一回调会处理后续（发送 end 标记 或 fallback）
-    // 额外保险：如果 3 秒后还在 pending，强制 fallback
-    setTimeout(() => {
-      if (this._recordingFilePath && this.data._asrPending) {
-        console.log('[ASR] force fallback after stop timeout')
-        this._sendVoiceToASR(this._recordingFilePath)
-      }
-    }, 3000)
   },
 
   // ================================================
@@ -1751,17 +1797,25 @@ Page({
       }
 
       if (state === 'asr') {
+        console.log('[ASR-WS] onStop state=asr, duration:', res.duration, 'fileSize:', res.fileSize)
         if (res.duration < VAD.MIN_UTTERANCE) {
           this.setData({ isRecording: false, audioLevel: 0 })
+          if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
           this._startVADLoop()
           return
         }
         this._recordUsage('voice', Math.ceil(res.duration / 1000))
         this._recordingFilePath = res.tempFilePath
         this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
-        // 【修复】直接使用 HTTP uploadFile，绕过 WebSocket
-        if (res.tempFilePath) {
+        console.log('[ASR-WS] onStop, socketReady:', this._asrSocketReady, 'fallback:', this._fallbackUploadASR)
+        if (this._asrSocket && this._asrSocketReady) {
+          console.log('[ASR-WS] sending end marker')
+          this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
+        } else if (this._fallbackUploadASR && res.tempFilePath) {
+          console.log('[ASR-WS] fallback to uploadFile')
           this._sendVoiceToASR(res.tempFilePath)
+        } else {
+          console.log('[ASR-WS] no action, skip')
         }
       }
     })
