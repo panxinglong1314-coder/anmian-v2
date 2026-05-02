@@ -813,17 +813,19 @@ Page({
         data: wx.base64ToArrayBuffer(item.audioBase64),
         encoding: 'binary',
         success: () => {
-          innerAudioContext.stop()
-          innerAudioContext.src = filePath
-          try { innerAudioContext.offError && innerAudioContext.offError() } catch(e){}
-          try { innerAudioContext.offEnded && innerAudioContext.offEnded() } catch(e){}
-          innerAudioContext.onError(() => {
+          // 真机兼容：使用新实例播放，避免全局单例竞态
+          const ctx = wx.createInnerAudioContext({ useWebAudioImplement: false })
+          ctx.obeyMuteSwitch = false
+          ctx.src = filePath
+          ctx.onError((err) => {
+            console.error('[TTS] play error:', err)
+            ctx.destroy()
             this.setData({ isPlayingTTS: false })
             this._playNextTTS()
           })
-          innerAudioContext.onEnded(() => {
+          ctx.onEnded(() => {
+            ctx.destroy()
             this.setData({ isPlayingTTS: false, _asrPending: false })
-            // AI 语音结束，重置陪伴计时器
             if (this.data.sleepModeActive) this._resetCompanionTimer()
             if (item.fromSleep && this.data.sleepModeActive && (this.data.ttsQueue || []).length === 0) {
               this.setData({ statusText: '聆听中', statusHint: '继续说吧' })
@@ -831,9 +833,13 @@ Page({
             }
             this._playNextTTS()
           })
-          innerAudioContext.play()
+          // 真机上需要短暂延迟再播放
+          setTimeout(() => {
+            try { ctx.play() } catch(e) { console.error('[TTS] play fail:', e) }
+          }, 50)
         },
-        fail: () => {
+        fail: (err) => {
+          console.error('[TTS] write fail:', err)
           this._playNextTTS()
         }
       })
