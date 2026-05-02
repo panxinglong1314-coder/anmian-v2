@@ -1627,11 +1627,16 @@ async def _chat_events(req: ChatRequest):
         save_session_history(req.user_id, session_id, history)
         has_yielded_tts = False
         try:
-            audio = await tencent_tts_sync(cbt_result['content'][:120], voice=base_tts_voice, speed=base_tts_speed)
+            audio = await asyncio.wait_for(
+                tencent_tts_sync(cbt_result['content'][:120], voice=base_tts_voice, speed=base_tts_speed),
+                timeout=2.0
+            )
             if audio:
                 b64 = base64.b64encode(audio).decode()
                 yield {"event": "tts_audio", "audio_base64": b64}
                 has_yielded_tts = True
+        except asyncio.TimeoutError:
+            print(f"[TTS-stream] special response timeout")
         except Exception as e:
             print(f"[TTS-stream] special response error: {e}")
         yield {"event": "final", "content": cbt_result['content'], "should_close": cbt_result.get('should_close', False)}
@@ -1666,10 +1671,15 @@ async def _chat_events(req: ChatRequest):
         save_session_history(req.user_id, session_id, history)
         yield {"event": "chunk", "data": quick_greeting}
         try:
-            audio = await tencent_tts_sync(quick_greeting[:120], voice=base_tts_voice, speed=base_tts_speed)
+            audio = await asyncio.wait_for(
+                tencent_tts_sync(quick_greeting[:120], voice=base_tts_voice, speed=base_tts_speed),
+                timeout=2.0
+            )
             if audio:
                 b64 = base64.b64encode(audio).decode()
                 yield {"event": "tts_audio", "audio_base64": b64}
+        except asyncio.TimeoutError:
+            print(f"[TTS-quick] timeout")
         except Exception as e:
             print(f"[TTS-quick] error: {e}")
         yield {"event": "done", "session_id": session_id, "should_close": False, "has_tts": True}
@@ -1698,8 +1708,9 @@ async def _chat_events(req: ChatRequest):
             tts_buffer += chunk
             yield {"event": "chunk", "data": chunk}
 
-            # sentence-level 流式 TTS：按标点切分，每句最多10字立即合成并下发
-            MAX_TTS_CHARS = 10
+            # sentence-level 流式 TTS：按标点切分，每句最多40字立即合成并下发
+            # 优化：增大切分粒度 + 限制 TTS 超时，避免阻塞 LLM 流式输出
+            MAX_TTS_CHARS = 40
             while len(tts_buffer) >= 2:
                 cut_idx = -1
                 for i, ch in enumerate(tts_buffer):
@@ -1715,22 +1726,32 @@ async def _chat_events(req: ChatRequest):
                 tts_buffer = tts_buffer[cut_idx + 1:]
                 if sentence:
                     try:
-                        audio = await tencent_tts_sync(sentence[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed)
+                        audio = await asyncio.wait_for(
+                            tencent_tts_sync(sentence[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed),
+                            timeout=1.5
+                        )
                         if audio:
                             b64 = base64.b64encode(audio).decode()
                             yield {"event": "tts_audio", "audio_base64": b64}
                             has_yielded_tts = True
+                    except asyncio.TimeoutError:
+                        print(f"[TTS-stream] timeout for: {sentence[:20]}...")
                     except Exception as e:
                         print(f"[TTS-stream] sentence error: {e}")
 
         # 末尾剩余文本也合成 TTS
         if tts_buffer.strip():
             try:
-                audio = await tencent_tts_sync(tts_buffer[:MAX_TTS_CHARS].strip(), voice=base_tts_voice, speed=base_tts_speed)
+                audio = await asyncio.wait_for(
+                    tencent_tts_sync(tts_buffer[:MAX_TTS_CHARS].strip(), voice=base_tts_voice, speed=base_tts_speed),
+                    timeout=1.5
+                )
                 if audio:
                     b64 = base64.b64encode(audio).decode()
                     yield {"event": "tts_audio", "audio_base64": b64}
                     has_yielded_tts = True
+            except asyncio.TimeoutError:
+                print(f"[TTS-stream] final timeout")
             except Exception as e:
                 print(f"[TTS-stream] final error: {e}")
     except Exception as e:
@@ -2298,13 +2319,23 @@ async def asr_websocket(websocket: WebSocket):
     except Exception as e:
         print(f"[ASR-WS] receive error: {e}")
 
-    # 识别
+    # 识别（带重试机制）
     try:
         if len(pcm_buffer) > 0:
             print(f"[ASR-WS] recognizing {len(pcm_buffer)} bytes PCM...")
             connector = TencentASRConnector(str(appid), secret_id, secret_key)
-            text = await connector.recognize(bytes(pcm_buffer))
-            print(f"[ASR-WS] result: '{text}'")
+            pcm_bytes = bytes(pcm_buffer)
+            
+            # 第一次识别
+            text = await connector.recognize(pcm_bytes)
+            print(f"[ASR-WS] result #1: '{text}'")
+            
+            # 如果为空，等待 200ms 后重试一次（有时腾讯 API 需要稍等）
+            if not text or not text.strip():
+                await asyncio.sleep(0.2)
+                text = await connector.recognize(pcm_bytes)
+                print(f"[ASR-WS] result #2: '{text}'")
+            
             if text and text.strip():
                 await websocket.send_json({"text": text, "slice_type": 2, "is_final": True})
             else:
