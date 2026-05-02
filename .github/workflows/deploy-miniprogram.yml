@@ -1,0 +1,38 @@
+name: Upload MiniProgram (Experience Version)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'miniprogram/**'
+      - '.github/workflows/deploy-miniprogram.yml'
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install miniprogram-ci
+        run: npm install -g miniprogram-ci
+
+      - name: Upload MiniProgram
+        env:
+          WX_APPID: ${{ secrets.WX_APPID }}
+          WX_PRIVATE_KEY: ${{ secrets.WX_PRIVATE_KEY }}
+        run: |
+          echo "$WX_PRIVATE_KEY" > /tmp/private.key
+          miniprogram-ci upload \
+            --pp ./miniprogram \
+            --pkp /tmp/private.key \
+            --appid $WX_APPID \
+            --uv 1.0.0 \
+            -r 1 \
+            --enable-es6 true
