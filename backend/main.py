@@ -805,6 +805,63 @@ async def minimax_chat(messages: list[dict], stream: bool = True) -> AsyncGenera
             yield "抱歉，服务暂时不稳定，请稍后再试。"
 
 
+def _get_sleep_summary(user_id: str, days: int = 7) -> str:
+    """获取用户最近 N 天的睡眠数据摘要，注入 system prompt"""
+    try:
+        from datetime import datetime, timedelta
+        entries = []
+        for i in range(days):
+            d = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+            diary = get_sleep_diary(user_id, d)
+            if diary:
+                entries.append(diary)
+        if not entries:
+            return ""
+        
+        # 计算平均值
+        se_list = [e.get("se", 0) for e in entries if e.get("se", 0) > 0]
+        tst_list = [e.get("tst_hours", 0) for e in entries if e.get("tst_hours", 0) > 0]
+        tib_list = [e.get("tib_hours", 0) for e in entries if e.get("tib_hours", 0) > 0]
+        quality_list = [e.get("sleep_quality", 0) for e in entries if e.get("sleep_quality", 0) > 0]
+        wake_list = [e.get("wake_count", 0) for e in entries]
+        
+        avg_se = sum(se_list) / len(se_list) if se_list else 0
+        avg_tst = sum(tst_list) / len(tst_list) if tst_list else 0
+        avg_tib = sum(tib_list) / len(tib_list) if tib_list else 0
+        avg_quality = sum(quality_list) / len(quality_list) if quality_list else 0
+        avg_wake = sum(wake_list) / len(wake_list) if wake_list else 0
+        
+        # 最近一天数据
+        latest = entries[0]
+        latest_se = latest.get("se", 0)
+        latest_tst = latest.get("tst_hours", 0)
+        latest_quality = latest.get("sleep_quality", 0)
+        
+        # 趋势判断
+        se_trend = "改善" if len(se_list) >= 2 and se_list[0] > se_list[-1] else "稳定" if len(se_list) >= 2 and abs(se_list[0] - se_list[-1]) < 5 else "波动"
+        
+        lines = [
+            f"\n\n[用户睡眠数据（最近{len(entries)}天）]",
+            f"- 平均睡眠效率: {avg_se:.1f}%（目标>85%，{'达标' if avg_se >= 85 else '偏低'}）",
+            f"- 平均实际睡眠: {avg_tst:.1f}h（目标7-8h）",
+            f"- 平均卧床时间: {avg_tib:.1f}h",
+            f"- 平均睡眠质量: {avg_quality:.1f}/5",
+            f"- 平均夜间觉醒: {avg_wake:.1f}次",
+            f"- 趋势: {se_trend}",
+        ]
+        
+        # 如果最近一天数据较差，增加提示
+        if latest_se > 0 and latest_se < 70:
+            lines.append(f"- 注意：昨晚睡眠效率仅{latest_se:.0f}%，可能存在睡眠维持困难")
+        if latest_quality > 0 and latest_quality <= 2:
+            lines.append(f"- 注意：昨晚睡眠质量较差（{latest_quality}/5）")
+        
+        return "\n".join(lines)
+    except Exception as e:
+        print(f"[SleepSummary] 获取失败: {e}")
+        return ""
+
+
 def _build_enhanced_system_prompt(
     user_id: str, session_id: str, cbt_result: dict, user_message: str, memory: dict = None,
     profile: dict = None
@@ -839,6 +896,33 @@ def _build_enhanced_system_prompt(
         concerns = "、".join([f"{k}({v}次)" for k, v in top])
         memory_context = f"\n\n[用户历史] 近日常见担忧：{concerns}。最后话题：{memory.get('last_topic', '无')}"
 
+    # 睡眠日记数据注入（新增）
+    sleep_context = _get_sleep_summary(user_id, days=7)
+    
+    # 情绪分析注入（新增）：根据用户消息动态调整回复策略
+    emotion_context = ""
+    try:
+        analyzer = get_emotion_analyzer()
+        emotion = analyzer.analyze(user_message)
+        if emotion.primary != "neutral" and emotion.confidence > 0.3:
+            style_hint = {
+                "CONTINUE": "用户情绪可控，正常对话",
+                "CONTINUE_WITH_CARE": "用户情绪较强烈，回复需更简短温和（15-25字）",
+                "IMMEDIATE_SAFETY": "用户情绪危急，优先安抚和安全确认，回复极短（10-15字）"
+            }.get(emotion.risk_flag, "正常对话")
+            emotion_context = (
+                f"\n\n[用户当前情绪] {emotion.primary}（{emotion.level}，强度{emotion.intensity}/5）"
+                f"，风险标记：{emotion.risk_flag}。{style_hint}"
+            )
+            if emotion.worry_domains:
+                emotion_context += f"\n- 担忧领域：{'、'.join(emotion.worry_domains)}"
+            if emotion.cognitive_distortions:
+                emotion_context += f"\n- 认知扭曲信号：{'、'.join(emotion.cognitive_distortions)}"
+            if emotion.suicide_risk > 0.3:
+                emotion_context += f"\n- ⚠️ 自杀风险检测：{emotion.suicide_risk:.0%}，需关注"
+    except Exception as e:
+        print(f"[Emotion] 分析失败: {e}")
+
     # 组合顺序：强制规则必须放在最后，且用极强措辞
     strict_rules = (
         "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -853,11 +937,15 @@ def _build_enhanced_system_prompt(
         "7. 用户说'太诗意了'、'太长'时，立即用不超过 10 字道歉并极简回复。\n"
         "8. 示例正确（供参考风格）：用户说'有点难过'→'现在不用急着好起来。' / 用户说'想得到却得不到'→'有些东西，攥得越紧，手越疼。' / 用户说'焦虑得睡不着'→'今晚先不解决。'\n"
         "9. 绝对禁止：模板化回复、固定句式、每句都提'睡觉'/'焦虑'。\n"
+        "10. 如果用户有睡眠日记数据，可以自然地引用（如'这周睡眠效率提升了'），但不要用数据轰炸用户。\n"
+        "11. 如果检测到用户情绪较强烈（moderate/severe），回复必须更短更温和，避免追问。\n"
     )
+    
+    parts = [cbt_base_prompt, memory_context, sleep_context, emotion_context]
     if rag_context:
-        return cbt_base_prompt + memory_context + "\n" + rag_context + strict_rules
-    else:
-        return cbt_base_prompt + memory_context + strict_rules
+        parts.append("\n" + rag_context)
+    parts.append(strict_rules)
+    return "".join([p for p in parts if p])
 
 
 # ==================== Edge TTS（免费，无需 API Key） ====================
@@ -1334,6 +1422,27 @@ async def tencent_asr_stream(audio_data: bytes, filename: str = "audio.mp3") -> 
     return text
 
 
+@app.post("/api/v1/asr/quick")
+async def asr_quick_upload(file: UploadFile = File(...)):
+    """
+    快速 ASR 识别（HTTP 直传，绕过 WebSocket 开销）
+    前端录音完成后直接上传文件，后端立即识别返回
+    支持 mp3/wav/pcm，最大 2MB
+    """
+    audio_data = await file.read()
+    if len(audio_data) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="音频文件不能超过2MB")
+    if len(audio_data) == 0:
+        raise HTTPException(status_code=400, detail="音频文件为空")
+
+    try:
+        text = await tencent_asr_stream(audio_data, file.filename or "audio.mp3")
+        return {"text": text, "confidence": "high", "engine": "tencent", "source": "quick_upload"}
+    except Exception as e:
+        print(f"[ASR-Quick] 识别失败: {e}")
+        raise HTTPException(status_code=500, detail=f"识别失败: {str(e)}")
+
+
 
 
 
@@ -1709,58 +1818,86 @@ async def _chat_events(req: ChatRequest):
     has_yielded_tts = False
     llm_error = False
 
+    # 段落级 TTS 参数：累积 30-80 字后批量合成，减少调用次数，提升连贯性
+    MIN_TTS_CHARS = 30
+    MAX_TTS_CHARS = 80
+    MAX_TTS_WAIT_MS = 1200
+    tts_last_flush_time = None
+
     try:
         async for chunk in minimax_chat(full_messages):
             full_resp += chunk
             tts_buffer += chunk
             yield {"event": "chunk", "data": chunk}
 
-            # sentence-level 流式 TTS：按标点切分，每句最多40字立即合成并下发
-            # 优化：增大切分粒度 + 限制 TTS 超时，避免阻塞 LLM 流式输出
-            MAX_TTS_CHARS = 40
-            while len(tts_buffer) >= 2:
-                cut_idx = -1
-                for i, ch in enumerate(tts_buffer):
-                    if ch in sentence_end:
+            now_ms = asyncio.get_event_loop().time() * 1000
+            if tts_last_flush_time is None:
+                tts_last_flush_time = now_ms
+
+            # 段落级 TTS 累积策略（3 种触发条件）
+            should_flush = False
+            flush_text = ""
+
+            # 条件1：累积达到 MAX_TTS_CHARS，强制切分（在标点处优先切分）
+            if len(tts_buffer) >= MAX_TTS_CHARS:
+                should_flush = True
+                cut_idx = MAX_TTS_CHARS - 1
+                for i in range(min(MAX_TTS_CHARS - 1, len(tts_buffer) - 1), -1, -1):
+                    if tts_buffer[i] in sentence_end:
                         cut_idx = i
                         break
-                # 如果超过最大长度还没遇到标点，强制切分
-                if cut_idx == -1 and len(tts_buffer) >= MAX_TTS_CHARS:
-                    cut_idx = MAX_TTS_CHARS - 1
-                if cut_idx == -1:
-                    break
-                sentence = tts_buffer[:cut_idx + 1].strip()
+                flush_text = tts_buffer[:cut_idx + 1].strip()
                 tts_buffer = tts_buffer[cut_idx + 1:]
-                if sentence:
-                    try:
-                        audio = await asyncio.wait_for(
-                            tencent_tts_sync(sentence[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed),
-                            timeout=1.5
-                        )
-                        if audio:
-                            b64 = base64.b64encode(audio).decode()
-                            yield {"event": "tts_audio", "audio_base64": b64}
-                            has_yielded_tts = True
-                    except asyncio.TimeoutError:
-                        print(f"[TTS-stream] timeout for: {sentence[:20]}...")
-                    except Exception as e:
-                        print(f"[TTS-stream] sentence error: {e}")
 
-        # 末尾剩余文本也合成 TTS
+            # 条件2：累积达到 MIN_TTS_CHARS 且遇到句子结束标点
+            elif len(tts_buffer) >= MIN_TTS_CHARS:
+                last_punct_idx = -1
+                for i, ch in enumerate(tts_buffer):
+                    if ch in sentence_end and i >= MIN_TTS_CHARS - 10:
+                        last_punct_idx = i
+                if last_punct_idx >= 0:
+                    should_flush = True
+                    flush_text = tts_buffer[:last_punct_idx + 1].strip()
+                    tts_buffer = tts_buffer[last_punct_idx + 1:]
+
+            # 条件3：累积时间超过 MAX_TTS_WAIT_MS，强制刷新（防止长句卡住）
+            elif len(tts_buffer) >= 10 and (now_ms - tts_last_flush_time) > MAX_TTS_WAIT_MS:
+                should_flush = True
+                flush_text = tts_buffer.strip()
+                tts_buffer = ""
+
+            if should_flush and flush_text:
+                try:
+                    audio = await asyncio.wait_for(
+                        tencent_tts_sync(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed),
+                        timeout=2.0
+                    )
+                    if audio:
+                        b64 = base64.b64encode(audio).decode()
+                        yield {"event": "tts_audio", "audio_base64": b64}
+                        has_yielded_tts = True
+                        print(f"[TTS-para] synthesized {len(flush_text)} chars: {flush_text[:30]}...")
+                except asyncio.TimeoutError:
+                    print(f"[TTS-para] timeout for: {flush_text[:20]}...")
+                except Exception as e:
+                    print(f"[TTS-para] error: {e}")
+                tts_last_flush_time = now_ms
+
+        # 流结束：刷新剩余文本
         if tts_buffer.strip():
             try:
                 audio = await asyncio.wait_for(
                     tencent_tts_sync(tts_buffer[:MAX_TTS_CHARS].strip(), voice=base_tts_voice, speed=base_tts_speed),
-                    timeout=1.5
+                    timeout=2.0
                 )
                 if audio:
                     b64 = base64.b64encode(audio).decode()
                     yield {"event": "tts_audio", "audio_base64": b64}
                     has_yielded_tts = True
             except asyncio.TimeoutError:
-                print(f"[TTS-stream] final timeout")
+                print(f"[TTS-para] final timeout")
             except Exception as e:
-                print(f"[TTS-stream] final error: {e}")
+                print(f"[TTS-para] final error: {e}")
     except Exception as e:
         print(f"[LLM-stream] 生成失败，使用兜底回复: {e}")
         llm_error = True
@@ -2104,8 +2241,16 @@ import urllib.parse
 
 class TencentASRStreamConnector:
     """
-    腾讯云 ASR WebSocket v2 真正流式客户端
-    边收前端 PCM 边转发给腾讯，边把识别结果回传
+    腾讯云 ASR WebSocket v2 流式客户端（修复 4010 错误）
+    
+    4010 错误根因：connect() 发送 JSON header 后没有等待服务端确认，
+    立即开始发送二进制音频数据。服务端未完成初始化时将二进制数据误判为"未知文本消息"。
+    
+    修复要点：
+    1. 发送 header 后等待服务端返回 code=0 的确认消息
+    2. 确认后再启动 send_loop 发送音频数据
+    3. 音频数据分片发送（每帧 6400 字节 = 200ms）
+    4. 明确使用 bytes 类型发送二进制帧
     """
     def __init__(self, appid: str, secret_id: str, secret_key: str,
                  voice_id: str = None, engine_model_type: str = "16k_zh"):
@@ -2117,9 +2262,11 @@ class TencentASRStreamConnector:
         self.ws = None
         self._result_queue: asyncio.Queue[dict] = asyncio.Queue()
         self._done = asyncio.Event()
+        self._ready = asyncio.Event()  # 新增：等待服务端确认
         self._send_task = None
         self._recv_task = None
         self._send_queue: asyncio.Queue[bytes] = asyncio.Queue()
+        self._closed = False
 
     def _build_url(self) -> str:
         ts = int(time.time())
@@ -2142,10 +2289,18 @@ class TencentASRStreamConnector:
         ).decode()
         return f"wss://asr.cloud.tencent.com{path_query}&signature={urllib.parse.quote(sig)}"
 
-    async def connect(self):
+    async def connect(self, timeout: float = 5.0):
+        """
+        建立连接并等待服务端确认
+        修复 4010：必须先收到服务端 code=0 的确认，才能发送音频数据
+        """
         url = self._build_url()
-        print(f"[ASR-WS] connecting to Tencent ASR v2...")
+        print(f"[ASR-v2] connecting to {url[:80]}...")
         self.ws = await websockets.connect(url)
+        
+        # 先启动 receive_loop 来接收服务端的确认消息
+        self._recv_task = asyncio.create_task(self._receive_loop())
+        
         # 发送握手 JSON（请求头）
         header = {
             "voice_id": self.voice_id,
@@ -2162,44 +2317,97 @@ class TencentASRStreamConnector:
             "convert_num_mode": 1,
         }
         await self.ws.send(json.dumps(header))
-        self._recv_task = asyncio.create_task(self._receive_loop())
+        print(f"[ASR-v2] header sent, waiting for server ready...")
+        
+        # 关键修复：等待服务端返回 code=0 的确认消息
+        try:
+            await asyncio.wait_for(self._ready.wait(), timeout=timeout)
+            print("[ASR-v2] server ready, starting send_loop")
+        except asyncio.TimeoutError:
+            print("[ASR-v2] server ready timeout, closing")
+            await self.close()
+            raise Exception("ASR v2 server ready timeout")
+        
+        # 服务端确认后再启动 send_loop
         self._send_task = asyncio.create_task(self._send_loop())
-        print("[ASR-WS] connected")
 
     async def _send_loop(self):
+        """发送音频数据循环 - 分片发送，每帧 6400 字节（200ms）"""
         try:
             while True:
                 data = await self._send_queue.get()
                 if data is None:
-                    # end marker
+                    # 结束标记：发送 JSON text
+                    print("[ASR-v2] sending end marker")
                     await self.ws.send(json.dumps({"type": "end"}))
                     break
-                await self.ws.send(data)
+                
+                # 分片发送：每帧 6400 字节（200ms @ 16kHz 16bit mono）
+                CHUNK_SIZE = 6400
+                for i in range(0, len(data), CHUNK_SIZE):
+                    chunk = data[i:i + CHUNK_SIZE]
+                    if isinstance(chunk, (bytes, bytearray)):
+                        # 确保发送的是 bytes 类型（二进制帧）
+                        await self.ws.send(bytes(chunk))
+                    else:
+                        print(f"[ASR-v2] WARNING: non-bytes data, type={type(chunk)}")
+                        await self.ws.send(str(chunk).encode())
+                    # 小延迟避免发送过快
+                    if i + CHUNK_SIZE < len(data):
+                        await asyncio.sleep(0.01)
+                        
         except Exception as e:
-            print(f"[ASR-WS] send_loop error: {e}")
+            print(f"[ASR-v2] send_loop error: {e}")
 
     async def _receive_loop(self):
+        """接收识别结果循环"""
         try:
             async for msg in self.ws:
-                data = json.loads(msg)
-                result = data.get("result", {})
-                if result:
-                    await self._result_queue.put({
-                        "text": result.get("voice_text_str", ""),
-                        "slice_type": result.get("slice_type", 2),
-                        "is_final": result.get("slice_type") == 2,
-                    })
-                if data.get("final") == 1:
-                    self._done.set()
-                    break
+                # 服务端返回的 msg 是 JSON 文本
+                if isinstance(msg, str):
+                    data = json.loads(msg)
+                    
+                    # 检查服务端状态码
+                    code = data.get("code", 0)
+                    if code != 0:
+                        print(f"[ASR-v2] server error: code={code}, message={data.get('message', '')}")
+                        self._done.set()
+                        break
+                    
+                    # 服务端确认消息（code=0 且没有 result）
+                    if not self._ready.is_set() and "result" not in data:
+                        print("[ASR-v2] server acknowledged, ready to receive audio")
+                        self._ready.set()
+                        continue
+                    
+                    # 识别结果
+                    result = data.get("result", {})
+                    if result:
+                        slice_type = result.get("slice_type", 2)
+                        await self._result_queue.put({
+                            "text": result.get("voice_text_str", ""),
+                            "slice_type": slice_type,
+                            "is_final": slice_type == 2,
+                        })
+                    
+                    # 最终结束标记
+                    if data.get("final") == 1:
+                        print("[ASR-v2] received final")
+                        self._done.set()
+                        break
+                        
         except Exception as e:
-            print(f"[ASR-WS] receive_loop error: {e}")
+            print(f"[ASR-v2] receive_loop error: {e}")
             self._done.set()
 
     async def send_pcm(self, pcm: bytes):
+        """发送 PCM 音频数据（完整文件）"""
+        if not self._ready.is_set():
+            print("[ASR-v2] WARNING: sending before ready")
         await self._send_queue.put(pcm)
 
     async def send_end(self):
+        """发送结束标记"""
         await self._send_queue.put(None)
 
     async def get_result(self, timeout: float = 0.5) -> Optional[dict]:
@@ -2215,12 +2423,17 @@ class TencentASRStreamConnector:
             pass
 
     async def close(self):
-        if self._send_task:
+        self._closed = True
+        if self._send_task and not self._send_task.done():
             self._send_task.cancel()
-        if self._recv_task:
+        if self._recv_task and not self._recv_task.done():
             self._recv_task.cancel()
         if self.ws:
-            await self.ws.close()
+            try:
+                await self.ws.close()
+            except Exception:
+                pass
+        self._done.set()
 
 
 class TencentASRConnector:
@@ -2280,6 +2493,23 @@ class TencentASRConnector:
         return result
 
 
+_asr_connector = None
+
+def get_asr_connector() -> "TencentASRConnector":
+    """获取全局 ASR 连接池实例（单例，预热）"""
+    global _asr_connector
+    if _asr_connector is None:
+        appid = settings.tencentcloud_app_id
+        secret_id = settings.tencentcloud_secret_id
+        secret_key = settings.tencentcloud_secret_key
+        if all([appid, secret_id, secret_key]):
+            _asr_connector = TencentASRConnector(str(appid), secret_id, secret_key)
+            # 预热：初始化 SDK 客户端
+            _asr_connector._get_client()
+            print(f"[ASR-Pool] 连接池已预热，appid={appid}")
+    return _asr_connector
+
+
 @app.websocket("/api/v1/asr/ws")
 async def asr_websocket(websocket: WebSocket):
     """
@@ -2326,33 +2556,75 @@ async def asr_websocket(websocket: WebSocket):
     except Exception as e:
         print(f"[ASR-WS] receive error: {e}")
 
-    # 识别（带重试机制）
-    try:
-        if len(pcm_buffer) > 0:
-            print(f"[ASR-WS] recognizing {len(pcm_buffer)} bytes PCM...")
-            connector = TencentASRConnector(str(appid), secret_id, secret_key)
-            pcm_bytes = bytes(pcm_buffer)
-            
-            # 第一次识别
-            text = await connector.recognize(pcm_bytes)
-            print(f"[ASR-WS] result #1: '{text}'")
-            
-            # 如果为空，等待 200ms 后重试一次（有时腾讯 API 需要稍等）
-            if not text or not text.strip():
-                await asyncio.sleep(0.2)
+    # 识别：优先使用 Tencent ASR v2 WebSocket（更快），失败回退到 SDK
+    text = ""
+    use_v2 = True  # 默认启用 v2
+    
+    if len(pcm_buffer) > 0:
+        pcm_bytes = bytes(pcm_buffer)
+        
+        # 尝试 1: ASR v2 WebSocket（首响延迟更低）
+        if use_v2:
+            try:
+                print(f"[ASR-WS] trying v2 WebSocket, {len(pcm_bytes)} bytes...")
+                v2_connector = TencentASRStreamConnector(
+                    str(appid), secret_id, secret_key,
+                    engine_model_type="16k_zh"
+                )
+                await v2_connector.connect(timeout=3.0)
+                await v2_connector.send_pcm(pcm_bytes)
+                await v2_connector.send_end()
+                
+                # 收集识别结果
+                v2_text = ""
+                for _ in range(20):  # 最多等 10 秒
+                    result = await v2_connector.get_result(timeout=0.5)
+                    if result:
+                        v2_text = result["text"]
+                        print(f"[ASR-WS] v2 partial: '{v2_text}'")
+                        if result.get("is_final"):
+                            break
+                    if v2_connector._done.is_set():
+                        break
+                
+                await v2_connector.close()
+                text = v2_text
+                print(f"[ASR-WS] v2 final: '{text}'")
+            except Exception as e:
+                print(f"[ASR-WS] v2 failed: {e}, falling back to SDK")
+                text = ""
+        
+        # 尝试 2: SDK SentenceRecognition（稳定回退）
+        if not text:
+            try:
+                print(f"[ASR-WS] using SDK, {len(pcm_bytes)} bytes...")
+                connector = get_asr_connector()
+                if connector is None:
+                    await websocket.send_json({"error": "ASR 未配置"})
+                    await websocket.close()
+                    return
+                
                 text = await connector.recognize(pcm_bytes)
-                print(f"[ASR-WS] result #2: '{text}'")
-            
-            if text and text.strip():
-                await websocket.send_json({"text": text, "slice_type": 2, "is_final": True})
-            else:
-                await websocket.send_json({"text": "", "slice_type": 2, "is_final": True})
+                print(f"[ASR-WS] SDK result #1: '{text}'")
+                
+                # 如果为空，重试一次
+                if not text or not text.strip():
+                    await asyncio.sleep(0.2)
+                    text = await connector.recognize(pcm_bytes)
+                    print(f"[ASR-WS] SDK result #2: '{text}'")
+            except Exception as e:
+                print(f"[ASR-WS] SDK error: {e}")
+    else:
+        print("[ASR-WS] no audio data received")
+    
+    # 返回结果
+    try:
+        if text and text.strip():
+            await websocket.send_json({"text": text, "slice_type": 2, "is_final": True})
         else:
-            print("[ASR-WS] no audio data received")
             await websocket.send_json({"text": "", "slice_type": 2, "is_final": True})
     except Exception as e:
-        print(f"[ASR-WS] recognition error: {e}")
-        await websocket.send_json({"error": str(e)})
+        print(f"[ASR-WS] send result error: {e}")
 
     try:
         await websocket.send_json({"done": True})
@@ -3787,6 +4059,7 @@ if __name__ == "__main__":
 
 from evaluation_tracker import record_evaluation, get_bias_stats
 from alert_manager import send_alert, send_daily_report
+from emotion_analyzer import get_emotion_analyzer, EmotionAnalyzer, EmotionResult
 
 @app.post("/api/v1/evaluate/track")
 async def track_evaluation(request: Request):
@@ -3888,3 +4161,24 @@ async def push_daily_report(days: int = 1):
 # test deploy v2
 # deploy test v3
 # deploy v4
+
+
+# ==================== 情感分析 API ====================
+
+class EmotionAnalyzeRequest(BaseModel):
+    text: str
+    user_id: Optional[str] = None
+
+@app.post("/api/v1/emotion/analyze")
+async def emotion_analyze(req: EmotionAnalyzeRequest):
+    """
+    分析用户文本的情绪状态
+    返回：主情绪、强度、风险标记、担忧领域、认知扭曲信号、自杀风险
+    """
+    try:
+        analyzer = get_emotion_analyzer()
+        result = analyzer.analyze(req.text)
+        return analyzer.to_dict(result)
+    except Exception as e:
+        print(f"[EmotionAPI] 分析失败: {e}")
+        raise HTTPException(status_code=500, detail=f"情感分析失败: {str(e)}")

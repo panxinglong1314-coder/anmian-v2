@@ -1,0 +1,1489 @@
+{
+  "train": [
+    {
+      "text": "唉，被抛弃了",
+      "emotion": "loneliness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "痛苦得睡不着",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "心里空空的",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "一直在想，控制不住",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "好孤单",
+      "emotion": "loneliness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "一点力气都没有...",
+      "emotion": "exhaustion",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "不敢闭上眼睛",
+      "emotion": "fear",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "怕一个人",
+      "emotion": "fear",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "世界上只有我一个人",
+      "emotion": "loneliness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "绝望到极点...",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "不太敢...",
+      "emotion": "fear",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "唉，心跳得好快，停不下来",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "唉，没力气",
+      "emotion": "exhaustion",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "特别恼火",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "唉，不太爽",
+      "emotion": "anger",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "很孤独",
+      "emotion": "loneliness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "唉，绝望到极点",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "热闹是他们的，我什么都没有",
+      "emotion": "loneliness",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "不太敢",
+      "emotion": "fear",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "没力气",
+      "emotion": "exhaustion",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "唉，有点烦躁",
+      "emotion": "anger",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "紧张得手心出汗",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "恐惧感淹没了一切",
+      "emotion": "fear",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "感觉卡住了...",
+      "emotion": "frustration",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "唉，还行",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "没什么特别的...",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "没什么精神",
+      "emotion": "sadness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "心情不太好",
+      "emotion": "sadness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "感觉很委屈",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "还行",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "彻底孤独",
+      "emotion": "loneliness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "感觉自己像个透明人",
+      "emotion": "loneliness",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "唉，愤怒到极点",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "完全不行",
+      "emotion": "frustration",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "被所有人遗忘",
+      "emotion": "loneliness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "唉，心里有点不安",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "疲倦...",
+      "emotion": "exhaustion",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "很难受，脑子停不下来",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "被抛弃了",
+      "emotion": "loneliness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "我快喘不过气来了",
+      "emotion": "anxiety",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "越想越气...",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "恐惧",
+      "emotion": "fear",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "一切都失去了意义...",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "还好...",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "怕黑...",
+      "emotion": "fear",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "脑子里一直在想事情",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "连哭都没力气了",
+      "emotion": "exhaustion",
+      "level": "severe",
+      "intensity": 5,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "身体被掏空...",
+      "emotion": "exhaustion",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "有点郁闷",
+      "emotion": "sadness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "愤怒到极点",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "有点难过",
+      "emotion": "sadness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "唉，一点力气都没有",
+      "emotion": "exhaustion",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "觉得自己一无是处",
+      "emotion": "frustration",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "感觉要窒息了",
+      "emotion": "anxiety",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "唉，今天挺正常的",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "没人理解",
+      "emotion": "loneliness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "气得浑身发抖",
+      "emotion": "anger",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "唉，还好",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "累极了...",
+      "emotion": "exhaustion",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "气死了",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "唉，我快喘不过气来了",
+      "emotion": "anxiety",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "就这样吧",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "唉，没什么特别的",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "精疲力尽...",
+      "emotion": "exhaustion",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": " terrified",
+      "emotion": "fear",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "今天挺正常的",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "很生气",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "开心不起来",
+      "emotion": "sadness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "什么都不想做，就这样躺着",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "还好",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "还行...",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "疲倦",
+      "emotion": "exhaustion",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "累到极限...",
+      "emotion": "exhaustion",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "进展不顺利...",
+      "emotion": "frustration",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "愤怒到极点...",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "感觉要崩溃了",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "活着好辛苦",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "唉，疲倦",
+      "emotion": "exhaustion",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "觉得活着没意思",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "唉，精疲力尽",
+      "emotion": "exhaustion",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "有点烦躁...",
+      "emotion": "anger",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "气死了...",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "完全动不了",
+      "emotion": "exhaustion",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "感觉一个人",
+      "emotion": "loneliness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "肩膀一直绷着，放松不了",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "身体被掏空",
+      "emotion": "exhaustion",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "所有的努力都白费了",
+      "emotion": "frustration",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "有点发愁",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "心里有点怕",
+      "emotion": "fear",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "越想越气",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "有点烦",
+      "emotion": "anger",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "唉，越想越气",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "挺寂寞的",
+      "emotion": "loneliness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "今天挺正常的...",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "为什么总是我",
+      "emotion": "frustration",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "努力了很久还是没有结果",
+      "emotion": "frustration",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "被抛弃了...",
+      "emotion": "loneliness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "精力不够",
+      "emotion": "exhaustion",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "唉，担心发生不好的事",
+      "emotion": "fear",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "担心睡不着",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "精疲力尽",
+      "emotion": "exhaustion",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "很难过，忍不住想哭...",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "唉，气死了",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "痛苦得睡不着...",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "心里有点不安",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "唉，感觉卡住了",
+      "emotion": "frustration",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "特别恼火...",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "唉， terrified",
+      "emotion": "fear",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "心跳得好快，停不下来...",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "睁着眼到天亮",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "非常不满...",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "没有活下去的动力了...",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "有点害怕",
+      "emotion": "fear",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "唉，没有活下去的动力了",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "唉，累极了",
+      "emotion": "exhaustion",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "绝望到极点",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "有点担心明天的事情",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "有点累",
+      "emotion": "exhaustion",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "静不下心来",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "怕得要死",
+      "emotion": "fear",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "身体和心灵都枯竭了",
+      "emotion": "exhaustion",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "担心发生不好的事",
+      "emotion": "fear",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "心里不舒服",
+      "emotion": "anger",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "没人会记得我吧",
+      "emotion": "loneliness",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "彻底失败了",
+      "emotion": "frustration",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "没有人关心我",
+      "emotion": "loneliness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "不太爽...",
+      "emotion": "anger",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "开心不起来...",
+      "emotion": "sadness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "感觉卡住了",
+      "emotion": "frustration",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "有很强的失败感",
+      "emotion": "frustration",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "已经尽力了，还是这样",
+      "emotion": "frustration",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "说不上来",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "唉，不敢闭上眼睛",
+      "emotion": "fear",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "做什么都没用",
+      "emotion": "frustration",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "如果能一觉不醒就好了",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "suicide_risk": 0.6,
+      "source": "implied"
+    },
+    {
+      "text": "唉，没人理解",
+      "emotion": "loneliness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "感觉失落",
+      "emotion": "sadness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "很害怕",
+      "emotion": "fear",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "感觉无能为力",
+      "emotion": "frustration",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "好难受",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "担心发生不好的事...",
+      "emotion": "fear",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "永远不可能成功",
+      "emotion": "frustration",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "最近比较丧",
+      "emotion": "sadness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "想砸东西",
+      "emotion": "anger",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "怕黑",
+      "emotion": "fear",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "一般",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "恨透了",
+      "emotion": "anger",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "唉，痛苦得睡不着",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "有点烦，不知道怎么办",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "非常不满",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "唉，很难过，忍不住想哭",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "翻来覆去，越想越焦虑",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "怕得要死...",
+      "emotion": "fear",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "感觉有点紧张",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "心跳得好快，停不下来",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "有点烦躁",
+      "emotion": "anger",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "累到极限",
+      "emotion": "exhaustion",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "心里有点不安...",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "为什么我做不到别人那样",
+      "emotion": "frustration",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "胸口闷闷的，很难受",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": " terrified...",
+      "emotion": "fear",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "胸口像压了块石头",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "一点力气都没有",
+      "emotion": "exhaustion",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "不敢闭上眼睛...",
+      "emotion": "fear",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "唉，累到极限",
+      "emotion": "exhaustion",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "唉，怕得要死",
+      "emotion": "fear",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "要疯了",
+      "emotion": "anger",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "彻底崩溃了，什么都做不了",
+      "emotion": "anxiety",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "我快喘不过气来了...",
+      "emotion": "anxiety",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "唉，进展不顺利",
+      "emotion": "frustration",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "唉，一切都失去了意义",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "augmented"
+    },
+    {
+      "text": "唉，怕黑",
+      "emotion": "fear",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "唉，开心不起来",
+      "emotion": "sadness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "唉，特别恼火",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "没什么感觉",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    }
+  ],
+  "test": [
+    {
+      "text": "有点挫败",
+      "emotion": "frustration",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "极度恐惧",
+      "emotion": "fear",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "不太顺",
+      "emotion": "frustration",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "一想到要面对就心慌",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "呼吸都不顺畅",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "沮丧极了，什么都提不起兴趣",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "唉，不太敢",
+      "emotion": "fear",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "累极了",
+      "emotion": "exhaustion",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "心里堵得慌",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "有点孤单",
+      "emotion": "loneliness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "全身发抖，控制不住",
+      "emotion": "anxiety",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "不太爽",
+      "emotion": "anger",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "进展不顺利",
+      "emotion": "frustration",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "唉，非常不满",
+      "emotion": "anger",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "心里七上八下的",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "没有活下去的动力了",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "脑子嗡嗡的",
+      "emotion": "anxiety",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "很难过，忍不住想哭",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "很无力",
+      "emotion": "frustration",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "没力气...",
+      "emotion": "exhaustion",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "困",
+      "emotion": "exhaustion",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "不想面对明天",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "很受挫",
+      "emotion": "frustration",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "template"
+    },
+    {
+      "text": "一切都失去了意义",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "怕明天起不来",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    },
+    {
+      "text": "没人理解...",
+      "emotion": "loneliness",
+      "level": "mild",
+      "intensity": 2,
+      "source": "augmented"
+    },
+    {
+      "text": "看不到任何希望",
+      "emotion": "sadness",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "有种说不出的难受",
+      "emotion": "sadness",
+      "level": "moderate",
+      "intensity": 3,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "翻来覆去就是睡不着",
+      "emotion": "anxiety",
+      "level": "mild",
+      "intensity": 2,
+      "suicide_risk": 0.0,
+      "source": "implied"
+    },
+    {
+      "text": "唉，身体被掏空",
+      "emotion": "exhaustion",
+      "level": "moderate",
+      "intensity": 3,
+      "source": "augmented"
+    },
+    {
+      "text": "焦虑到极致，感觉要疯了",
+      "emotion": "anxiety",
+      "level": "severe",
+      "intensity": 5,
+      "source": "template"
+    },
+    {
+      "text": "没什么特别的",
+      "emotion": "neutral",
+      "level": "mild",
+      "intensity": 2,
+      "source": "template"
+    }
+  ],
+  "meta": {
+    "created_at": "2026-05-03T09:32:04.119920",
+    "total": 207,
+    "emotions": [
+      "anger",
+      "exhaustion",
+      "neutral",
+      "anxiety",
+      "fear",
+      "sadness",
+      "frustration",
+      "loneliness"
+    ]
+  }
+}
