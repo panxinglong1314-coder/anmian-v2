@@ -1823,14 +1823,15 @@ Page({
           const socketReady = this._asrSocketReady
           fs.readFile({
             filePath: res.tempFilePath,
-            encoding: 'binary',
             success: (readRes) => {
               if (!socket || !socketReady) {
-                console.log('[ASR-WS] socket already closed, skip send')
+                console.log('[ASR-WS] socket already closed, skip')
                 return
               }
-              console.log('[ASR-WS] sending file, size:', readRes.data.byteLength)
-              socket.send({ data: readRes.data })
+              const data = readRes.data
+              const byteLength = data.byteLength || data.length || 0
+              console.log('[ASR-WS] sending PCM, bytes:', byteLength)
+              socket.send({ data })
               setTimeout(() => {
                 if (socket) {
                   console.log('[ASR-WS] sending end marker')
