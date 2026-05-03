@@ -7,6 +7,7 @@
 import os
 import asyncio
 import json
+import struct
 import io
 import base64
 import uuid
@@ -1422,6 +1423,38 @@ async def tencent_asr_stream(audio_data: bytes, filename: str = "audio.mp3") -> 
     return text
 
 
+
+@app.get("/api/v1/asr/signature")
+async def asr_v2_signature(user_id: str = ""):
+    """
+    生成腾讯云 ASR v2 WebSocket 签名 URL，供小程序前端直连腾讯云
+    返回: { voice_id, wss_url }
+    """
+    import uuid, time
+    voice_id = str(uuid.uuid4())
+    ts = int(time.time())
+    params = {
+        "engine_model_type": "16k_zh",
+        "expired": ts + 86400,
+        "nonce": int(time.time() * 1000) % 1000000000,
+        "secretid": settings.tencentcloud_secret_id,
+        "timestamp": ts,
+        "voice_format": 1,
+        "voice_id": voice_id,
+    }
+    sorted_items = sorted(params.items())
+    query_str = "&".join(f"{k}={v}" for k, v in sorted_items)
+    path = f"/asr/v2/{settings.tencentcloud_app_id}"
+    path_query = f"{path}?{query_str}"
+    sign_origin = f"asr.cloud.tencent.com{path_query}"
+    sig = base64.b64encode(
+        hmac.new(settings.tencentcloud_secret_key.encode(), sign_origin.encode(), hashlib.sha1).digest()
+    ).decode()
+    wss_url = f"wss://asr.cloud.tencent.com{path_query}&signature={urllib.parse.quote(sig)}"
+    print(f"[ASR-signature] voice_id={voice_id}")
+    return {"voice_id": voice_id, "wss_url": wss_url}
+
+
 @app.post("/api/v1/asr/quick")
 async def asr_quick_upload(file: UploadFile = File(...)):
     """
@@ -1819,9 +1852,10 @@ async def _chat_events(req: ChatRequest):
     llm_error = False
 
     # 段落级 TTS 参数：累积 30-80 字后批量合成，减少调用次数，提升连贯性
-    MIN_TTS_CHARS = 30
+    # 优化：降低下限阈值，LLM首个chunk立即触发TTS（首字响应提速）
+    MIN_TTS_CHARS = 15
     MAX_TTS_CHARS = 80
-    MAX_TTS_WAIT_MS = 1200
+    MAX_TTS_WAIT_MS = 600  # 加速强制刷新
     tts_last_flush_time = None
 
     try:
@@ -1833,6 +1867,27 @@ async def _chat_events(req: ChatRequest):
             now_ms = asyncio.get_event_loop().time() * 1000
             if tts_last_flush_time is None:
                 tts_last_flush_time = now_ms
+
+            # 【优化】首个chunk立即触发：收到首个文本后立即合成TTS（无等待）
+            if not has_yielded_tts and len(tts_buffer) >= 15:
+                flush_text = tts_buffer.strip()
+                if flush_text:
+                    try:
+                        audio = await asyncio.wait_for(
+                            tencent_tts_sync(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed),
+                            timeout=2.0
+                        )
+                        if audio:
+                            b64 = base64.b64encode(audio).decode()
+                            yield {"event": "tts_audio", "audio_base64": b64}
+                            has_yielded_tts = True
+                            tts_buffer = ""
+                            tts_last_flush_time = now_ms
+                            print(f"[TTS-fast] first chunk immediate: {flush_text[:20]}...")
+                    except Exception as e:
+                        print(f"[TTS-fast] first flush error: {e}")
+                
+
 
             # 段落级 TTS 累积策略（3 种触发条件）
             should_flush = False
@@ -2301,25 +2356,8 @@ class TencentASRStreamConnector:
         # 先启动 receive_loop 来接收服务端的确认消息
         self._recv_task = asyncio.create_task(self._receive_loop())
         
-        # 发送握手 JSON（请求头）
-        header = {
-            "voice_id": self.voice_id,
-            "secretid": self.secret_id,
-            "initial_silence_timeouts": 6000,
-            "max_silence_time": 3000,
-            "voice_format": 1,
-            "wav_format": "pcm",
-            "engine_model_type": self.engine_model_type,
-            "needvad": 1,
-            "filter_dirty": 0,
-            "filter_modal": 0,
-            "filter_punc": 0,
-            "convert_num_mode": 1,
-        }
-        await self.ws.send(json.dumps(header))
-        print(f"[ASR-v2] header sent, waiting for server ready...")
-        
-        # 关键修复：等待服务端返回 code=0 的确认消息
+        # v2 协议：所有参数在 URL 中，连接后直接等 code=0，不发初始化 JSON
+        print(f"[ASR-v2] connected, waiting for server ready...")
         try:
             await asyncio.wait_for(self._ready.wait(), timeout=timeout)
             print("[ASR-v2] server ready, starting send_loop")
@@ -2332,12 +2370,12 @@ class TencentASRStreamConnector:
         self._send_task = asyncio.create_task(self._send_loop())
 
     async def _send_loop(self):
-        """发送音频数据循环 - 分片发送，每帧 6400 字节（200ms）"""
+        """发送音频数据循环 - v2 协议：裸 PCM 分片，0.2s 延迟"""
         try:
             while True:
                 data = await self._send_queue.get()
                 if data is None:
-                    # 结束标记：发送 JSON text
+                    # 结束标记：发送 JSON text frame
                     print("[ASR-v2] sending end marker")
                     await self.ws.send(json.dumps({"type": "end"}))
                     break
@@ -2347,15 +2385,13 @@ class TencentASRStreamConnector:
                 for i in range(0, len(data), CHUNK_SIZE):
                     chunk = data[i:i + CHUNK_SIZE]
                     if isinstance(chunk, (bytes, bytearray)):
-                        # 确保发送的是 bytes 类型（二进制帧）
                         await self.ws.send(bytes(chunk))
                     else:
                         print(f"[ASR-v2] WARNING: non-bytes data, type={type(chunk)}")
                         await self.ws.send(str(chunk).encode())
-                    # 小延迟避免发送过快
+                    # v2 协议：实时率延迟（每帧 6400B 需要 200ms）
                     if i + CHUNK_SIZE < len(data):
-                        await asyncio.sleep(0.01)
-                        
+                        await asyncio.sleep(0.2)
         except Exception as e:
             print(f"[ASR-v2] send_loop error: {e}")
 
