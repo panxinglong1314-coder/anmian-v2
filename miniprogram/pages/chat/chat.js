@@ -469,7 +469,11 @@ Page({
     if (this._silenceTimer) clearTimeout(this._silenceTimer)
     this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
     recorderManager.stop()
-    // onStop 统一回调会处理后续（发送 end 标记 或 fallback）
+    // 发送音频结束标记（腾讯云需要这个来触发最终识别结果）
+    if (this._tencentSocket) {
+      console.log('[ASR-direct] sending end marker')
+      this._tencentSocket.send({ data: JSON.stringify({ type: 'end' }) })
+    }
   },
 
   // ================================================
@@ -1842,43 +1846,28 @@ Page({
 
       if (state === 'asr') {
         console.log('[ASR-direct] onStop state=asr, duration:', res.duration, 'fileSize:', res.fileSize)
+        // 流式模式下，音频已经在 onFrameRecorded 实时发送，onStop 只负责清理
+        this.setData({ isRecording: false, audioLevel: 0 })
         if (res.duration < VAD.MIN_UTTERANCE) {
-          this.setData({ isRecording: false, audioLevel: 0 })
+          // 录音太短，可能没有发送任何音频帧，静默退出
           if (this._tencentSocket) { this._tencentSocket.close(); this._tencentSocket = null }
           this._startVADLoop()
           return
         }
         this._recordUsage('voice', Math.ceil(res.duration / 1000))
-        this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
-        // 发送音频到腾讯云 ASR v2 WebSocket（实时流式）
-        if (this._tencentSocket && this._tencentSocketReady) {
-          const fs = wx.getFileSystemManager()
-          fs.readFile({
-            filePath: res.tempFilePath,
-            success: (readRes) => {
-              const data = readRes.data
-              const size = data.byteLength || data.length || 0
-              console.log('[ASR-direct] sending PCM:', size, 'bytes')
-              this._tencentSocket.send({ data })
-              // 发送结束标记
-              setTimeout(() => {
-                if (this._tencentSocket) {
-                  this._tencentSocket.send({ data: JSON.stringify({ type: 'end' }) })
-                }
-              }, 100)
-            },
-            fail: (err) => {
-              console.error('[ASR-direct] read file fail:', err)
-              this._tencentSocket.close()
-              this._tencentSocket = null
-              this.setData({ _asrPending: false })
-              this._playTTS('不好意思没听清楚，你可以慢慢再说一次吗？', true)
-            }
-          })
-        } else {
-          console.log('[ASR-direct] socket not ready, fallback to upload')
-          this._sendVoiceToASR(res.tempFilePath)
-        }
+        this.setData({ statusText: '正在理解...' })
+        // 音频已在 onFrameRecorded 中实时发送，end marker 已在 _stop正式录音 发送
+        // 等待腾讯云返回最终识别结果（通过 onMessage 回调处理）
+        // 如果 5 秒内没有收到结果，fallback
+        setTimeout(() => {
+          if (this._tencentSocket) {
+            console.log('[ASR-direct] timeout waiting for result, fallback')
+            this._tencentSocket.close()
+            this._tencentSocket = null
+            this.setData({ _asrPending: false })
+            this._playTTS('不好意思没听清楚，你可以慢慢再说一次吗？', true)
+          }
+        }, 5000)
       }
     })
 
@@ -1894,17 +1883,24 @@ Page({
 
     recorderManager.onFrameRecorded((res) => {
       if (this._recordingState !== 'asr') return
-      // 真机上 onFrameRecorded 只在最后触发一次，数据通过 onStop 统一发送
-      // console.log('[ASR-FE] onFrameRecorded, frameSize:', res.frameBuffer.byteLength, 'isLastFrame:', res.isLastFrame)
-      // 保留音量检测用于 VAD（即使只在最后触发）
-      const volume = this._calcPCMVolume(res.frameBuffer)
-      if (volume > 0.012) {
-        if (this._silenceTimer) clearTimeout(this._silenceTimer)
-        this._silenceTimer = setTimeout(() => {
-          if (this.data.sleepModeActive && this.data.isRecording) {
-            this._stop正式录音()
-          }
-        }, VAD.SPEECH_TIMEOUT)
+      // 腾讯云 ASR v2 流式方案：每 frameSize 字节实时发送
+      const frameBuffer = res.frameBuffer
+      const byteLength = frameBuffer.byteLength || frameBuffer.length || 0
+      if (byteLength === 0) return
+
+      // 实时发送到腾讯云（裸 PCM 二进制帧）
+      if (this._tencentSocket && this._tencentSocketReady) {
+        this._tencentSocket.send({ data: frameBuffer })
+        // 模拟静音检测：每次有声帧进来都重置超时
+        const volume = this._calcPCMVolume(frameBuffer)
+        if (volume > 0.012) {
+          if (this._silenceTimer) clearTimeout(this._silenceTimer)
+          this._silenceTimer = setTimeout(() => {
+            if (this.data.sleepModeActive && this.data.isRecording) {
+              this._stop正式录音()
+            }
+          }, VAD.SPEECH_TIMEOUT)
+        }
       }
     })
   },
