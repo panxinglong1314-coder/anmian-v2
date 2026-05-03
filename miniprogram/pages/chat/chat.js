@@ -356,67 +356,104 @@ Page({
     try { recorderManager.stop() } catch (e) {}
     this.setData({ isRecording: true, isListening: false, audioLevel: 8, statusText: '正在听...', statusHint: '说完后稍等，我会回应' })
 
-    // 建立 WebSocket ASR
+    // 建立直连腾讯云 ASR v2 WebSocket（真正流式，无后端中转）
     this._fallbackUploadASR = false
-    const wsUrl = `${API.replace(/^http/, 'ws')}/api/v1/asr/ws`
-    this._asrSocket = wx.connectSocket({ url: wsUrl })
-    this._asrSocketReady = false
-
-    this._asrSocket.onOpen(() => {
-      this._asrSocketReady = true
-      console.log('[ASR-WS] socket open')
-    })
-
-    this._asrSocket.onMessage((res) => {
-      console.log('[ASR-WS] onMessage raw:', res.data)
-      try {
-        const data = JSON.parse(res.data)
-        if (data.error) {
-          console.error('[ASR-WS] error:', data.error)
-          this._fallbackUploadASR = true
-      this.setData({ _asrPending: false })
+    const signAPI = `${API}/api/v1/asr/signature`
+    console.log('[ASR-direct] requesting signature...')
+    wx.request({
+      url: signAPI,
+      method: 'GET',
+      timeout: 5000,
+      success: (signRes) => {
+        if (signRes.statusCode !== 200 || !signRes.data || !signRes.data.wss_url) {
+          console.error('[ASR-direct] signature failed:', signRes.data)
+          this.setData({ _asrPending: false })
+          setTimeout(() => this._startVADLoop(), 500)
           return
         }
-        if (data.slice_type === 2) {
-          this.setData({ statusText: '正在听：' + data.text })
-        }
-        if (data.is_final || data.slice_type === 2) {
-          this._asrSocket.close()
-          this._asrSocket = null
-          this._asrSocketReady = false
-          this.setData({ _asrPending: false })
-          if (data.text && data.text.trim()) {
-            this._sendToAI(data.text.trim(), true)
-          } else {
-            this._playTTS('不好意思没听清楚，你可以慢慢再说一次吗？', true)
+        const { voice_id, wss_url } = signRes.data
+        console.log('[ASR-direct] got voice_id:', voice_id)
+        console.log('[ASR-direct] wss_url:', wss_url.slice(0, 80) + '...')
+        this._tencentVoiceId = voice_id
+        this._tencentSocket = wx.connectSocket({ url: wss_url })
+        this._tencentSocketReady = false
+        this._tencentFirstResult = false
+
+        this._tencentSocket.onOpen(() => {
+          console.log('[ASR-direct] socket open, sending header...')
+          const header = {
+            voice_id: voice_id,
+            secretid: '',
+            initial_silence_timeouts: 6000,
+            max_silence_time: 3000,
+            voice_format: 1,
+            wav_format: 'pcm',
+            engine_model_type: '16k_zh',
+            needvad: 1,
+            filter_dirty: 0,
+            filter_modal: 0,
+            filter_punc: 0,
+            convert_num_mode: 1,
           }
-        }
-      } catch (e) {
-        console.error('[ASR-WS] parse error:', e)
+          this._tencentSocket.send({ data: JSON.stringify(header) })
+        })
+
+        this._tencentSocket.onMessage((res) => {
+          try {
+            const data = JSON.parse(res.data)
+            const code = data.code
+            const result = data.result || {}
+            const text = result.voice_text_str || ''
+            const slice_type = result.slice_type || 0
+            console.log('[ASR-direct] recv: code=%s text="%s" slice=%s' % (code, text, slice_type))
+            if (code === 0 && !this._tencentFirstResult) {
+              this._tencentFirstResult = true
+              this._tencentSocketReady = true
+              console.log('[ASR-direct] server ready!')
+            }
+            if (slice_type === 2) {
+              this._tencentSocket.close()
+              this._tencentSocket = null
+              this.setData({ _asrPending: false })
+              if (text && text.trim()) {
+                this._sendToAI(text.trim(), true)
+              } else {
+                this._playTTS('不好意思没听清楚，你可以慢慢再说一次吗？', true)
+              }
+            }
+          } catch (e) {
+            console.error('[ASR-direct] parse error:', e)
+          }
+        })
+
+        this._tencentSocket.onError((err) => {
+          console.error('[ASR-direct] socket error:', err)
+          this._fallbackUploadASR = true
+          this.setData({ _asrPending: false })
+          if (err && err.errMsg && err.errMsg.includes('url not in domain list')) {
+            wx.showToast({ title: '请在开发者工具「详情」中勾选「不校验合法域名」', icon: 'none', duration: 3000 })
+          }
+        })
+
+        this._tencentSocket.onClose(() => {
+          this._tencentSocketReady = false
+          this._tencentSocket = null
+        })
+
+        this._recordingState = 'asr'
+        recorderManager.start({
+          format: 'pcm', sampleRate: 16000,
+          numberOfChannels: 1, encodeBitRate: 64000, duration: 15000,
+          frameSize: 1280
+        })
+      },  // end wx.request success
+
+      fail: (err) => {
+        console.error('[ASR-direct] signature request failed:', err)
+        this.setData({ _asrPending: false })
+        setTimeout(() => this._startVADLoop(), 500)
       }
-    })
-
-    this._asrSocket.onError((err) => {
-      console.error('[ASR-WS] socket error:', err)
-      this._fallbackUploadASR = true
-      this.setData({ _asrPending: false })
-      if (err && err.errMsg && err.errMsg.includes('url not in domain list')) {
-        wx.showToast({ title: '请在开发者工具「详情」中勾选「不校验合法域名」', icon: 'none', duration: 3000 })
-      }
-    })
-
-    this._asrSocket.onClose(() => {
-      this._asrSocketReady = false
-      this._asrSocket = null  // 防止已关闭的 socket 被二次使用
-    })
-
-    // 开始正式录音（PCM，用于 fallback 上传 ASR；frameSize 保证 onFrameRecorded 正常触发）
-    this._recordingState = 'asr'
-    recorderManager.start({
-      format: 'pcm', sampleRate: 16000,
-      numberOfChannels: 1, encodeBitRate: 64000, duration: 15000,
-      frameSize: 1280
-    })
+    })  // end wx.request
 
     this._volumeSim = setInterval(() => {
       if (this.data.isRecording) this.setData({ audioLevel: Math.floor(Math.random() * 8) + 5 })
@@ -1804,23 +1841,43 @@ Page({
       }
 
       if (state === 'asr') {
-        console.log('[ASR-WS] onStop state=asr, duration:', res.duration, 'fileSize:', res.fileSize)
+        console.log('[ASR-direct] onStop state=asr, duration:', res.duration, 'fileSize:', res.fileSize)
         if (res.duration < VAD.MIN_UTTERANCE) {
           this.setData({ isRecording: false, audioLevel: 0 })
-          if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
+          if (this._tencentSocket) { this._tencentSocket.close(); this._tencentSocket = null }
           this._startVADLoop()
           return
         }
         this._recordUsage('voice', Math.ceil(res.duration / 1000))
-        this._recordingFilePath = res.tempFilePath
         this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
-        console.log('[ASR-WS] onStop, socketReady:', this._asrSocketReady, 'fallback:', this._fallbackUploadASR)
-        // 直接走 HTTP 上传 ASR（WebSocket 二进制传输在个人主体小程序中不稳定，跳过）
-        if (res.tempFilePath) {
-          console.log('[ASR] using HTTP upload, size:', res.fileSize)
-          this._sendVoiceToASR(res.tempFilePath)
+        // 发送音频到腾讯云 ASR v2 WebSocket（实时流式）
+        if (this._tencentSocket && this._tencentSocketReady) {
+          const fs = wx.getFileSystemManager()
+          fs.readFile({
+            filePath: res.tempFilePath,
+            success: (readRes) => {
+              const data = readRes.data
+              const size = data.byteLength || data.length || 0
+              console.log('[ASR-direct] sending PCM:', size, 'bytes')
+              this._tencentSocket.send({ data })
+              // 发送结束标记
+              setTimeout(() => {
+                if (this._tencentSocket) {
+                  this._tencentSocket.send({ data: JSON.stringify({ type: 'end' }) })
+                }
+              }, 100)
+            },
+            fail: (err) => {
+              console.error('[ASR-direct] read file fail:', err)
+              this._tencentSocket.close()
+              this._tencentSocket = null
+              this.setData({ _asrPending: false })
+              this._playTTS('不好意思没听清楚，你可以慢慢再说一次吗？', true)
+            }
+          })
         } else {
-          console.log('[ASR-WS] no tempFilePath, skip')
+          console.log('[ASR-direct] socket not ready, fallback to upload')
+          this._sendVoiceToASR(res.tempFilePath)
         }
       }
     })
@@ -1829,7 +1886,7 @@ Page({
       console.error('[Recorder Error]', err)
       if (this.data.sleepModeActive) {
         this.setData({ isRecording: false, audioLevel: 0 })
-        if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
+        if (this._tencentSocket) { this._tencentSocket.close(); this._tencentSocket = null }
         this._recordingState = ''
         this._startVADLoop()
       }
