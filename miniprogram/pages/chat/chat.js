@@ -411,15 +411,24 @@ Page({
               this._tencentSocketReady = true
               console.log('[ASR-direct] server ready!')
             }
+            // slice_type: 0=流式中间结果, 1=完整句子, 2=最终结果
             if (slice_type === 2) {
+              // 最终识别结果 → 关闭 socket 并发送给 AI
               this._tencentSocket.close()
               this._tencentSocket = null
               this.setData({ _asrPending: false })
               if (text && text.trim()) {
+                console.log('[ASR-direct] FINAL text:', text.trim())
                 this._sendToAI(text.trim(), true)
               } else {
                 this._playTTS('不好意思没听清楚，你可以慢慢再说一次吗？', true)
               }
+            } else if (slice_type === 1 && text) {
+              // 完整句子（中间结果），实时显示给用户
+              this.setData({ statusText: '听到：' + text, statusHint: '继续说...' })
+            } else if (slice_type === 0 && text) {
+              // 流式中间结果，显示省略
+              this.setData({ statusText: '正在听：' + text.slice(0, 10), statusHint: '说完稍等' })
             }
           } catch (e) {
             console.error('[ASR-direct] parse error:', e)
