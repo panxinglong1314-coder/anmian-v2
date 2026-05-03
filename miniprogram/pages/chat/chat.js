@@ -1815,42 +1815,12 @@ Page({
         this._recordingFilePath = res.tempFilePath
         this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
         console.log('[ASR-WS] onStop, socketReady:', this._asrSocketReady, 'fallback:', this._fallbackUploadASR)
-        if (this._asrSocket && this._asrSocketReady && res.tempFilePath) {
-          // 真机兼容：通过 WebSocket 发送完整录音文件
-          const fs = wx.getFileSystemManager()
-          // 在 readFile 开始时就捕获当前 socket 引用，避免异步回调时 socket 已被 onClose 清理
-          const socket = this._asrSocket
-          const socketReady = this._asrSocketReady
-          fs.readFile({
-            filePath: res.tempFilePath,
-            success: (readRes) => {
-              if (!socket || !socketReady) {
-                console.log('[ASR-WS] socket already closed, skip')
-                return
-              }
-              const data = readRes.data
-              const byteLength = data.byteLength || data.length || 0
-              console.log('[ASR-WS] sending PCM, bytes:', byteLength)
-              socket.send({ data })
-              setTimeout(() => {
-                if (socket) {
-                  console.log('[ASR-WS] sending end marker')
-                  socket.send({ data: JSON.stringify({ type: 'end' }) })
-                }
-              }, 100)
-            },
-            fail: (err) => {
-              console.error('[ASR-WS] read file fail:', err)
-              if (socket && socketReady) {
-                socket.send({ data: JSON.stringify({ type: 'end' }) })
-              }
-            }
-          })
-        } else if (this._fallbackUploadASR && res.tempFilePath) {
-          console.log('[ASR-WS] fallback to uploadFile')
+        // 直接走 HTTP 上传 ASR（WebSocket 二进制传输在个人主体小程序中不稳定，跳过）
+        if (res.tempFilePath) {
+          console.log('[ASR] using HTTP upload, size:', res.fileSize)
           this._sendVoiceToASR(res.tempFilePath)
         } else {
-          console.log('[ASR-WS] no action, skip')
+          console.log('[ASR-WS] no tempFilePath, skip')
         }
       }
     })
