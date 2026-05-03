@@ -50,7 +50,7 @@ function _decodeUTF8(buf) {
 // VAD 参数
 const VAD = {
   SILENCE_THRESHOLD: 0.05,
-  SPEECH_TIMEOUT: 3000,  // 静音 3000ms 停止录音（给长句子留时间）
+  SPEECH_TIMEOUT: 2000,  // 静音 2000ms 停止录音（平衡延迟与长句捕捉）
   MIN_UTTERANCE: 400,    // 最少录音 400ms
 }
 
@@ -407,6 +407,7 @@ Page({
 
     this._asrSocket.onClose(() => {
       this._asrSocketReady = false
+      this._asrSocket = null  // 防止已关闭的 socket 被二次使用
     })
 
     // 开始正式录音（PCM，用于 fallback 上传 ASR；frameSize 保证 onFrameRecorded 正常触发）
@@ -1817,20 +1818,31 @@ Page({
         if (this._asrSocket && this._asrSocketReady && res.tempFilePath) {
           // 真机兼容：通过 WebSocket 发送完整录音文件
           const fs = wx.getFileSystemManager()
+          // 在 readFile 开始时就捕获当前 socket 引用，避免异步回调时 socket 已被 onClose 清理
+          const socket = this._asrSocket
+          const socketReady = this._asrSocketReady
           fs.readFile({
             filePath: res.tempFilePath,
             encoding: 'binary',
             success: (readRes) => {
+              if (!socket || !socketReady) {
+                console.log('[ASR-WS] socket already closed, skip send')
+                return
+              }
               console.log('[ASR-WS] sending file, size:', readRes.data.byteLength)
-              this._asrSocket.send({ data: readRes.data })
+              socket.send({ data: readRes.data })
               setTimeout(() => {
-                console.log('[ASR-WS] sending end marker')
-                this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
+                if (socket) {
+                  console.log('[ASR-WS] sending end marker')
+                  socket.send({ data: JSON.stringify({ type: 'end' }) })
+                }
               }, 100)
             },
             fail: (err) => {
               console.error('[ASR-WS] read file fail:', err)
-              this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
+              if (socket && socketReady) {
+                socket.send({ data: JSON.stringify({ type: 'end' }) })
+              }
             }
           })
         } else if (this._fallbackUploadASR && res.tempFilePath) {
