@@ -383,9 +383,10 @@ Page({
           return
         }
         const text = data.text || ''
-        const slice_type = data.slice_type || 0
-        console.log('[ASR-WS] result: text="%s" slice=%s is_final=%s' % (text, slice_type, data.is_final))
-        if (data.is_final || slice_type === 2) {
+        const slice_type = data.slice_type != null ? data.slice_type : 0
+        const is_final = data.is_final != null ? data.is_final : false
+        console.log('[ASR-WS] result: text="%s" slice=%s is_final=%s' % (text, slice_type, is_final))
+        if (is_final || slice_type === 2) {
           if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
           this._asrSocketReady = false
           this.setData({ _asrPending: false })
