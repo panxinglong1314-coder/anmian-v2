@@ -378,8 +378,7 @@ Page({
           return
         }
         if (data.done) {
-          this._asrSocket.close()
-          this._asrSocket = null
+          if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
           this._asrSocketReady = false
           return
         }
@@ -387,8 +386,7 @@ Page({
         const slice_type = data.slice_type || 0
         console.log('[ASR-WS] result: text="%s" slice=%s is_final=%s' % (text, slice_type, data.is_final))
         if (data.is_final || slice_type === 2) {
-          this._asrSocket.close()
-          this._asrSocket = null
+          if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
           this._asrSocketReady = false
           this.setData({ _asrPending: false })
           if (text && text.trim()) {
