@@ -1867,9 +1867,11 @@ Page({
         // 读取录音文件并通过 WebSocket 发送到后端（后端 Relay 到腾讯云）
         if (res.tempFilePath) {
           const fs = wx.getFileSystemManager()
+          console.log('[ASR-WS] calling wx.getFileSystemManager().readFile() on', res.tempFilePath)
           fs.readFile({
             filePath: res.tempFilePath,
             success: (readRes) => {
+              console.log('[ASR-WS] readFile callback fired')
               const data = readRes.data
               const size = data.byteLength || data.length || 0
               console.log('[ASR-WS] sending PCM:', size, 'bytes')
