@@ -13,9 +13,7 @@
   "__usePrivacyCheck__": true,
   "requiredBackgroundModes": ["audio"],
   "permission": {
-    "scope.record": {
-      "desc": "需要获取录音权限，用于语音对话功能"
-    }
+    "scope.record": "需要获取录音权限，用于语音对话功能"
   },
   "window": {
     "navigationBarBackgroundColor": "#0D1B2A",
