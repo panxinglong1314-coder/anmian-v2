@@ -452,12 +452,12 @@ Page({
     // Bug 修复：先设状态再 start()，防止 onStop 先触发导致状态错误
     recorderManager.start({
       format: 'pcm', sampleRate: 16000,
-      numberOfChannels: 1, encodeBitRate: 64000, duration: 15000,
-      frameSize: 1280
+      numberOfChannels: 1, encodeBitRate: 64000,
+      duration: 15000
     })
     console.log('[_正式录音] start() called, duration=15000ms frameSize=1280 state=', this._recordingState)
     this._forceStopTimer = setTimeout(() => {
-      console.log('[_正式录音] 8s FORCE STOP, state=', this._recordingState, 'isRecording=', this.data.isRecording)
+      console.log('[_正式录音] 12s FORCE STOP, state=', this._recordingState, 'isRecording=', this.data.isRecording)
       if (this._recordingState === 'asr') {
         try {
           recorderManager.stop()
@@ -466,7 +466,7 @@ Page({
           console.error('[_正式录音] stop() failed:', e)
         }
       }
-    }, 8000)
+    }, 12000)
 
     this._volumeSim = setInterval(() => {
       if (this.data.isRecording) this.setData({ audioLevel: Math.floor(Math.random() * 8) + 5 })
@@ -1900,7 +1900,7 @@ Page({
                 this._asrSocket.close(); this._asrSocket = null; this._asrSocketReady = false
                 this._sendVoiceToASR(pendingFile)
               }
-            }, 8000)
+            }, 12000)
           },
           fail: () => { this._sendVoiceToASR(pendingFile) }
         })
@@ -1982,7 +1982,7 @@ Page({
                   this._asrSocketReady = false
                   this._sendVoiceToASR(this._recordingFilePath)
                 }
-              }, 8000)
+              }, 12000)
               // WS 发送后等待 8 秒，超时则 fallback
               setTimeout(() => {
                 if (this._asrSocket) {
@@ -1992,7 +1992,7 @@ Page({
                   this._asrSocketReady = false
                   this._sendVoiceToASR(this._recordingFilePath)
                 }
-              }, 8000)
+              }, 12000)
             },
             fail: (err) => {
               console.error('[ASR-WS] read file fail:', err)
