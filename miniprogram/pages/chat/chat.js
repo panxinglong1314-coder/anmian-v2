@@ -1865,6 +1865,48 @@ Page({
         return
       }
 
+      // 检查是否有_pending的PCM文件（VAD模式切换时遗留的）
+      if (this._pendingRecordingFile && (state === null || state === '' || state === undefined)) {
+        console.log('[ASR-WS] processing pending PCM file from VAD transition, path:', this._pendingRecordingFile, 'size:', res.fileSize)
+        const pendingFile = this._pendingRecordingFile
+        this._pendingRecordingFile = null
+        const fs = wx.getFileSystemManager()
+        fs.readFile({
+          filePath: pendingFile,
+          success: (readRes) => {
+            const data = readRes.data
+            const size = data.byteLength || data.length || 0
+            console.log('[ASR-WS] pending PCM read SUCCESS:', size, 'bytes')
+            if (!this._asrSocket || !this._asrSocketReady) {
+              this._sendVoiceToASR(pendingFile)
+              return
+            }
+            this._asrSocket.send({
+              data: data,
+              success: () => { console.log('[ASR-WS] pending send success') },
+              fail: (err) => {
+                console.error('[ASR-WS] pending send FAIL:', err)
+                this._asrSocket.close(); this._asrSocket = null; this._asrSocketReady = false
+                this._sendVoiceToASR(pendingFile)
+              }
+            })
+            setTimeout(() => {
+              if (this._asrSocket) {
+                this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
+              }
+            }, 100)
+            setTimeout(() => {
+              if (this._asrSocket) {
+                this._asrSocket.close(); this._asrSocket = null; this._asrSocketReady = false
+                this._sendVoiceToASR(pendingFile)
+              }
+            }, 8000)
+          },
+          fail: () => { this._sendVoiceToASR(pendingFile) }
+        })
+        return
+      }
+
       if (state === 'asr') {
         console.log('[ASR-WS] ==== onStop ASR branch ENTERED, duration:', res.duration, 'fileSize:', res.fileSize, 'tempPath:', res.tempFilePath)
         if (res.duration < VAD.MIN_UTTERANCE) {
