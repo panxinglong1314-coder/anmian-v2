@@ -1859,7 +1859,7 @@ Page({
       }
 
       if (state === 'asr') {
-        console.log('[ASR-WS] ==== onStop ASR branch ENTERED, duration:', res.duration, 'fileSize:', res.fileSize, 'tempPath:', res.tempFilePath, duration:', res.duration, 'fileSize:', res.fileSize)
+        console.log('[ASR-WS] ==== onStop ASR branch ENTERED, duration:', res.duration, 'fileSize:', res.fileSize, 'tempPath:', res.tempFilePath)
         if (res.duration < VAD.MIN_UTTERANCE) {
           this.setData({ isRecording: false, audioLevel: 0 })
           if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
