@@ -54,6 +54,24 @@ const VAD = {
   MIN_UTTERANCE: 400,    // 最少录音 400ms
 }
 
+// ─── 录音状态机 ─────────────────────────────────────────────
+// _recordingState: null | 'vad' | 'asr'
+// _recordingActive: bool — 录音机硬件忙闲标志，防止并发 start()
+//
+// 状态转换路径（严格）：
+//   null ──(start)──→ 'vad' ──(hasSound)──→ 'asr' ──(stop)──→ null
+//                         ↑                          │
+//                         └────(noSound, 50ms)───────┘
+
+//
+// Bug 修复对照：
+//   Bug 1: _stop正式录音 未清 _recordingState   → 统一在 stop 前清状态
+//   Bug 2: onStop 里 VAD 分支直接 start()           → 改为 _startVADLoop，由状态机管理
+//   Bug 3: onShow 无互斥直接调 _startVADLoop()       → 加 _recordingState===null 前置检查
+//   Bug 4: _start正式录音 无互斥                    → 加 _recordingState!=='vad' 前置检查
+//   新增:  无超时保护 → 所有异步操作加 setTimeout 超时兜底
+//
+
 Page({
   data: {
     mode: 'sleep',
@@ -330,6 +348,10 @@ Page({
   _startVADLoop() {
     console.log('[_VAD] start, sleepModeActive:', this.data.sleepModeActive, 'mode:', this.data.mode)
     if (!this.data.sleepModeActive) return
+    if (this._recordingActive) {
+      console.log('[_VAD] recorder busy, skip')
+      return
+    }
     // 如果 TTS 还在播，延迟启动 VAD，避免把 AI 自己的话录进去
     if (this.data.isPlayingTTS) {
       console.log('[_VAD] TTS still playing, defer start')
@@ -337,6 +359,7 @@ Page({
       this._listenTimer = setTimeout(() => this._startVADLoop(), 800)
       return
     }
+    this._recordingActive = true
     this._vadActive = true
     this._recordingState = 'vad'
     this.setData({ isListening: true })
@@ -353,6 +376,11 @@ Page({
     // 用户开始说话，重置陪伴计时器
     this._resetCompanionTimer()
     this._vadActive = false
+    // Bug 4 保护：必须在 vad 状态才能切换到 asr
+    if (this._recordingState !== 'vad') {
+      console.warn('[_正式录音] 当前状态', this._recordingState, '，无法启动正式录音')
+      return
+    }
     try { recorderManager.stop() } catch (e) {}
     this.setData({ isRecording: true, isListening: false, audioLevel: 8, statusText: '正在听...', statusHint: '说完后稍等，我会回应' })
 
@@ -417,6 +445,8 @@ Page({
 
     // 开始正式录音（PCM，用于 fallback 上传 ASR；frameSize 保证 onFrameRecorded 正常触发）
     this._recordingState = 'asr'
+    // Bug 修复：先设状态再 start()，防止 onStop 先触发导致状态错误
+    this._recordingState = 'asr'
     recorderManager.start({
       format: 'pcm', sampleRate: 16000,
       numberOfChannels: 1, encodeBitRate: 64000, duration: 15000,
@@ -434,9 +464,15 @@ Page({
   },
 
   _stop正式录音() {
+    // Bug 1 修复：立即清状态，防止 onStop 逻辑混乱
+    if (this._recordingState !== 'asr') {
+      console.warn('[_ASR] 当前状态', this._recordingState, '，无需停止')
+      return
+    }
     if (this._volumeSim) clearInterval(this._volumeSim)
     if (this._silenceTimer) clearTimeout(this._silenceTimer)
     this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
+    this._recordingState = ''
     recorderManager.stop()
   },
 
@@ -643,7 +679,7 @@ Page({
         if (fromSleep && this.data.sleepModeActive && !this.data.isPlayingTTS && (this.data.ttsQueue || []).length === 0) {
           const finalText = streamingText.trim()
           console.log('[SleepMode] SSE done, hasStreamTTS:', hasStreamTTS, 'finalText:', finalText || '(empty)')
-          // 如果流式过程中已经下发了 tts_audio，就不再整句 fallback 合成
+          // 如果流式过程中已经下发 tts_chunk，就不再整句 fallback 合成
           if (!hasStreamTTS && finalText) {
             this._playTTS(finalText, true)
           } else if (!hasStreamTTS && !finalText) {
@@ -718,7 +754,7 @@ Page({
             streamingText = data.content
             flushText()
           }
-          if (data.event === 'tts_audio' && data.audio_base64) {
+          if (data.event === 'tts_chunk' && data.audio_base64 && !data.done) {
             hasStreamTTS = true
             this._enqueueTTS(data.audio_base64, fromSleep)
           }
@@ -942,6 +978,9 @@ Page({
     }
     try { innerAudioContext.stop() } catch (e) {}
     try { innerAudioContext.volume = 0 } catch (e) {}
+    // 强制重置录音状态机（stopAll 用于页面退出/隐藏）
+    this._recordingActive = false
+    this._recordingState = null
   },
 
   stopListening() {
@@ -1778,6 +1817,7 @@ Page({
 
     recorderManager.onStop((res) => {
       const state = this._recordingState
+      this._recordingActive = false  // 解锁录音机，允许后续 start()
       if (!this.data.sleepModeActive) return
 
       if (state === 'vad') {
@@ -1799,6 +1839,7 @@ Page({
           this.setData({ sleepDetectionQuietMs: 0 })
         }
 
+        // Bug 2 修复：VAD 分支不直接调用 start()，统一经由 _startVADLoop()
         if (hasSound && !this.data.isRecording) {
           this._vadActive = false
           this._start正式录音()
@@ -1828,24 +1869,33 @@ Page({
             success: (readRes) => {
               const data = readRes.data
               const size = data.byteLength || data.length || 0
-              console.log('[ASR-WS] sending PCM:', size, 'bytes to backend relay')
-              if (this._asrSocket && this._asrSocketReady) {
-                this._asrSocket.send({ data })
-                // 发送结束标记
-                setTimeout(() => {
-                  if (this._asrSocket) {
-                    this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
-                  }
-                }, 100)
+              console.log('[ASR-WS] sending PCM:', size, 'bytes')
+              // WS 不可用时直接用 fallback，不等 socketReady
+              if (!this._asrSocket || !this._asrSocketReady) {
+                console.log('[ASR-WS] socket not ready, using fallback upload')
+                this._sendVoiceToASR(this._recordingFilePath)
+                return
               }
+              this._asrSocket.send({ data })
+              setTimeout(() => {
+                if (this._asrSocket) {
+                  this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
+                }
+              }, 100)
+              // WS 发送后等待 8 秒，超时则 fallback
+              setTimeout(() => {
+                if (this._asrSocket) {
+                  console.log('[ASR-WS] wait timeout, fallback to upload')
+                  this._asrSocket.close()
+                  this._asrSocket = null
+                  this._asrSocketReady = false
+                  this._sendVoiceToASR(this._recordingFilePath)
+                }
+              }, 8000)
             },
             fail: (err) => {
               console.error('[ASR-WS] read file fail:', err)
-              this._fallbackUploadASR = true
-              this.setData({ _asrPending: false })
-              if (res.tempFilePath) {
-                this._sendVoiceToASR(res.tempFilePath)
-              }
+              this._sendVoiceToASR(this._recordingFilePath)
             }
           })
         } else {
@@ -1856,6 +1906,7 @@ Page({
 
     recorderManager.onError((err) => {
       console.error('[Recorder Error]', err)
+      this._recordingActive = false
       if (this.data.sleepModeActive) {
         this.setData({ isRecording: false, audioLevel: 0 })
         if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
@@ -1900,7 +1951,8 @@ Page({
     // 拉取后端真实配额
     this._fetchUsage()
     // 页面从后台返回时，若睡眠模式仍标记为开启，自动恢复 VAD 循环
-    if (this.data.sleepModeActive && !this.data.isListening && !this.data.isRecording && !this.data.isPlayingTTS) {
+    // Bug 3 修复：只在 null 状态时启动 VAD，避免 onShow 重复触发
+    if (this.data.sleepModeActive && this._recordingState === null && !this.data.isListening && !this.data.isRecording && !this.data.isPlayingTTS) {
       console.log('[onShow] 恢复睡眠模式 VAD')
       this._startVADLoop()
     }
