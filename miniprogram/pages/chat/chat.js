@@ -456,10 +456,15 @@ Page({
       frameSize: 1280
     })
     console.log('[_正式录音] start() called, duration=15000ms frameSize=1280 state=', this._recordingState)
-    setTimeout(() => {
+    this._forceStopTimer = setTimeout(() => {
+      console.log('[_正式录音] 8s FORCE STOP, state=', this._recordingState, 'isRecording=', this.data.isRecording)
       if (this._recordingState === 'asr') {
-        console.log('[_正式录音] 8s force stop, isRecording=', this.data.isRecording)
-        try { recorderManager.stop() } catch(e) {}
+        try {
+          recorderManager.stop()
+          console.log('[_正式录音] stop() called successfully')
+        } catch(e) {
+          console.error('[_正式录音] stop() failed:', e)
+        }
       }
     }, 8000)
 
@@ -1824,10 +1829,12 @@ Page({
     if (this._recorderEventsRegistered) return
     this._recorderEventsRegistered = true
 
+    // 确保 onStop 回调存在
+    console.log('[Recorder] registering onStop callback, current state:', this._recordingState)
     recorderManager.onStop((res) => {
       const state = this._recordingState
-      this._recordingActive = false  // 解锁录音机，允许后续 start()
-      if (!this.data.sleepModeActive) return
+      console.log('[Recorder] onStop FIRED, state=', state, 'fileSize=', res.fileSize, 'duration=', res.duration)
+      this._recordingActive = false
 
       if (state === 'vad') {
         const hasSound = res.fileSize > 3500
