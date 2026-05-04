@@ -457,7 +457,7 @@ Page({
     })
     console.log('[_正式录音] start() called, duration=15000ms frameSize=1280 state=', this._recordingState)
     this._forceStopTimer = setTimeout(() => {
-      console.log('[_正式录音] 12s FORCE STOP, state=', this._recordingState, 'isRecording=', this.data.isRecording)
+      console.log('[_正式录音] 12s FORCE STOP, state=', this._recordingState, 'isRecording=', this.data.isRecording, 'pending=', !!this._pendingRecordingFile)
       if (this._recordingState === 'asr') {
         try {
           recorderManager.stop()
@@ -465,6 +465,22 @@ Page({
         } catch(e) {
           console.error('[_正式录音] stop() failed:', e)
         }
+      } else if (this._pendingRecordingFile) {
+        // state is null but we have pending file - process it now
+        console.log('[_正式录音] FORCE STOP processing pending file')
+        const pf = this._pendingRecordingFile
+        this._pendingRecordingFile = null
+        const fs = wx.getFileSystemManager()
+        fs.readFile({
+          filePath: pf,
+          success: (r) => {
+            const d = r.data
+            console.log('[ASR-WS] FORCE pending PCM:', d.byteLength || d.length, 'bytes')
+            if (!this._asrSocket || !this._asrSocketReady) { this._sendVoiceToASR(pf); return }
+            this._asrSocket.send({ data: d, success: () => {}, fail: (e) => { this._asrSocket.close(); this._asrSocket = null; this._asrSocketReady = false; this._sendVoiceToASR(pf) } })
+          },
+          fail: () => { this._sendVoiceToASR(pf) }
+        })
       }
     }, 12000)
 
@@ -1866,7 +1882,7 @@ Page({
       }
 
       // 检查是否有_pending的PCM文件（VAD模式切换时遗留的）
-      if (this._pendingRecordingFile && (state === null || state === '' || state === undefined)) {
+      if (this._pendingRecordingFile && !state) {
         console.log('[ASR-WS] processing pending PCM file from VAD transition, path:', this._pendingRecordingFile, 'size:', res.fileSize)
         const pendingFile = this._pendingRecordingFile
         this._pendingRecordingFile = null
@@ -1909,6 +1925,11 @@ Page({
 
       if (state === 'asr') {
         console.log('[ASR-WS] ==== onStop ASR branch ENTERED, duration:', res.duration, 'fileSize:', res.fileSize, 'tempPath:', res.tempFilePath)
+        // 即使 tempFilePath 为空，也尝试从 _pendingRecordingFile 获取
+        const actualFile = res.tempFilePath || this._pendingRecordingFile
+        if (actualFile) {
+          this._pendingRecordingFile = null  // 清除，避免重复使用
+        }
         if (res.duration < VAD.MIN_UTTERANCE) {
           this.setData({ isRecording: false, audioLevel: 0 })
           if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
@@ -1920,13 +1941,13 @@ Page({
         this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
         console.log('[ASR-WS] onStop, socketReady:', this._asrSocketReady, 'fallback:', this._fallbackUploadASR)
         // 读取录音文件并通过 WebSocket 发送到后端（后端 Relay 到腾讯云）
-        if (res.tempFilePath) {
+        if (actualFile) {
           const fs = wx.getFileSystemManager()
-          console.log('[ASR-WS] calling wx.getFileSystemManager().readFile() on', res.tempFilePath)
+          console.log('[ASR-WS] reading PCM from', actualFile, 'size:', res.fileSize)
           fs.readFile({
             filePath: res.tempFilePath,
             success: (readRes) => {
-              console.log('[ASR-WS] readFile callback fired')
+              console.log('[ASR-WS] readFile SUCCESS, size:', (readRes.data && readRes.data.byteLength) || 0)
               const data = readRes.data
               const size = data.byteLength || data.length || 0
               console.log('[ASR-WS] sending PCM:', size, 'bytes')
