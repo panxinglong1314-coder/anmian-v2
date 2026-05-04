@@ -455,7 +455,13 @@ Page({
       numberOfChannels: 1, encodeBitRate: 64000, duration: 15000,
       frameSize: 1280
     })
-
+    console.log('[_正式录音] start() called, duration=15000ms frameSize=1280 state=', this._recordingState)
+    setTimeout(() => {
+      if (this._recordingState === 'asr') {
+        console.log('[_正式录音] 8s force stop, isRecording=', this.data.isRecording)
+        try { recorderManager.stop() } catch(e) {}
+      }
+    }, 8000)
 
     this._volumeSim = setInterval(() => {
       if (this.data.isRecording) this.setData({ audioLevel: Math.floor(Math.random() * 8) + 5 })
@@ -1853,7 +1859,7 @@ Page({
       }
 
       if (state === 'asr') {
-        console.log('[ASR-WS] onStop state=asr, duration:', res.duration, 'fileSize:', res.fileSize)
+        console.log('[ASR-WS] ==== onStop ASR branch ENTERED, duration:', res.duration, 'fileSize:', res.fileSize, 'tempPath:', res.tempFilePath, duration:', res.duration, 'fileSize:', res.fileSize)
         if (res.duration < VAD.MIN_UTTERANCE) {
           this.setData({ isRecording: false, audioLevel: 0 })
           if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
