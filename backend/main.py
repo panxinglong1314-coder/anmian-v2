@@ -700,7 +700,7 @@ async def qwen_chat(messages: list[dict], stream: bool = True) -> AsyncGenerator
         return
 
     headers = {
-        "Authorization": f"Bearer {settings.qwen_api_key}",
+        "Authorization": f"Bearer {settings.minimax_api_key}",
         "Content-Type": "application/json"
     }
     payload = {
@@ -744,7 +744,7 @@ async def minimax_chat(messages: list[dict], stream: bool = True) -> AsyncGenera
         return
 
     headers = {
-        "Authorization": f"Bearer {settings.qwen_api_key}",
+        "Authorization": f"Bearer {settings.minimax_api_key}",
         "Content-Type": "application/json"
     }
     payload = {
@@ -889,7 +889,7 @@ def _build_enhanced_system_prompt(
                 anxiety_level=_alvl
             )
         except Exception as e:
-            print(f"[RAG] 构建系统提示词失败: {e}")
+            import traceback; print(f"[RAG] 构建系统提示词失败: {e}\n{traceback.format_exc()}")
             rag_context = ""
     memory_context = ""
     if memory.get("concerns"):
@@ -1004,7 +1004,7 @@ async def qwen_asr(audio_data: bytes, filename: str = "audio.mp3") -> str:
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
             f"{settings.qwen_base_url}/audio/transcriptions",
-            headers={"Authorization": f"Bearer {settings.qwen_api_key}"},
+            headers={"Authorization": f"Bearer {settings.minimax_api_key}"},
             files=files,
             data=data
         )
@@ -1085,142 +1085,118 @@ def _get_real_time() -> int:
         return int(time.time())
 
 
-async def tencent_tts_sync(text: str, voice: str = "female_warm", speed: float = 0) -> bytes:
-    """
-    腾讯云同步 TTS（TextToVoice API）
-    - 直接返回音频（base64），无需 WebSocket
-    - VoiceType: 1001/1002/1003（非流式的 101xxx）
-    - Speed: -2 到 6（相对调整值）
-    - 适合小程序短文本场景
-    """
-    if not all([settings.tencentcloud_app_id, settings.tencentcloud_secret_id, settings.tencentcloud_secret_key]):
-        raise Exception("腾讯云 TTS 未配置")
+def _tencent_tts_sync_blocking(text: str, voice: str, speed: float, appid: str, secret_id: str, secret_key: str, voice_type: int) -> bytes:
+    """同步 TTS，运行在线程池中避免阻塞事件循环"""
+    import httpx, json
 
-    import httpx
-    import json
-
-    appid = settings.tencentcloud_app_id
-    secret_id = settings.tencentcloud_secret_id
-    secret_key = settings.tencentcloud_secret_key
-    voice_type = TENCENT_TTS_VOICES_SYNC.get(voice, TENCENT_TTS_VOICES_SYNC["female_warm"])
-
-    # 同步 TextToVoice API（TC3-HMAC-SHA256 签名）
-    host = "tts.tencentcloudapi.com"
-    service = "tts"
-    version = "2019-08-23"
-    action = "TextToVoice"
-    region = "ap-guangzhou"
-
-    # 请求参数
+    host, service, version, action, region = "tts.tencentcloudapi.com", "tts", "2019-08-23", "TextToVoice", "ap-guangzhou"
     payload = json.dumps({
-        "Text": text[:500],
-        "SessionId": uuid.uuid4().hex,
-        "Volume": 0,
-        "Speed": speed,  # -2 到 6
-        "ProjectId": 0,
-        "ModelType": 1,
-        "VoiceType": voice_type,
-        "PrimaryLanguage": 1,
-        "SampleRate": 16000,
-        "Codec": "mp3",
-        "EnableSubtitle": False,
+        "Text": text[:500], "SessionId": uuid.uuid4().hex, "Volume": 0, "Speed": speed,
+        "ProjectId": 0, "ModelType": 1, "VoiceType": voice_type, "PrimaryLanguage": 1,
+        "SampleRate": 16000, "Codec": "mp3", "EnableSubtitle": False,
     })
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        import asyncio
+    def _hmac_sha256(key, msg): return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
+    def _sha256_hex(s): return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
-        async def _sign_and_send():
-            # 生成 TC3 签名（TC3-HMAC-SHA256）
-            def _hmac_sha256(key, msg):
-                return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
+    real_ts = _get_real_time()
+    timestamp = str(real_ts)
+    from datetime import timezone
+    date = datetime.fromtimestamp(real_ts, tz=timezone.utc).strftime("%Y-%m-%d")
 
-            def _sha256_hex(s):
-                return hashlib.sha256(s.encode("utf-8")).hexdigest()
+    canonical_request = f"POST\n/\n\ncontent-type:application/json\nhost:{host}\n\ncontent-type;host\n{_sha256_hex(payload)}"
+    credential_scope = f"{date}/{service}/tc3_request"
+    string_to_sign = f"TC3-HMAC-SHA256\n{timestamp}\n{credential_scope}\n{_sha256_hex(canonical_request)}"
+    secret_date = _hmac_sha256(("TC3" + secret_key).encode("utf-8"), date)
+    secret_service = _hmac_sha256(secret_date, service)
+    secret_signing = _hmac_sha256(secret_service, "tc3_request")
+    signature = hmac.new(secret_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
 
-            # 使用修正后的真实时间戳（解决 Azure VM 时钟漂移问题）
-            real_ts = _get_real_time()
-            timestamp = str(real_ts)
-            from datetime import timezone
-            date = datetime.fromtimestamp(real_ts, tz=timezone.utc).strftime("%Y-%m-%d")
+    headers = {
+        "Authorization": f"TC3-HMAC-SHA256 Credential={secret_id}/{credential_scope}, SignedHeaders=content-type;host, Signature={signature}",
+        "Content-Type": "application/json", "Host": host,
+        "X-TC-Action": action, "X-TC-Timestamp": timestamp, "X-TC-Version": version, "X-TC-Region": region,
+    }
 
-            # 1. 拼接 string-to-sign
-            http_request_method = "POST"
-            canonical_uri = "/"
-            canonical_query_string = ""
-            canonical_headers = f"content-type:application/json\nhost:{host}\n"
-            signed_headers = "content-type;host"
-            hashed_request_payload = _sha256_hex(payload)
-            canonical_request = (
-                f"{http_request_method}\n"
-                f"{canonical_uri}\n"
-                f"{canonical_query_string}\n"
-                f"{canonical_headers}\n"
-                f"{signed_headers}\n"
-                f"{hashed_request_payload}"
-            )
+    resp = httpx.post(f"https://{host}/", headers=headers, content=payload, timeout=30.0)
+    if resp.status_code != 200:
+        raise Exception(f"[腾讯TTS] HTTP {resp.status_code}")
+    result = resp.json()
+    err = result.get("Response", {}).get("Error", {})
+    if err:
+        raise Exception(f"[腾讯TTS] {err.get('Code')}: {err.get('Message')}")
+    audio_b64 = result.get("Response", {}).get("Audio", "")
+    if not audio_b64:
+        raise Exception("[腾讯TTS] 未返回音频数据")
+    return base64.b64decode(audio_b64)
 
-            algorithm = "TC3-HMAC-SHA256"
-            credential_scope = f"{date}/{service}/tc3_request"
-            hashed_canonical_request = _sha256_hex(canonical_request)
-            string_to_sign = (
-                f"{algorithm}\n"
-                f"{timestamp}\n"
-                f"{credential_scope}\n"
-                f"{hashed_canonical_request}"
-            )
 
-            # 2. 计算签名
-            secret_date = _hmac_sha256(("TC3" + secret_key).encode("utf-8"), date)
-            secret_service = _hmac_sha256(secret_date, service)
-            secret_signing = _hmac_sha256(secret_service, "tc3_request")
-            signature = hmac.new(secret_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+def _tencent_tts_sync_blocking(text: str, voice: str, speed: float, appid: str, secret_id: str, secret_key: str, voice_type: int) -> bytes:
+    """同步 TTS，运行在线程池中避免阻塞事件循环"""
+    import httpx, json
 
-            # 3. 拼接 Authorization
-            authorization = (
-                f"{algorithm} "
-                f"Credential={secret_id}/{credential_scope}, "
-                f"SignedHeaders={signed_headers}, "
-                f"Signature={signature}"
-            )
+    host, service, version, action, region = "tts.tencentcloudapi.com", "tts", "2019-08-23", "TextToVoice", "ap-guangzhou"
+    payload = json.dumps({
+        "Text": text[:500], "SessionId": uuid.uuid4().hex, "Volume": 0, "Speed": speed,
+        "ProjectId": 0, "ModelType": 1, "VoiceType": voice_type, "PrimaryLanguage": 1,
+        "SampleRate": 16000, "Codec": "mp3", "EnableSubtitle": False,
+    })
 
-            headers = {
-                "Authorization": authorization,
-                "Content-Type": "application/json",
-                "Host": host,
-                "X-TC-Action": action,
-                "X-TC-Timestamp": timestamp,
-                "X-TC-Version": version,
-                "X-TC-Region": region,
-            }
+    def _hmac_sha256(key, msg): return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
+    def _sha256_hex(s): return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
-            url = f"https://{host}/"
-            resp = await client.post(url, headers=headers, content=payload)
-            return resp
+    real_ts = _get_real_time()
+    timestamp = str(real_ts)
+    from datetime import timezone
+    date = datetime.fromtimestamp(real_ts, tz=timezone.utc).strftime("%Y-%m-%d")
 
-        resp = await _sign_and_send()
-        result = resp.json()
+    canonical_request = f"POST\n/\n\ncontent-type:application/json\nhost:{host}\n\ncontent-type;host\n{_sha256_hex(payload)}"
+    credential_scope = f"{date}/{service}/tc3_request"
+    string_to_sign = f"TC3-HMAC-SHA256\n{timestamp}\n{credential_scope}\n{_sha256_hex(canonical_request)}"
+    secret_date = _hmac_sha256(("TC3" + secret_key).encode("utf-8"), date)
+    secret_service = _hmac_sha256(secret_date, service)
+    secret_signing = _hmac_sha256(secret_service, "tc3_request")
+    signature = hmac.new(secret_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
 
-        # 检查 API 错误
-        if resp.status_code != 200:
-            raise Exception(f"[腾讯TTS] HTTP {resp.status_code}: {resp.text}")
+    headers = {
+        "Authorization": f"TC3-HMAC-SHA256 Credential={secret_id}/{credential_scope}, SignedHeaders=content-type;host, Signature={signature}",
+        "Content-Type": "application/json", "Host": host,
+        "X-TC-Action": action, "X-TC-Timestamp": timestamp, "X-TC-Version": version, "X-TC-Region": region,
+    }
 
-        err = result.get("Response", {}).get("Error", {})
-        if err:
-            code = err.get("Code", "Unknown")
-            msg = err.get("Message", "")
-            raise Exception(f"[腾讯TTS] {code}: {msg}")
+    resp = httpx.post(f"https://{host}/", headers=headers, content=payload, timeout=30.0)
+    if resp.status_code != 200:
+        raise Exception(f"[腾讯TTS] HTTP {resp.status_code}")
+    result = resp.json()
+    err = result.get("Response", {}).get("Error", {})
+    if err:
+        raise Exception(f"[腾讯TTS] {err.get('Code')}: {err.get('Message')}")
+    audio_b64 = result.get("Response", {}).get("Audio", "")
+    if not audio_b64:
+        raise Exception("[腾讯TTS] 未返回音频数据")
+    return base64.b64decode(audio_b64)
 
-        # 解析音频数据
-        audio_base64 = result.get("Response", {}).get("Audio", "")
-        if not audio_base64:
-            raise Exception("[腾讯TTS] 未返回音频数据")
 
-        return base64.b64decode(audio_base64)
+async def tencent_tts_sync(text: str, voice: str = "female_warm", speed: float = 0) -> bytes:
+    """腾讯云同步 TTS - 运行在线程池中"""
+    if not all([settings.tencentcloud_app_id, settings.tencentcloud_secret_id, settings.tencentcloud_secret_key]):
+        raise Exception("腾讯云 TTS 未配置")
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _tencent_tts_sync_blocking,
+        text, voice, speed,
+        str(settings.tencentcloud_app_id),
+        settings.tencentcloud_secret_id,
+        settings.tencentcloud_secret_key,
+        TENCENT_TTS_VOICES_SYNC.get(voice, TENCENT_TTS_VOICES_SYNC["female_warm"])
+    )
+
+
+
 
 
 async def tencent_tts_stream(text: str, voice: str = "female_warm", speed: int = 0) -> AsyncGenerator[bytes, None]:
     """
-    腾讯云流式 TTS v3（WebSocket 流式，Codec=mp3）
+    腾讯云流式 TTS（WebSocket 流式，Codec=mp3）
     voice: female_warm(610000001) | male_calm(610000002) | female_young(610000003)
     speed: 50-200（默认90）
     返回: MP3 二进制分片（WebSocket 二进制帧）
@@ -1241,7 +1217,6 @@ async def tencent_tts_stream(text: str, voice: str = "female_warm", speed: int =
         expired = str(int(time.time()) + 3600)
         session_id = uuid.uuid4().hex
 
-        # v1 query params including Text (Text参与签名)
         query_params = {
             "Action": "TextToStreamAudioWS",
             "AppId": appid,
@@ -1252,13 +1227,11 @@ async def tencent_tts_stream(text: str, voice: str = "female_warm", speed: int =
             "VoiceType": int(voice_id),
             "Codec": "mp3",
             "SampleRate": "16000",
-            # Speed 固定为 0（流式 TTS 只支持 0，90 会导致 PkgExhausted 或空音频）
             "Speed": "0",
             "Volume": "0",
             "EnableSubtitle": "false",
             "Text": text[:500],
         }
-        # Build string to sign (raw values, sorted by key)
         sorted_items = sorted((k, v) for k, v in query_params.items() if k != 'Signature')
         qs_raw = '&'.join('{}={}'.format(k, v) for k, v in sorted_items)
         string_to_sign = 'GETtts.cloud.tencent.com/stream_ws?' + qs_raw
@@ -1266,7 +1239,6 @@ async def tencent_tts_stream(text: str, voice: str = "female_warm", speed: int =
         signature = base64.b64encode(sig).decode()
         query_params['Signature'] = signature
 
-        # Build final URL (key and value URL-encoded)
         import urllib.parse
         qs_enc = []
         for k, v in sorted_items:
@@ -1280,14 +1252,11 @@ async def tencent_tts_stream(text: str, voice: str = "female_warm", speed: int =
 
         def on_message(ws, message):
             nonlocal got_audio
-            # Codec=mp3：音频在二进制帧中；JSON 控制帧含 code/errMsg
             if isinstance(message, bytes):
-                # 二进制 MP3 数据帧（长度>4，排除空心跳帧）
                 if len(message) > 4:
                     got_audio = True
                     loop.call_soon_threadsafe(qianbao.put_nowait, message)
                 return
-            # JSON 文本帧（控制消息或带 audio 字段的旧版响应）
             try:
                 data = json.loads(message)
                 err_code = data.get('code')
@@ -1315,7 +1284,6 @@ async def tencent_tts_stream(text: str, voice: str = "female_warm", speed: int =
             loop.call_soon_threadsafe(done.set)
 
         def on_open(ws):
-            # v1: after connection, server starts sending audio (text already in URL)
             pass
 
         ws_client = websocket.WebSocketApp(
@@ -1340,7 +1308,6 @@ async def tencent_tts_stream(text: str, voice: str = "female_warm", speed: int =
                     yield chunk
                 except asyncio.TimeoutError:
                     continue
-            # WebSocket 关闭，检查是否收到过音频
             if not got_audio:
                 raise Exception("[腾讯TTS] 未收到任何音频数据")
         finally:
@@ -1349,6 +1316,22 @@ async def tencent_tts_stream(text: str, voice: str = "female_warm", speed: int =
 
     async for chunk in _ws_stream():
         yield chunk
+
+
+
+async def tencent_tts_stream_sse(text: str, voice: str = "female_warm", speed: int = 0):
+    """流式 TTS 直接 yield SSE tts_chunk 事件，逐帧推送，首字延迟 ~300ms"""
+    import base64
+    try:
+        idx = 0
+        async for chunk in tencent_tts_stream(text, voice=voice, speed=speed):
+            yield {"event": "tts_chunk", "index": idx, "audio_base64": base64.b64encode(chunk).decode(), "done": False}
+            idx += 1
+        yield {"event": "tts_chunk", "index": idx, "audio_base64": "", "done": True}
+    except Exception as e:
+        print(f"[TTS-stream-sse] error: {e}")
+        yield {"event": "tts_chunk", "index": 0, "audio_base64": "", "done": True, "error": str(e)}
+
 
 
 # ==================== 腾讯云实时 ASR ====================
@@ -1776,16 +1759,12 @@ async def _chat_events(req: ChatRequest):
         save_session_history(req.user_id, session_id, history)
         has_yielded_tts = False
         try:
-            audio = await asyncio.wait_for(
-                tencent_tts_sync(cbt_result['content'][:120], voice=base_tts_voice, speed=base_tts_speed),
-                timeout=2.0
-            )
-            if audio:
-                b64 = base64.b64encode(audio).decode()
-                yield {"event": "tts_audio", "audio_base64": b64}
+            sent_any = False
+            async for evt in tencent_tts_stream_sse(cbt_result['content'][:120], voice=base_tts_voice, speed=base_tts_speed):
+                yield evt
+                sent_any = True
+            if sent_any:
                 has_yielded_tts = True
-        except asyncio.TimeoutError:
-            print(f"[TTS-stream] special response timeout")
         except Exception as e:
             print(f"[TTS-stream] special response error: {e}")
         yield {"event": "final", "content": cbt_result['content'], "should_close": cbt_result.get('should_close', False)}
@@ -1820,18 +1799,13 @@ async def _chat_events(req: ChatRequest):
         save_session_history(req.user_id, session_id, history)
         yield {"event": "chunk", "data": quick_greeting}
         try:
-            audio = await asyncio.wait_for(
-                tencent_tts_sync(quick_greeting[:120], voice=base_tts_voice, speed=base_tts_speed),
-                timeout=2.0
-            )
-            if audio:
-                b64 = base64.b64encode(audio).decode()
-                yield {"event": "tts_audio", "audio_base64": b64}
-        except asyncio.TimeoutError:
-            print(f"[TTS-quick] timeout")
+            sent = False
+            async for evt in tencent_tts_stream_sse(quick_greeting[:120], voice=base_tts_voice, speed=base_tts_speed):
+                yield evt
+                sent = True
         except Exception as e:
             print(f"[TTS-quick] error: {e}")
-        yield {"event": "done", "session_id": session_id, "should_close": False, "has_tts": True}
+        yield {"event": "done", "session_id": session_id, "should_close": False, "has_tts": sent}
         return
 
     # 4. 调用 LLM 流式生成（RAG增强）
@@ -1873,17 +1847,15 @@ async def _chat_events(req: ChatRequest):
                 flush_text = tts_buffer.strip()
                 if flush_text:
                     try:
-                        audio = await asyncio.wait_for(
-                            tencent_tts_sync(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed),
-                            timeout=2.0
-                        )
-                        if audio:
-                            b64 = base64.b64encode(audio).decode()
-                            yield {"event": "tts_audio", "audio_base64": b64}
+                        sent_any = False
+                        async for evt in tencent_tts_stream_sse(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed):
+                            yield evt
+                            sent_any = True
+                        if sent_any:
                             has_yielded_tts = True
                             tts_buffer = ""
                             tts_last_flush_time = now_ms
-                            print(f"[TTS-fast] first chunk immediate: {flush_text[:20]}...")
+                            print(f"[TTS-fast] first chunk streaming: {flush_text[:20]}...")
                     except Exception as e:
                         print(f"[TTS-fast] first flush error: {e}")
                 
@@ -1923,17 +1895,13 @@ async def _chat_events(req: ChatRequest):
 
             if should_flush and flush_text:
                 try:
-                    audio = await asyncio.wait_for(
-                        tencent_tts_sync(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed),
-                        timeout=2.0
-                    )
-                    if audio:
-                        b64 = base64.b64encode(audio).decode()
-                        yield {"event": "tts_audio", "audio_base64": b64}
+                    sent_any = False
+                    async for evt in tencent_tts_stream_sse(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed):
+                        yield evt
+                        sent_any = True
+                    if sent_any:
                         has_yielded_tts = True
-                        print(f"[TTS-para] synthesized {len(flush_text)} chars: {flush_text[:30]}...")
-                except asyncio.TimeoutError:
-                    print(f"[TTS-para] timeout for: {flush_text[:20]}...")
+                        print(f"[TTS-para] streaming {len(flush_text)} chars: {flush_text[:30]}...")
                 except Exception as e:
                     print(f"[TTS-para] error: {e}")
                 tts_last_flush_time = now_ms
@@ -1941,16 +1909,9 @@ async def _chat_events(req: ChatRequest):
         # 流结束：刷新剩余文本
         if tts_buffer.strip():
             try:
-                audio = await asyncio.wait_for(
-                    tencent_tts_sync(tts_buffer[:MAX_TTS_CHARS].strip(), voice=base_tts_voice, speed=base_tts_speed),
-                    timeout=2.0
-                )
-                if audio:
-                    b64 = base64.b64encode(audio).decode()
-                    yield {"event": "tts_audio", "audio_base64": b64}
+                async for evt in tencent_tts_stream_sse(tts_buffer[:MAX_TTS_CHARS].strip(), voice=base_tts_voice, speed=base_tts_speed):
+                    yield evt
                     has_yielded_tts = True
-            except asyncio.TimeoutError:
-                print(f"[TTS-para] final timeout")
             except Exception as e:
                 print(f"[TTS-para] final error: {e}")
     except Exception as e:
