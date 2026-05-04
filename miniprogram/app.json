@@ -11,6 +11,10 @@
   ],
   "plugins": {},
   "requiredBackgroundModes": ["audio"],
+  "requiredPrivateInfos": ["scope.record"],
+  "permission": {
+    "scope.record": "需要获取录音权限，用于语音对话功能"
+  },
   "window": {
     "navigationBarBackgroundColor": "#0D1B2A",
     "navigationBarTextStyle": "white",
