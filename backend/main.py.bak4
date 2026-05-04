@@ -2534,34 +2534,24 @@ async def asr_websocket(websocket: WebSocket):
     pcm_buffer = bytearray()
     frame_count = 0
 
-    print(f"[ASR-WS] enter receive loop, pcm_buffer size: {len(pcm_buffer)}")
     try:
         while True:
             data = await websocket.receive()
-            msg_keys = list(data.keys())
-            print(f"[ASR-WS] received msg keys: {msg_keys}")
             if "bytes" in data:
                 pcm = data["bytes"]
-                pcm_len = len(pcm) if pcm else 0
-                if pcm_len > 0:
+                if len(pcm) > 0:
                     pcm_buffer.extend(pcm)
                     frame_count += 1
-                    print(f"[ASR-WS] binary frame #{frame_count}: {pcm_len}B total:{len(pcm_buffer)}")
             elif "text" in data:
                 text_data = data["text"]
                 ctrl = json.loads(text_data)
-                print(f"[ASR-WS] text msg: {ctrl}")
                 if ctrl.get("type") == "end":
                     print(f"[ASR-WS] received END, frames: {frame_count}, bytes: {len(pcm_buffer)}")
                     break
-            else:
-                print(f"[ASR-WS] unknown msg type: {msg_keys}, val: {data}")
     except WebSocketDisconnect:
         print(f"[ASR-WS] frontend disconnected")
     except Exception as e:
         print(f"[ASR-WS] receive error: {e}")
-        import traceback
-        traceback.print_exc()
 
     # 识别：优先使用 Tencent ASR v2 WebSocket（更快），失败回退到 SDK
     text = ""
