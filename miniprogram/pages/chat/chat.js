@@ -872,9 +872,17 @@ Page({
     }
     const item = queue.shift()
     this.setData({ ttsQueue: queue, isPlayingTTS: true })
-    if (item.fromSleep) {
-      this.setData({ statusText: '正在播放', statusHint: '闭上眼睛，听我说' })
+
+    // 文字模式（fromSleep=false）：不播音频，静默跳过队列中所有非睡眠音频
+    if (!item.fromSleep) {
+      console.log('[TTS] text mode, skipping audio')
+      const remaining = (this.data.ttsQueue || []).filter(i => i.fromSleep)
+      this.setData({ ttsQueue: remaining, isPlayingTTS: remaining.length > 0 })
+      if (remaining.length > 0) setTimeout(() => this._playNextTTS(), 100)
+      return
     }
+
+    this.setData({ statusText: '正在播放', statusHint: '闭上眼睛，听我说' })
 
     const fs = wx.getFileSystemManager()
     const filePath = `${wx.env.USER_DATA_PATH}/tts_seg_${Date.now()}.mp3`
@@ -885,7 +893,6 @@ Page({
         data: wx.base64ToArrayBuffer(item.audioBase64),
         encoding: 'binary',
         success: () => {
-          // 真机兼容：使用新实例播放，避免全局单例竞态
           const ctx = wx.createInnerAudioContext({ useWebAudioImplement: false })
           ctx.obeyMuteSwitch = false
           ctx.src = filePath
@@ -893,8 +900,9 @@ Page({
             console.error('[TTS] play error:', err)
             ctx.destroy()
             this.setData({ isPlayingTTS: false })
-            // 加延迟，让微信音频引擎完全释放资源后再播下一个
-            setTimeout(() => this._playNextTTS(), 300)
+            const remaining = (this.data.ttsQueue || []).filter(i => i.fromSleep)
+            this.setData({ ttsQueue: remaining })
+            if (remaining.length > 0) setTimeout(() => this._playNextTTS(), 400)
           })
           ctx.onEnded(() => {
             ctx.destroy()
@@ -904,22 +912,28 @@ Page({
               this.setData({ statusText: '聆听中', statusHint: '继续说吧' })
               setTimeout(() => this._startVADLoop(), 1800)
             }
-            // 加延迟，让微信音频引擎完全释放资源后再播下一个
-            setTimeout(() => this._playNextTTS(), 300)
+            const remaining = (this.data.ttsQueue || []).filter(i => i.fromSleep)
+            this.setData({ ttsQueue: remaining })
+            if (remaining.length > 0) setTimeout(() => this._playNextTTS(), 400)
           })
-          // 真机上需要短暂延迟再播放
           setTimeout(() => {
             try { ctx.play() } catch(e) { console.error('[TTS] play fail:', e) }
-          }, 50)
+          }, 80)
         },
         fail: (err) => {
           console.error('[TTS] write fail:', err)
-          this._playNextTTS()
+          this.setData({ isPlayingTTS: false })
+          const remaining = (this.data.ttsQueue || []).filter(i => i.fromSleep)
+          this.setData({ ttsQueue: remaining })
+          if (remaining.length > 0) setTimeout(() => this._playNextTTS(), 200)
         }
       })
     } catch (e) {
       console.error('[TTS] write error:', e)
-      this._playNextTTS()
+      this.setData({ isPlayingTTS: false })
+      const remaining = (this.data.ttsQueue || []).filter(i => i.fromSleep)
+      this.setData({ ttsQueue: remaining })
+      if (remaining.length > 0) setTimeout(() => this._playNextTTS(), 200)
     }
   },
 
