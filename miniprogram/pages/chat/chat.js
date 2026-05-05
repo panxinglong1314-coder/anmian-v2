@@ -893,7 +893,8 @@ Page({
             console.error('[TTS] play error:', err)
             ctx.destroy()
             this.setData({ isPlayingTTS: false })
-            this._playNextTTS()
+            // 加延迟，让微信音频引擎完全释放资源后再播下一个
+            setTimeout(() => this._playNextTTS(), 300)
           })
           ctx.onEnded(() => {
             ctx.destroy()
@@ -903,7 +904,8 @@ Page({
               this.setData({ statusText: '聆听中', statusHint: '继续说吧' })
               setTimeout(() => this._startVADLoop(), 1800)
             }
-            this._playNextTTS()
+            // 加延迟，让微信音频引擎完全释放资源后再播下一个
+            setTimeout(() => this._playNextTTS(), 300)
           })
           // 真机上需要短暂延迟再播放
           setTimeout(() => {
@@ -1848,6 +1850,7 @@ Page({
     // 确保 onStop 回调存在
     console.log('[Recorder] registering onStop callback, current state:', this._recordingState)
     recorderManager.onStop((res) => {
+      // 使用 this._recordingState 而非闭包捕获的 state，避免 stop 前被清空导致误判
       const state = this._recordingState
       console.log('[Recorder] onStop FIRED, state=', state, 'fileSize=', res.fileSize, 'duration=', res.duration)
       this._recordingActive = false
@@ -1858,8 +1861,8 @@ Page({
         const level = hasSound ? Math.floor(Math.random() * 6) + 6 : Math.floor(Math.random() * 4)
         this.setData({ audioLevel: level })
 
-        // 入睡检测：累加安静时间
-        if (!hasSound && !this.data.isSleepFadingOut) {
+        if (!hasSound && this.data.sleepModeActive && !this.data.isSleepFadingOut) {
+          // 入睡检测：累加安静时间
           const newQuietMs = this.data.sleepDetectionQuietMs + 1200
           this.setData({ sleepDetectionQuietMs: newQuietMs })
           if (newQuietMs >= this.SLEEP_DETECTION_THRESHOLD_MS) {
@@ -1867,7 +1870,7 @@ Page({
             this._triggerSleepFadeOut()
             return
           }
-        } else {
+        } else if (hasSound) {
           this.setData({ sleepDetectionQuietMs: 0 })
         }
 
