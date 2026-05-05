@@ -878,9 +878,11 @@ def _build_enhanced_system_prompt(
     if RAG_AVAILABLE:
         try:
             _alvl = cbt_result['state_update'].get('anxiety_level', 5)
+            _alvl_map = {"severe": 8, "moderate": 5, "mild": 2, "normal": 0}
             if isinstance(_alvl, AnxietyLevel):
-                _alvl_map = {"severe": 8, "moderate": 5, "mild": 2, "normal": 0}
                 _alvl = _alvl_map.get(_alvl.value, 5)
+            elif isinstance(_alvl, str):
+                _alvl = _alvl_map.get(_alvl, 5)
             rag_context = build_rag_system_prompt(
                 user_id=user_id,
                 session_context=memory,
