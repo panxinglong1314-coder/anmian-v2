@@ -50,7 +50,7 @@ function _decodeUTF8(buf) {
 // VAD 参数
 const VAD = {
   SILENCE_THRESHOLD: 0.05,
-  SPEECH_TIMEOUT: 4000,  // 静音 4000ms 停止录音（ASR 需要更长句子的上下文）
+  SPEECH_TIMEOUT: 1200,  // 静音 1200ms 停止录音（用户停顿即结束）
   MIN_UTTERANCE: 400,    // 最少录音 400ms
 }
 
@@ -75,7 +75,13 @@ const VAD = {
 Page({
   data: {
     mode: 'sleep',
-    isPremium: false,
+    // ✅ 预读 subscription，避免 banner 异步消失导致布局闪烁
+    isPremium: (() => {
+      try {
+        const sub = wx.getStorageSync('subscription') || {}
+        return !!(sub.isPremium && sub.expireDate && new Date(sub.expireDate) > new Date())
+      } catch (e) { return false }
+    })(),
 
     // 睡眠模式
     sleepModeActive: false,
@@ -91,6 +97,7 @@ Page({
     // 文字模式
     isLoading: false,
     messages: [],
+    scrollToMsg: '',
     isPlayingTTS: false,
     ttsProgress: 0,
     ttsCurrentTime: '0:00',
@@ -181,13 +188,20 @@ Page({
     if (this.data.mode === 'sleep') {
       this.exitSleepMode()
       this.stopAll()
-      // 先切模式，在 setData 回调中再清空 messages，避免与后续 _sendToAI 的 setData 冲突
-      this.setData({ mode: 'text', conversationLog: [], conversationRound: 0 }, () => {
-        this.setData({ messages: [] })
-      })
+      // ✅ 睡眠→文本：保留 conversationLog，同步转换为 messages 格式
+      const msgs = this.data.conversationLog.map((m, i) => ({
+        id: m.id || `hist_${i}`,
+        role: m.role,
+        content: m.text || m.content || '',
+        time: this._now(),
+        isPlayingTTS: false,
+        feedback: undefined,
+      }))
+      this.setData({ mode: 'text', messages: msgs })
     } else {
       this.stopAll()
-      this.setData({ mode: 'sleep', messages: [], conversationLog: [], conversationRound: 0 })
+      // ✅ 文本→睡眠：保留 conversationLog 和 conversationRound，不清空历史
+      this.setData({ mode: 'sleep' })
     }
     this._updateFreeChatsDisplay()
   },
@@ -209,10 +223,49 @@ Page({
   },
 
   onPrivacyAgree() {
-    wx.setStorageSync('privacy_agreed', true)
+    // 【优化】隐私同意和麦克风授权合并为一步
+    // 成功授权后才写 privacy_agreed=true，避免两张皮
     this.setData({ showPrivacyModal: false })
-    // 先走微信官方隐私协议，再走录音权限
-    this._requirePrivacyAndAuth()
+    this._requestRecordAuthWithPrivacyAgree()
+  },
+
+  // 【新增】隐私同意 + record 授权合并处理
+  _requestRecordAuthWithPrivacyAgree() {
+    const proceed = () => {
+      wx.authorize({
+        scope: 'scope.record',
+        success: () => {
+          wx.setStorageSync('privacy_agreed', true)
+          console.log('[Privacy+Auth] 隐私同意 + 录音权限已授权')
+        },
+        fail: (err) => {
+          console.log('[Privacy+Auth] 录音权限授权失败:', err)
+          wx.setStorageSync('privacy_agreed', false)
+          // 不写死，下次进入还弹同一张卡，不会迷
+        }
+      })
+    }
+
+    if (!wx.getPrivacySetting) {
+      proceed()
+      return
+    }
+    wx.getPrivacySetting({
+      success: (res) => {
+        if (res.needAuthorization) {
+          wx.requirePrivacyAuthorize({
+            success: () => proceed(),
+            fail: () => {
+              wx.showToast({ title: '需同意隐私协议方可继续', icon: 'none' })
+              wx.setStorageSync('privacy_agreed', false)
+            }
+          })
+        } else {
+          proceed()
+        }
+      },
+      fail: () => proceed()
+    })
   },
 
   _requirePrivacyAndAuth() {
@@ -251,13 +304,13 @@ Page({
   },
 
   enterSleepMode() {
-    // 先检查自定义隐私协议
+    // 【优化】隐私未同意时：直接弹隐私卡，一次性处理隐私+麦克风
     if (!wx.getStorageSync('privacy_agreed')) {
       this.setData({ showPrivacyModal: true })
       return
     }
-    // 再走微信官方隐私协议与录音授权
-    this._checkPrivacyAndEnter()
+    // 隐私已同意 → 直接进入睡眠模式（record 权限在同意时已一起处理）
+    this._doEnterSleepMode()
   },
 
   _checkPrivacyAndEnter() {
@@ -348,20 +401,112 @@ Page({
   _startVADLoop() {
     console.log('[_VAD] start, sleepModeActive:', this.data.sleepModeActive, 'mode:', this.data.mode)
     if (!this.data.sleepModeActive) return
-    if (this._recordingActive) {
-      console.log('[_VAD] recorder busy, skip')
+    // ✅ 如果录音机正在停止，直接返回，等 onStop 后再启动
+    if (this._recorderStopping) {
+      console.warn('[_VAD] recorder is stopping, defer start')
       return
     }
-    // 如果 TTS 还在播，延迟启动 VAD，避免把 AI 自己的话录进去
-    if (this.data.isPlayingTTS) {
-      console.log('[_VAD] TTS still playing, defer start')
+    // ✅ TTS 播放时注册回调，等 TTS 真正结束后再启动（避免轮询 retry 污染 warmup）
+    if (this._ttsStreamPlaying || this._ttsPlaying || this.data.isPlayingTTS) {
+      console.log('[_VAD] TTS playing, register onTTSEnd callback')
+      this._onTTSEnd(() => {
+        this._vadRestartPending = false  // ✅ 清锁
+        console.log('[_VAD] TTS ended callback fired, starting VAD')
+        this._doStartVAD()
+      })
+      return
+    }
+    // ✅ 单例锁：防止多个 VAD 循环并发
+    if (this._vadLoopActive) {
+      console.warn('[_VAD] loop already active, skip')
+      return
+    }
+    this._vadLoopActive = true
+    this._vadRetryCount = 0
+    this._vadRestartPending = false  // ✅ 清锁
+    this._doStartVAD()
+  },
+
+  _restartVAD(reason) {
+    if (this._vadRestartPending) {
+      console.warn('[VAD] restart already pending, skip (' + reason + ')')
+      return
+    }
+    this._vadRestartPending = true
+    console.log('[VAD] restart scheduled:', reason)
+    this._startVADLoop()
+  },
+
+  _onTTSEnd(cb) {
+    if (!this._ttsEndCallbacks) this._ttsEndCallbacks = []
+    this._ttsEndCallbacks.push(cb)
+  },
+
+  _fireTTSEndCallbacks() {
+    const cbs = (this._ttsEndCallbacks || []).splice(0)
+    cbs.forEach(cb => {
+      try { cb() } catch (e) { console.error('[TTS] end callback error:', e) }
+    })
+  },
+
+  // ✅ TTS 回声检测：ASR 识别到 TTS 内容时判定为回声
+  _isTTSEcho(asrText) {
+    if (!asrText || !this._lastTTSText) return false
+    const clean = (s) => s.replace(/[，。？！,\.\?!\s]/g, '')
+    const a = clean(asrText)
+    const t = clean(this._lastTTSText)
+    if (!a || !t) return false
+    // 如果 ASR 文本被 TTS 文本包含，或重合度 > 50%，判定为回声
+    if (t.includes(a)) return true
+    // 简单的最长公共子串近似：看短文本有多少字符在长文本中
+    let common = 0
+    const short = a.length < t.length ? a : t
+    const long = a.length < t.length ? t : a
+    for (let i = 0; i < short.length; i++) {
+      if (long.indexOf(short[i]) !== -1) common++
+    }
+    return common / short.length > 0.5
+  },
+
+  _doStartVAD() {
+    const VAD_MAX_RETRIES = 6
+    // ✅ 如果录音机正在停止，延迟重试，避免与 stop() 竞态
+    if (this._recorderStopping) {
+      console.log('[_VAD] recorder stopping, defer start')
       if (this._listenTimer) clearTimeout(this._listenTimer)
-      this._listenTimer = setTimeout(() => this._startVADLoop(), 800)
+      this._listenTimer = setTimeout(() => this._doStartVAD(), 600)
       return
     }
+    // ✅ 二次保险：TTS 还在播则注册回调并返回（等 onEnded 再启动）
+    if (this._ttsStreamPlaying || this._ttsPlaying || this.data.isPlayingTTS) {
+      console.log('[_VAD] TTS still playing, register onTTSEnd callback')
+      this._vadLoopActive = false
+      this._onTTSEnd(() => {
+        this._vadRestartPending = false  // ✅ 清锁
+        console.log('[_VAD] TTS ended callback fired (from _doStartVAD), starting VAD')
+        this._doStartVAD()
+      })
+      return
+    }
+    // ✅ 用底层锁判断录音机是否真正空闲（onStart/onStop/onError 驱动）
+    if (this._recorderLocked) {
+      this._vadRetryCount++
+      if (this._vadRetryCount >= VAD_MAX_RETRIES) {
+        console.error('[_VAD] max retries reached, force reset recorder')
+        this._forceResetRecorder()
+        return
+      }
+      console.warn('[_VAD] recorder locked, retry ' + this._vadRetryCount + '/' + VAD_MAX_RETRIES)
+      if (this._listenTimer) clearTimeout(this._listenTimer)
+      this._listenTimer = setTimeout(() => this._doStartVAD(), 500)
+      return
+    }
+    // 真正启动 VAD
+    this._recorderLocked = true
     this._recordingActive = true
     this._vadActive = true
     this._recordingState = 'vad'
+    this._recorderStopping = false  // 安全起见重置
     this.setData({ isListening: true })
     console.log('[_VAD] calling recorderManager.start()')
     recorderManager.start({
@@ -370,15 +515,37 @@ Page({
     })
   },
 
+  _forceResetRecorder() {
+    console.warn('[Recorder] force reset, stopping all')
+    if (this._listenTimer) clearTimeout(this._listenTimer)  // ✅ 取消旧重试定时器
+    this._vadLoopActive = false
+    this._recorderLocked = false
+    this._recorderStopping = false  // ✅ 重置停止标志
+    this._vadRetryCount = 0
+    try { recorderManager.stop() } catch (e) {}
+    // 等待 1s 让系统彻底释放麦克风，然后重启 VAD
+    setTimeout(() => {
+      console.log('[Recorder] reset done, restart VAD')
+      if (this.data.sleepModeActive) this._restartVAD('force reset')
+    }, 1000)
+  },
+
   _start正式录音() {
+    if (this._formalRecordingStarting) {
+      console.warn('[_正式录音] already starting, skip')
+      return
+    }
     if (this._recordingState === 'asr') {
       console.log('[_正式录音] 已在录音，跳过')
       return
     }
+    this._formalRecordingStarting = true
     if (this._listenTimer) clearTimeout(this._listenTimer)
     if (this._silenceTimer) clearTimeout(this._silenceTimer)
-    // 用户开始说话，重置陪伴计时器
+    if (this._asrFinalSilenceTimer) { clearTimeout(this._asrFinalSilenceTimer); this._asrFinalSilenceTimer = null }
+    // 用户开始说话，重置陪伴计时器 + 打断 TTS
     this._resetCompanionTimer()
+    this._clearTTSQueue()
     this._vadActive = false
     // Bug 4 保护：必须在 vad 状态才能切换到 asr
     if (this._recordingState !== 'vad') {
@@ -387,14 +554,24 @@ Page({
     }
     try { recorderManager.stop() } catch (e) {}
     this.setData({ isRecording: true, isListening: false, audioLevel: 8, statusText: '正在听...', statusHint: '说完后稍等，我会回应' })
+    // ✅ 丢弃前 N 帧 warmup：VAD 停止后麦克风残留气流/环境音，前 8 帧（≈320ms）是噪音
+    this._warmupFrames = 0
+    this._warmupRMSList = []   // 收集所有 warmup 帧的 RMS
+    this._noiseBaseline = 0    // 背景噪音 RMS 基线
+    this._voiceDetected = false  // 是否已检测到真实人声
 
     // 建立后端 WebSocket 中转（后端→腾讯云 ASR v2）
     this._fallbackUploadASR = false
+    this._wsEverOpened = false      // ✅ WS 是否曾经成功建立
+    this._aiRequestSent = false     // ✅ AI 是否已经发送过（防止重复请求）
+    this._pendingRestartVAD = false // ✅ Fix 1: 重置 pending 标记
+    this._wsReceivedDone = false    // ✅ Fix 2: 重置 done 标记
     const wsUrl = `${API.replace(/^http/, 'ws')}/api/v1/asr/ws`
     this._asrSocket = wx.connectSocket({ url: wsUrl })
     this._asrSocketReady = false
 
     this._asrSocket.onOpen(() => {
+      this._wsEverOpened = true
       this._asrSocketReady = true
       console.log('[ASR-WS] socket open, isRecording now:', this.data.isRecording, '_pendingRecordingFile:', this._pendingRecordingFile)
       // ✅ WebSocket 就绪后，刷出积压的音频帧
@@ -419,23 +596,80 @@ Page({
         }
         if (data.done) {
           console.log('[ASR-WS] done signal received')
-          if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
-          this._asrSocketReady = false
+          this._wsReceivedDone = true  // ✅ Fix 2: 标记 WS 已结束，停止帧缓冲
+          // ✅ 不立即关闭 WS，等 onStop 发完 end marker 后再关
           return
         }
         const text = data.text || ''
         const slice_type = data.slice_type != null ? data.slice_type : 0
         const is_final = data.is_final != null ? data.is_final : false
         console.log('[ASR-WS] result: text="%s" slice=%s is_final=%s', text, slice_type, is_final)
-        if (is_final || slice_type === 2) {
-          if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
-          this._asrSocketReady = false
-          this.setData({ _asrPending: false })
-          if (text && text.trim()) {
-            this._sendToAI(text.trim(), true)
-          } else {
-            this._playTTS('不好意思没听清楚，你可以慢慢再说一次吗？', true)
+
+        // 实时展示中间结果（边说边看到文字）
+        if (slice_type === 1 && text) {
+          if (this.data.isRecording) {
+            this.setData({ statusText: '正在识别...', statusHint: text })
           }
+          // ✅ 收到中间结果说明用户还在说，重置 final 后的延迟停止定时器
+          if (this._asrFinalSilenceTimer) {
+            clearTimeout(this._asrFinalSilenceTimer)
+            this._asrFinalSilenceTimer = null
+          }
+        }
+
+        if (is_final || slice_type === 2) {
+          // ✅ 空结果过滤：空文本时不触发 AI，直接重启 VAD
+          if (!text || text.trim() === '') {
+            console.warn('[ASR-WS] empty result, restart VAD')
+            if (this._recordingState === 'asr') {
+              this._pendingRestartVAD = true  // ✅ Fix 1: 标记 onStop 后重启
+              this._stop正式录音()
+            }
+            return
+          }
+          // ✅ 噪音词过滤：纯语气词/幻听不触发 AI
+          const NOISE_WORDS = new Set(['嗯', '嗯。', '啊', '啊。', '呃', '呃。', '哦', '哦。', '嗯嗯', '嗯嗯。', '唉', '唉。', '哎', '哎。', '哈', '哈。'])
+          const cleanText = text.replace(/[。！？.!?\s]/g, '')
+          if (cleanText.length <= 1 || NOISE_WORDS.has(text.trim())) {
+            console.warn('[ASR-WS] noise word filtered:', text)
+            if (this._recordingState === 'asr') {
+              this._pendingRestartVAD = true  // ✅ Fix 1: 标记 onStop 后重启
+              this._stop正式录音()
+            }
+            return
+          }
+          // ✅ 去重保护：避免重复触发 AI
+          if (text === this._lastASRFinalText) {
+            console.warn('[ASR-WS] duplicate final result, ignored:', text)
+            if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
+            this._asrSocketReady = false
+            this.setData({ _asrPending: false })
+            return
+          }
+          this._lastASRFinalText = text
+          // ✅ 防止重复请求：如果 AI 已经发送过，跳过
+          if (this._aiRequestSent) {
+            console.warn('[ASR-WS] AI already sent, skip duplicate')
+            return
+          }
+          // ✅ TTS 回声过滤：ASR 识别到 TTS 内容时跳过
+          const asrText = text.trim()
+          if (this._isTTSEcho(asrText)) {
+            console.warn('[ASR-WS] TTS echo detected, skip:', asrText)
+            return
+          }
+          this._aiRequestSent = true
+          // ✅ 收到 final 后延迟 500ms 停止录音（配合服务端 VAD needvad=1）
+          if (this._asrFinalSilenceTimer) clearTimeout(this._asrFinalSilenceTimer)
+          this._asrFinalSilenceTimer = setTimeout(() => {
+            console.log('[ASR-WS] silence after final, stopping recording')
+            if (this.data.isRecording) {
+              this._stop正式录音()
+            }
+          }, 500)
+          // 立即触发 AI（不等录音停止）
+          this.setData({ _asrPending: false })
+          this._sendToAI(asrText, true)
         }
       } catch (e) {
         console.error('[ASR-WS] parse error:', e)
@@ -464,6 +698,7 @@ Page({
     if (this._silenceTimer) { clearTimeout(this._silenceTimer); this._silenceTimer = null }
     if (this._volumeSim) clearInterval(this._volumeSim)
     // Bug 修复：先设状态再 start()，防止 onStop 先触发导致状态错误
+    this._recorderStopping = false  // ✅ 安全重置，确保 start() 不被拦截
     recorderManager.start({
       format: 'pcm', sampleRate: 16000,
       numberOfChannels: 1, encodeBitRate: 48000,
@@ -472,14 +707,18 @@ Page({
       frameSize: 1              // ✅ 每帧约 40ms，触发 onFrameRecorded
     })
     console.log('[_正式录音] start() called, duration=15000ms state=', this._recordingState)
+    // ✅ 清防重入标志（onStart 可能在 start() 后立即触发）
+    this._formalRecordingStarting = false
     this._forceStopTimer = setTimeout(() => {
       console.log('[_正式录音] 12s FORCE STOP, state=', this._recordingState, 'isRecording=', this.data.isRecording, 'pending=', !!this._pendingRecordingFile)
       if (this._recordingState === 'asr') {
+        this._recorderStopping = true  // ✅ 标记录音机正在停止
         try {
           recorderManager.stop()
           console.log('[_正式录音] stop() called successfully')
         } catch(e) {
           console.error('[_正式录音] stop() failed:', e)
+          this._recorderStopping = false  // 失败时重置
         }
       } else if (this._pendingRecordingFile) {
         // state is null but we have pending file - process it now
@@ -515,10 +754,16 @@ Page({
       console.warn('[_ASR] 当前状态', this._recordingState, '，无需停止')
       return
     }
+    if (this._recorderStopping) {
+      console.warn('[_ASR] recorder already stopping, skip')
+      return
+    }
     if (this._volumeSim) clearInterval(this._volumeSim)
     if (this._silenceTimer) clearTimeout(this._silenceTimer)
+    if (this._asrFinalSilenceTimer) { clearTimeout(this._asrFinalSilenceTimer); this._asrFinalSilenceTimer = null }
     this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
     // ❌ 不在这里清 state，onStop 需要根据 state 判断处理逻辑
+    this._recorderStopping = true  // ✅ 标记录音机正在停止
     recorderManager.stop()
   },
 
@@ -526,6 +771,13 @@ Page({
   // 真实 API：ASR 语音转文字（腾讯云实时识别 + 流式处理）
   // ================================================
   _sendVoiceToASR(filePath) {
+    // ✅ 流式已发过 AI → 降级结果丢弃
+    if (this._aiRequestSent) {
+      console.warn('[ASR-Fallback] AI already sent, skip:', filePath)
+      this.setData({ _asrPending: false })
+      setTimeout(() => this._startVADLoop(), 500)
+      return
+    }
     if (this.data._asrPending) {
       console.log('[_ASR] pending, skipping')
       return
@@ -676,6 +928,7 @@ Page({
       const userMsg = { id: 'msg_' + Date.now(), role: 'user', content: text, time: this._now(), isPlayingTTS: false }
       const msgs = this.data.messages.concat(userMsg)
       this.setData({ messages: msgs, inputText: '' })
+      this._scrollToBottom()
     }
 
     let streamingText = ''
@@ -690,6 +943,7 @@ Page({
           msgs.push({ id: 'ai_' + Date.now(), role: 'assistant', content: streamingText, time: this._now(), isPlayingTTS: false, feedback: undefined })
           this.setData({ messages: msgs })
         }
+        this._scrollToBottom()
       }
       const newLog = [...this.data.conversationLog]
       const aiIdx = newLog.findIndex(m => m.role === 'assistant' && m._streaming)
@@ -703,16 +957,12 @@ Page({
 
     console.log('[_sendToAI] sending SSE request, text=', text.slice(0, 30), 'sleepMode=', fromSleep)
     let hasStreamTTS = false
-    const requestTask = wx.request({
+    const requestTask = app.authRequest({
       url: `${API}/api/v1/chat/cbt/stream`,
       method: 'POST',
       header: { 'Content-Type': 'application/json' },
-      data: { user_id: userId, message: text, session_id: sessionId },
+      data: { user_id: userId, message: text, session_id: sessionId, skip_tts: !fromSleep },
       enableChunked: true,
-      fail: (err) => {
-        console.error('[_sendToAI] SSE request FAILED:', err)
-        this.setData({ isAIResponding: false, isLoading: false, _asrPending: false })
-      },
       success: (res) => {
         console.log('[_sendToAI] SSE success, status=', res.statusCode, 'hasData=', !!res.data)
         const finalLog = this.data.conversationLog.map(m => {
@@ -729,7 +979,9 @@ Page({
         // 统一重置 ASR pending（无论文字/语音模式）
         this.setData({ _asrPending: false })
 
-        if (fromSleep && this.data.sleepModeActive && !this.data.isPlayingTTS && (this.data.ttsQueue || []).length === 0) {
+        // ✅ 修复：使用同步变量 _ttsStreamPlaying/_ttsPlaying 判断，避免 setData 异步延迟导致误判
+        const isTTSPlaying = this._ttsStreamPlaying || this._ttsPlaying || this.data.isPlayingTTS
+        if (fromSleep && this.data.sleepModeActive && !isTTSPlaying && (this.data.ttsQueue || []).length === 0) {
           const finalText = streamingText.trim()
           console.log('[SleepMode] SSE done, hasStreamTTS:', hasStreamTTS, 'finalText:', finalText || '(empty)')
           // 如果流式过程中已经下发 tts_chunk，就不再整句 fallback 合成
@@ -744,9 +996,8 @@ Page({
 
         if (!fromSleep) {
           const finalText = streamingText.trim()
-          if (!hasStreamTTS && finalText) {
-            this._playTTS(finalText, false)
-          }
+          // ✅ 文本模式下不自动播放 TTS（保留手动点击"听"按钮）
+          // if (!hasStreamTTS && finalText) { this._playTTS(finalText, false) }
           const closeDecision = this._shouldTriggerClosure(text, streamingText)
           if (closeDecision.trigger) {
             console.log('[Closure] trigger:', closeDecision.reason, 'delay:', closeDecision.delay)
@@ -755,7 +1006,7 @@ Page({
         }
       },
       fail: (err) => {
-        console.error('[Chat Stream Error]', err)
+        console.error('[_sendToAI] SSE request FAILED:', err)
         this.setData({ isAIResponding: false, isLoading: false, _asrPending: false })
         // ✅ 只在完全没有收到 TTS 时才 fallback（ERR_INCOMPLETE_CHUNKED_ENCODING 等网络错误不代表 TTS 没收到）
         if (fromSleep && !hasStreamTTS) {
@@ -766,12 +1017,8 @@ Page({
         }
       },
       complete: () => {
-        // complete 总是在 success/fail 之后调用，确保 VAD 循环最终会重启
-        console.log('[Chat Stream] request complete, hasStreamTTS=', hasStreamTTS, 'isPlayingTTS=', this.data.isPlayingTTS, 'ttsQueue=', (this.data.ttsQueue || []).length)
-        if (fromSleep && this.data.sleepModeActive && !this.data.isPlayingTTS && (this.data.ttsQueue || []).length === 0) {
-          // 兜底：确保 VAD 最终会重启（即使 success 没被调用）
-          setTimeout(() => this._startVADLoop(), 800)
-        }
+        // ✅ 不在这里触发 VAD（可能早于 success 处理完最后 chunks）；
+        // success / fail 里已处理 VAD 重启，onEnded 回调也会触发
       }
     })
 
@@ -821,18 +1068,74 @@ Page({
             streamingText = data.content
             flushText()
           }
+          // 兼容新版按句合成（tts_sentence：完整 MP3）
+          if (data.event === 'tts_sentence') {
+            console.log('[SSE] tts_sentence event: index=', data.index, 'text=', data.text ? data.text.slice(0, 20) : '', 'audioLen=', data.audio_base64 ? data.audio_base64.length : 0)
+            // ✅ 记录最近一次 TTS 文本，用于 ASR 回声过滤
+            if (data.text && data.text.trim()) {
+              this._lastTTSText = data.text.trim()
+            }
+            if (data.audio_base64 && !data.done) {
+              hasStreamTTS = true
+              this._ttsStreamDone = true  // ✅ 标记 TTS 已下发，播完后重启 VAD
+              // ✅ 文本模式下不自动播放 TTS，睡眠模式下才自动播放
+              if (fromSleep) {
+                this._enqueueStreamTTS(data.audio_base64)
+              }
+              this._ttsChunks.push(data.audio_base64)
+            }
+          }
+          // 兼容旧版流式分片（tts_chunk）
           if (data.event === 'tts_chunk') {
             console.log('[SSE] tts_chunk event: index=', data.index, 'done=', data.done, 'audioLen=', data.audio_base64 ? data.audio_base64.length : 0, 'hasError=', !!data.error)
             if (data.audio_base64 && !data.done) {
               hasStreamTTS = true
-              this._enqueueTTS(data.audio_base64, fromSleep)
+              // ✅ 流式播放：收到 chunk 立即入队播放，不等全部收完
+              let chunkStr = data.audio_base64
+              if (typeof chunkStr !== 'string') {
+                // 假设是 ArrayBuffer，转为 base64
+                try {
+                  const bytes = new Uint8Array(chunkStr)
+                  let b64 = ''
+                  for (let i = 0; i < bytes.length; i += 3) {
+                    const b0 = bytes[i], b1 = bytes[i + 1] || 0, b2 = bytes[i + 2] || 0
+                    b64 += String.fromCharCode(b0 >> 2)
+                    b64 += String.fromCharCode(((b0 & 3) << 4) | (b1 >> 4))
+                    b64 += String.fromCharCode(((b1 & 15) << 2) | (b2 >> 6))
+                    b64 += String.fromCharCode(b2 & 63)
+                  }
+                  const padding = bytes.length % 3
+                  if (padding === 1) b64 = b64.slice(0, -2) + '=='
+                  else if (padding === 2) b64 = b64.slice(0, -1) + '='
+                  chunkStr = b64
+                } catch (e) {
+                  console.error('[TTS] ArrayBuffer→base64 failed:', e)
+                  return
+                }
+              }
+              // ✅ 睡眠模式下才自动流式播放，文本模式保留音频供手动点击
+              if (fromSleep) {
+                this._enqueueStreamTTS(chunkStr)
+              }
+              // 同时保留到 _ttsChunks（fallback 用）
+              this._ttsChunks.push(chunkStr)
             }
             if (data.done && !data.error) {
-              console.log('[SSE] tts_chunk done, hasStreamTTS=', hasStreamTTS, 'ttsQueue=', (this.data.ttsQueue || []).length, 'isPlaying=', this.data.isPlayingTTS)
-              // 如果流结束但队列为空，说明音频太短没有触发 enqueue，手动 fallback
-              if (!hasStreamTTS && streamingText.trim()) {
-                console.log('[SSE] tts_chunk done but no chunks received, fallback TTS for:', streamingText.slice(0, 30))
-                this._playTTS(streamingText.trim(), fromSleep)
+              console.log('[SSE] tts_chunk done, stream queue:', this._ttsStreamQueue.length, 'playing:', this._ttsStreamPlaying)
+              this._ttsStreamDone = true
+              // 如果流式队列已空且没在播放，恢复状态
+              if (!this._ttsStreamPlaying && this._ttsStreamQueue.length === 0) {
+                this._ttsPlaying = false
+                this.setData({ isPlayingTTS: false, _asrPending: false })
+                if (this.data.sleepModeActive) this._resetCompanionTimer()
+                if (this.data.sleepModeActive && !this.data._pmrActive) {
+                  this.setData({ statusText: '聆听中', statusHint: '继续说吧' })
+                  setTimeout(() => this._startVADLoop(), 500)
+                }
+              }
+              // fallback：如果流式播放失败（没收到任何 chunk），用合并播放
+              if (this._ttsChunks.length > 0 && !hasStreamTTS) {
+                this._playMergedTTS()
               }
             }
           }
@@ -857,7 +1160,7 @@ Page({
     console.log('[TTS] fallback synthesize:', text.slice(0, 60))
     const fs = wx.getFileSystemManager()
     const filePath = `${wx.env.USER_DATA_PATH}/tts_fallback_${Date.now()}.mp3`
-    wx.request({
+    app.authRequest({
       url: `${API}/api/v1/tts/stream?text=${encodeURIComponent(text.slice(0, 500))}&voice=female_warm&speed=${speed}`,
       method: 'POST',
       responseType: 'arraybuffer',
@@ -872,8 +1175,17 @@ Page({
             innerAudioContext.src = filePath
             try { innerAudioContext.offError && innerAudioContext.offError() } catch(e){}
             try { innerAudioContext.offEnded && innerAudioContext.offEnded() } catch(e){}
-            innerAudioContext.onError(() => {
+            innerAudioContext.onError((err) => {
+              console.error('[TTS] fallback audio error:', err && err.errMsg)
               this.setData({ isPlayingTTS: false, _asrPending: false })
+              if (err && err.errMsg && err.errMsg.includes('access denied')) {
+                // 系统打断，清理状态并重启 VAD
+                if (this.data.sleepModeActive) {
+                  this._clearTTSQueue()
+                  setTimeout(() => this._restartVAD('fallback audio access denied'), 500)
+                }
+                return
+              }
               if (fromSleep && this.data.sleepModeActive) {
                 setTimeout(() => this._startVADLoop(), 1800)
               }
@@ -899,107 +1211,6 @@ Page({
         })
       }
     })
-  },
-
-  _enqueueTTS(audioBase64, fromSleep = false) {
-    const queue = this.data.ttsQueue || []
-    queue.push({ audioBase64, fromSleep })
-    this.setData({ ttsQueue: queue })
-    console.log('[TTS] enqueue, fromSleep=', fromSleep, 'queueLen=', queue.length, 'isPlaying=', this.data.isPlayingTTS)
-    if (!this.data.isPlayingTTS) {
-      this._playNextTTS()
-    }
-  },
-
-  _playNextTTS() {
-    // TTS 队列开始播放，重置陪伴计时器
-    this._resetCompanionTimer()
-    const queue = this.data.ttsQueue || []
-    if (queue.length === 0) {
-      this.setData({ isPlayingTTS: false })
-      console.log('[TTS] queue empty, nothing to play')
-      return
-    }
-    const item = queue.shift()
-    this.setData({ ttsQueue: queue, isPlayingTTS: true })
-    console.log('[TTS] playNext, fromSleep=', item.fromSleep, 'audioLen=', item.audioBase64.length, 'remaining=', queue.length)
-
-    // 文字模式（fromSleep=false）：不播音频，静默跳过队列中所有非睡眠音频
-    if (!item.fromSleep) {
-      console.log('[TTS] text mode, skipping audio')
-      const remaining = (this.data.ttsQueue || []).filter(i => i.fromSleep)
-      this.setData({ ttsQueue: remaining, isPlayingTTS: remaining.length > 0 })
-      if (remaining.length > 0) setTimeout(() => this._playNextTTS(), 100)
-      return
-    }
-
-    this.setData({ statusText: '正在播放', statusHint: '闭上眼睛，听我说' })
-
-    const fs = wx.getFileSystemManager()
-    const filePath = `${wx.env.USER_DATA_PATH}/tts_seg_${Date.now()}.mp3`
-
-    try {
-      fs.writeFile({
-        filePath,
-        data: wx.base64ToArrayBuffer(item.audioBase64),
-        encoding: 'binary',
-        success: () => {
-          // ✅ 先停上一个，再播下一个（避免 504 错误）
-          let prevCtx = this._currentTTSCtx
-          if (prevCtx) {
-            try { prevCtx.stop() } catch(e) {}
-            try { prevCtx.destroy() } catch(e) {}
-          }
-          const ctx = wx.createInnerAudioContext({ useWebAudioImplement: false })
-          ctx.obeyMuteSwitch = false
-          this._currentTTSCtx = ctx  // 记住当前 context，用于 stop
-          ctx.src = filePath
-          ctx.onError((err) => {
-            // ✅ errCode:0 是正常的"被打断"，忽略；errCode:10001 才真正报错
-            if (err.errCode !== 10001 && err.errCode !== 0) {
-              console.error('[TTS] play error:', err)
-            }
-            ctx.destroy()
-            this.setData({ isPlayingTTS: false })
-            const remaining = (this.data.ttsQueue || []).filter(i => i.fromSleep)
-            this.setData({ ttsQueue: remaining })
-            if (remaining.length > 0) setTimeout(() => this._playNextTTS(), 400)
-          })
-          ctx.onEnded(() => {
-            ctx.destroy()
-            this.setData({ isPlayingTTS: false, _asrPending: false })
-            if (this.data.sleepModeActive) this._resetCompanionTimer()
-            if (item.fromSleep && this.data.sleepModeActive && (this.data.ttsQueue || []).length === 0) {
-              this.setData({ statusText: '聆听中', statusHint: '继续说吧' })
-              setTimeout(() => this._startVADLoop(), 1800)
-            }
-            const remaining = (this.data.ttsQueue || []).filter(i => i.fromSleep)
-            this.setData({ ttsQueue: remaining })
-            if (remaining.length > 0) setTimeout(() => this._playNextTTS(), 400)
-          })
-          console.log('[TTS] audio write success, calling ctx.play()')
-          setTimeout(() => {
-            try {
-              ctx.play()
-              console.log('[TTS] ctx.play() started successfully')
-            } catch(e) { console.error('[TTS] play fail:', e) }
-          }, 80)
-        },
-        fail: (err) => {
-          console.error('[TTS] write fail:', err)
-          this.setData({ isPlayingTTS: false })
-          const remaining = (this.data.ttsQueue || []).filter(i => i.fromSleep)
-          this.setData({ ttsQueue: remaining })
-          if (remaining.length > 0) setTimeout(() => this._playNextTTS(), 200)
-        }
-      })
-    } catch (e) {
-      console.error('[TTS] write error:', e)
-      this.setData({ isPlayingTTS: false })
-      const remaining = (this.data.ttsQueue || []).filter(i => i.fromSleep)
-      this.setData({ ttsQueue: remaining })
-      if (remaining.length > 0) setTimeout(() => this._playNextTTS(), 200)
-    }
   },
 
   // ================================================
@@ -1080,6 +1291,7 @@ Page({
     if (this._ttsTimer) clearInterval(this._ttsTimer)
     if (this._volumeSim) clearInterval(this._volumeSim)
     if (this._silenceTimer) clearTimeout(this._silenceTimer)
+    if (this._asrFinalSilenceTimer) { clearTimeout(this._asrFinalSilenceTimer); this._asrFinalSilenceTimer = null }
     if (this._textTtsTimer) clearInterval(this._textTtsTimer)
     if (this._breathCountdownTimer) clearInterval(this._breathCountdownTimer)
     if (this._breathPhaseTimer) clearTimeout(this._breathPhaseTimer)
@@ -1089,6 +1301,7 @@ Page({
     }
     try { innerAudioContext.stop() } catch (e) {}
     try { innerAudioContext.volume = 0 } catch (e) {}
+    this._clearTTSQueue()
     // 强制重置录音状态机（stopAll 用于页面退出/隐藏）
     this._recordingActive = false
     this._recordingState = null
@@ -1127,14 +1340,15 @@ Page({
       return { trigger: true, delay: 2000, reason: 'AI引导关闭' }
     }
 
-    // 4. 对话轮数过多
-    if (this.data.conversationRound >= 5) {
+    // 4. 对话轮数过多（文本模式适当放宽，避免过早关闭）
+    const roundThreshold = this.data.mode === 'text' ? 12 : 8
+    if (this.data.conversationRound >= roundThreshold) {
       return { trigger: true, delay: 1000, reason: '对话轮数过多' }
     }
 
-    // 5. 凌晨深夜加速（1-5点）
+    // 5. 凌晨深夜加速（1-5点）——仅睡眠模式生效，文本模式不触发
     const hour = new Date().getHours()
-    if (hour >= 1 && hour <= 5 && this.data.conversationRound >= 1) {
+    if (this.data.mode === 'sleep' && hour >= 1 && hour <= 5 && this.data.conversationRound >= 3) {
       return { trigger: true, delay: 500, reason: '凌晨深夜模式' }
     }
 
@@ -1196,7 +1410,7 @@ Page({
     wx.setStorageSync('bed_time_setting', setting)
 
     // POST to sleep window API (non-blocking)
-    wx.request({
+    app.authRequest({
       url: `${API}/api/v1/sleep/window`,
       method: 'POST',
       header: { 'Content-Type': 'application/json' },
@@ -1205,7 +1419,7 @@ Page({
     })
 
     // POST to sleep diary bedtime API - 保存今晚睡眠计划
-    wx.request({
+    app.authRequest({
       url: `${API}/api/v1/sleep/diary/bedtime`,
       method: 'POST',
       header: { 'Content-Type': 'application/json' },
@@ -1545,7 +1759,7 @@ Page({
       success: res => {
         const score = res.confirm ? 5 : 3
         const today = new Date().toISOString().split('T')[0]
-        wx.request({
+        app.authRequest({
           url: `${API}/api/v1/sleep/record`,
           method: 'POST',
           data: { user_id: app.globalData.userId || '', date: today, score }
@@ -1669,7 +1883,7 @@ Page({
     const userId = app.globalData.userId || ''
     const sessionId = app.globalData.sessionId || ''
     try {
-      wx.request({
+      app.authRequest({
         url: `${API}/api/v1/feedback`,
         method: 'POST',
         header: { 'Content-Type': 'application/json' },
@@ -1703,7 +1917,7 @@ Page({
     }
     this.setData({ isPlayingTTS: true, currentPlayingIndex: index, [`messages[${index}].isPlayingTTS`]: true, ttsProgress: 0 })
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/tts/stream?text=${encodeURIComponent(msg.content.slice(0, 500))}&voice=female_warm&speed=90`,
         method: 'POST',
         responseType: 'arraybuffer'
@@ -1744,7 +1958,7 @@ Page({
       this.setData({ currentSound: null })
       return
     }
-    wx.request({
+    app.authRequest({
       url: `${API}/api/v1/sounds/${soundId}/stream`,
       method: 'GET',
       responseType: 'arraybuffer',
@@ -1790,6 +2004,16 @@ Page({
   _now() {
     return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
   },
+
+  _scrollToBottom() {
+    // 先清空再设置，确保 scroll-into-view 每次都能触发
+    this.setData({ scrollToMsg: '' }, () => {
+      wx.nextTick(() => {
+        this.setData({ scrollToMsg: 'msg-bottom' })
+      })
+    })
+  },
+
   saveChatHistory(msgs) { wx.setStorageSync('chat_history', msgs.slice(-20)) },
 
   // ================================================
@@ -1840,7 +2064,7 @@ Page({
 
     // 存后端
     try {
-      await wx.request({
+      await app.authRequest({
         url: `${API}/api/v1/worry`,
         method: 'POST',
         header: { 'Content-Type': 'application/json' },
@@ -1880,15 +2104,293 @@ Page({
   // ================================================
   // 生命周期
   // ================================================
+  // ================================================
+  // TTS 持久播放器 — 单例 onEnded 驱动队列
+  // ================================================
+  _initTTSPlayer() {
+    this._ttsChunks = []       // 保留：收集所有 chunk（用于 fallback 合并播放）
+    this._ttsStreamQueue = []  // ✅ 新增：流式播放队列（文件路径数组）
+    this._ttsStreamPlaying = false
+    this._ttsStreamDone = false
+    this._ttsPlaying = false
+    this._currentTTSCtx = null
+    console.log('[TTS] player initialized (streaming mode)')
+  },
+
+  // ✅ 流式 TTS：收到 chunk 立即入队播放，不等全部收完
+  _enqueueStreamTTS(audioBase64) {
+    if (!audioBase64) return
+    const clean = typeof audioBase64 === 'string' ? audioBase64.replace(/[\s\r\n]/g, '') : ''
+    if (!clean) return
+
+    try {
+      const buf = wx.base64ToArrayBuffer(clean)
+      const fs = wx.getFileSystemManager()
+      const filePath = `${wx.env.USER_DATA_PATH}/tts_stream_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp3`
+      fs.writeFile({
+        filePath,
+        data: buf,
+        encoding: 'binary',
+        success: () => {
+          this._ttsStreamQueue.push(filePath)
+          console.log('[TTS] stream chunk queued:', filePath, 'size:', buf.byteLength, 'queue:', this._ttsStreamQueue.length)
+          // 如果当前没在播放，立即开始
+          if (!this._ttsStreamPlaying) {
+            this._playNextStreamTTS()
+          }
+        },
+        fail: (err) => {
+          console.error('[TTS] stream write fail:', err)
+        }
+      })
+    } catch (e) {
+      console.error('[TTS] stream decode fail:', e)
+    }
+  },
+
+  // ✅ 播放下一个流式 chunk
+  _playNextStreamTTS() {
+    if (this._ttsStreamQueue.length === 0) {
+      this._ttsStreamPlaying = false
+      // 如果全部播放完毕且 done=true，恢复状态
+      if (this._ttsStreamDone) {
+        this._ttsPlaying = false
+        this.setData({ isPlayingTTS: false, _asrPending: false })
+        if (this.data.sleepModeActive) this._resetCompanionTimer()
+        if (this.data.sleepModeActive && !this.data._pmrActive) {
+          this.setData({ statusText: '聆听中', statusHint: '继续说吧' })
+          // ✅ 清锁 + 触发 TTS 结束回调，让 onTTSEnd 启动 VAD
+          this._vadRestartPending = false
+          this._fireTTSEndCallbacks()
+        }
+      }
+      return
+    }
+
+    const filePath = this._ttsStreamQueue.shift()
+    this._ttsStreamPlaying = true
+    this._ttsPlaying = true
+    this.setData({ isPlayingTTS: true, statusText: '正在播放', statusHint: '闭上眼睛，听我说' })
+    this._resetCompanionTimer()
+
+    // 停止前一个播放器
+    // 尝试复用 InnerAudioContext，减少真机 access denied 问题
+    let ctx = this._currentTTSCtx
+    const needNewCtx = !ctx || !ctx.src
+    if (needNewCtx) {
+      if (ctx) {
+        try { ctx.destroy() } catch (e) {}
+      }
+      ctx = wx.createInnerAudioContext({ useWebAudioImplement: false, privateUseSpeaker: true })
+      ctx.obeyMuteSwitch = false
+      this._currentTTSCtx = ctx
+      
+      // 只在创建新实例时绑定事件（避免重复绑定）
+      ctx.onEnded(() => {
+        // 不销毁，复用实例
+        this._currentTTSCtx = ctx
+        // ✅ 触发 TTS 结束回调（事件驱动 defer）
+        this._fireTTSEndCallbacks()
+        // 继续播放下一个
+        this._playNextStreamTTS()
+      })
+      
+      ctx.onError((err) => {
+        if (err.errCode !== 0 && err.errCode !== 10001) {
+          console.error('[TTS] stream play error:', err)
+        }
+        // access denied 时销毁并创建新实例，清理状态并重启 VAD
+        if (err.errMsg && err.errMsg.includes('access denied')) {
+          console.warn('[TTS] access denied, cleanup and restart VAD')
+          try { ctx.destroy() } catch (e) {}
+          this._currentTTSCtx = null
+          this._ttsPlaying = false
+          this._ttsStreamPlaying = false
+          this.setData({ isPlayingTTS: false, _asrPending: false })
+          if (this.data.sleepModeActive) {
+            this._clearTTSQueue()
+            this._fireTTSEndCallbacks()
+            setTimeout(() => this._restartVAD('audio access denied'), 500)
+          }
+          return
+        }
+        // 出错也继续播放下一个
+        setTimeout(() => this._playNextStreamTTS(), 100)
+      })
+    } else {
+      // 复用实例：先停止当前播放
+      try { ctx.stop() } catch (e) {}
+    }
+    
+    ctx.src = filePath
+
+    setTimeout(() => {
+      try {
+        ctx.play()
+        console.log('[TTS] stream playing:', filePath, 'reused:', !needNewCtx)
+      } catch (e) {
+        console.error('[TTS] stream play fail:', e)
+        // play 失败可能是 access denied，销毁后重试
+        try { ctx.destroy() } catch (e2) {}
+        this._currentTTSCtx = null
+        setTimeout(() => this._playNextStreamTTS(), 100)
+      }
+    }, 30)
+  },
+
+  // ✅ 合并所有 chunk，一次性播放（fallback，解决 errCode:55 unknown format）
+  _playMergedTTS() {
+    const chunks = this._ttsChunks
+    this._ttsChunks = []
+    if (chunks.length === 0) {
+      console.warn('[TTS] no chunks to play')
+      return
+    }
+
+    console.log('[TTS] merging', chunks.length, 'chunks via wx.base64ToArrayBuffer')
+
+    let totalLen = 0
+    const buffers = []
+    for (const b64 of chunks) {
+      const clean = typeof b64 === 'string' ? b64.replace(/[\s\r\n]/g, '') : ''
+      try {
+        const buf = wx.base64ToArrayBuffer(clean)
+        buffers.push(buf)
+        totalLen += buf.byteLength
+      } catch (e) {
+        console.error('[TTS] decode chunk failed:', e)
+        return
+      }
+    }
+    console.log('[TTS] merged binary size:', totalLen, 'bytes')
+
+    const merged = new Uint8Array(totalLen)
+    let offset = 0
+    for (const buf of buffers) {
+      merged.set(new Uint8Array(buf), offset)
+      offset += buf.byteLength
+    }
+
+    this._resetCompanionTimer()
+    this._ttsPlaying = true
+    this.setData({ isPlayingTTS: true, statusText: '正在播放', statusHint: '闭上眼睛，听我说' })
+
+    const prevCtx = this._currentTTSCtx
+    if (prevCtx) {
+      try { prevCtx.stop() } catch (e) {}
+      try { prevCtx.destroy() } catch (e) {}
+    }
+
+    const ctx = wx.createInnerAudioContext({ useWebAudioImplement: false, privateUseSpeaker: true })
+    ctx.obeyMuteSwitch = false
+    this._currentTTSCtx = ctx
+
+    ctx.onEnded(() => {
+      ctx.destroy()
+      this._ttsPlaying = false
+      this.setData({ isPlayingTTS: false, _asrPending: false, ttsProgress: 0 })
+      // ✅ 触发 TTS 结束回调（事件驱动 defer）
+      this._fireTTSEndCallbacks()
+      if (this.data.sleepModeActive) this._resetCompanionTimer()
+      if (this.data.sleepModeActive && !this.data._pmrActive) {
+        this.setData({ statusText: '聆听中', statusHint: '继续说吧' })
+        setTimeout(() => {
+          this._vadRestartPending = false  // ✅ 清锁后再重启
+          this._restartVAD('merged tts ended')
+        }, 500)
+      }
+    })
+    ctx.onError((err) => {
+      if (err.errCode !== 0 && err.errCode !== 10001) {
+        console.error('[TTS] play error:', err)
+      }
+      // access denied 时清理状态并重启 VAD
+      if (err.errMsg && err.errMsg.includes('access denied')) {
+        console.warn('[TTS] merged access denied, cleanup and restart VAD')
+        ctx.destroy()
+        this._currentTTSCtx = null
+        this._ttsPlaying = false
+        this.setData({ isPlayingTTS: false, _asrPending: false })
+        if (this.data.sleepModeActive) {
+          setTimeout(() => this._restartVAD('merged audio access denied'), 500)
+        }
+        return
+      }
+      ctx.destroy()
+      this._ttsPlaying = false
+      this.setData({ isPlayingTTS: false })
+    })
+
+    const fs = wx.getFileSystemManager()
+    const filePath = `${wx.env.USER_DATA_PATH}/tts_merged_${Date.now()}.mp3`
+    fs.writeFile({
+      filePath,
+      data: merged.buffer,
+      encoding: 'binary',
+      success: () => {
+        console.log('[TTS] file written:', filePath)
+        ctx.src = filePath
+        setTimeout(() => {
+          try {
+            ctx.play()
+            console.log('[TTS] play started')
+          } catch (e) { console.error('[TTS] play fail:', e) }
+        }, 80)
+      },
+      fail: (err) => {
+        console.error('[TTS] write fail:', err)
+        ctx.destroy()
+        this._ttsPlaying = false
+        this.setData({ isPlayingTTS: false })
+      }
+    })
+  },
+
+  // ✅ 清空队列（对话被打断时调用）
+  _clearTTSQueue() {
+    this._ttsChunks = []
+    this._ttsStreamQueue = []
+    this._ttsStreamPlaying = false
+    this._ttsStreamDone = false
+    this._ttsPlaying = false
+    const prev = this._currentTTSCtx
+    if (prev) {
+      try { prev.stop() } catch (e) {}
+      try { prev.destroy() } catch (e) {}
+      this._currentTTSCtx = null
+    }
+    console.log('[TTS] queue cleared')
+  },
+
+  // ================================================
+  // 原有全局 innerAudioContext 的 onEnded（保留用于非队列场景）
+  // ================================================
   onLoad() {
+    // ✅ 初始化录音状态机变量，避免 undefined !== null 陷阱
+    this._recordingState = null
+    this._recordingActive = false
+    this._recorderLocked = false   // ✅ onStart/onStop 驱动的底层录音机锁
+    this._recorderStopping = false // ✅ 标记录音机正在停止（防止 stop/start 竞态）
+    this._vadRetryCount = 0        // ✅ VAD 重试计数器
+    this._vadLoopActive = false    // ✅ 防止多个 VAD 循环并发
+    this._vadRestartPending = false // ✅ VAD 重启防重入锁
+    this._ttsEndCallbacks = []      // ✅ TTS 结束回调队列（事件驱动 defer）
+    this._formalRecordingStarting = false // ✅ 正式录音启动防重入
+    // ✅ 初始化 TTS 持久播放器
+    this._initTTSPlayer()
+
     innerAudioContext.onEnded(() => {
       this.setData({ isPlayingTTS: false, ttsProgress: 0 })
       if (this._textTtsTimer) clearInterval(this._textTtsTimer)
+      // ✅ 触发 TTS 结束回调（事件驱动 defer）
+      this._fireTTSEndCallbacks()
       
       // 睡眠模式：TTS 播完后重新开始监听（仅当音频队列空时）
       if (this.data.sleepModeActive && !this.data._pmrActive && (this.data.ttsQueue || []).length === 0) {
         this.setData({ statusText: '聆听中', statusHint: '手机放在枕边，继续说吧' })
-        setTimeout(() => this._startVADLoop(), 500)
+        setTimeout(() => {
+          if (!this._recorderStopping) this._restartVAD('tts ended')
+        }, 500)
       }
       
       // PMR 完成
@@ -1898,10 +2400,13 @@ Page({
       }
     })
 
-    // 检查订阅状态
+    // 检查订阅状态（data 初始化时已预读，这里仅做过期校验）
     const sub = wx.getStorageSync('subscription') || {}
     if (sub.isPremium && sub.expireDate) {
-      this.setData({ isPremium: true })
+      const expired = new Date(sub.expireDate) <= new Date()
+      if (expired && this.data.isPremium) {
+        this.setData({ isPremium: false })
+      }
     }
 
     // 首次加载历史记录（仅一次）
@@ -1926,16 +2431,26 @@ Page({
     if (this._recorderEventsRegistered) return
     this._recorderEventsRegistered = true
 
-    // 确保 onStop 回调存在
-    console.log('[Recorder] registering onStop callback, current state:', this._recordingState)
+    // 确保 onStart/onStop 回调存在
+    console.log('[Recorder] registering callbacks, current state:', this._recordingState)
+    recorderManager.onStart(() => {
+      this._vadRetryCount = 0
+      this._vadRestartPending = false  // ✅ VAD 重启成功，清除防重入锁
+      console.log('[Recorder] onStart confirmed')
+    })
     recorderManager.onStop((res) => {
       // 使用 this._recordingState 而非闭包捕获的 state，避免 stop 前被清空导致误判
       const state = this._recordingState
       console.log('[Recorder] onStop FIRED, state=', state, 'fileSize=', res.fileSize, 'duration=', res.duration)
       this._recordingActive = false
+      this._recorderLocked = false  // ✅ 释放底层录音机锁
+      this._recorderStopping = false  // ✅ 录音机已完全停止
+      this._vadLoopActive = false     // ✅ 释放 VAD 单例锁
+      // ✅ 清除 FORCE STOP 定时器，避免游离定时器干扰
+      if (this._forceStopTimer) { clearTimeout(this._forceStopTimer); this._forceStopTimer = null }
 
       if (state === 'vad') {
-        const hasSound = res.fileSize > 3500
+        const hasSound = res.fileSize > 5000  // ✅ 提高阈值，减少环境噪音误触发（原为 3500）
         console.log('[_VAD] onStop, fileSize:', res.fileSize, 'hasSound:', hasSound)
         const level = hasSound ? Math.floor(Math.random() * 6) + 6 : Math.floor(Math.random() * 4)
         this.setData({ audioLevel: level })
@@ -1956,9 +2471,17 @@ Page({
         // Bug 2 修复：VAD 分支不直接调用 start()，统一经由 _startVADLoop()
         if (hasSound && !this.data.isRecording) {
           this._vadActive = false
-          this._start正式录音()
+          // ✅ 延迟 300ms 再开始正式录音，让 VAD 尾音和环境噪音消散（原为 600ms，减少延迟）
+          setTimeout(() => {
+            if (!this.data.isRecording && !this._recorderStopping) {
+              console.log('[_VAD] delay 300ms, starting formal recording')
+              this._start正式录音()
+            }
+          }, 300)
         } else if (this.data.sleepModeActive) {
-          this._listenTimer = setTimeout(() => this._startVADLoop(), 50)
+          this._listenTimer = setTimeout(() => {
+            if (!this._recorderStopping) this._restartVAD('vad no sound')
+          }, 100)
         }
         return
       }
@@ -2015,34 +2538,82 @@ Page({
           console.warn('[ASR-WS] 有效语音太短 (<800ms)，跳过识别，关闭 socket')
           if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null; this._asrSocketReady = false }
           this._voiceFrameCount = 0
+          // ✅ 清除 FORCE STOP 定时器，避免游离定时器干扰
+          if (this._forceStopTimer) { clearTimeout(this._forceStopTimer); this._forceStopTimer = null }
           this.setData({ isRecording: false, audioLevel: 0, statusText: '聆听中', statusHint: '继续说吧' })
-          if (this.data.sleepModeActive) setTimeout(() => this._startVADLoop(), 500)
+          this._recordingState = null  // ✅ 重置状态，避免 Fix 3 兜底保护阻塞
+          if (this.data.sleepModeActive) {
+            setTimeout(() => {
+              if (!this._recorderStopping && !this._recorderLocked) {
+                this._restartVAD('short voice')
+              } else {
+                console.warn('[ASR-WS] recorder still busy, skip VAD restart')
+              }
+            }, 500)
+          }
           return
         }
         this._voiceFrameCount = 0  // 重置计数
+        // ✅ 清除 FORCE STOP 定时器，避免游离定时器干扰
+        if (this._forceStopTimer) { clearTimeout(this._forceStopTimer); this._forceStopTimer = null }
         // 记录用量
         if (res.duration > 0) {
           this._recordUsage('voice', Math.ceil(res.duration / 1000))
         }
         this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
-        // ✅ 发送 end 信号（若 isLastFrame 未触发，onStop 补发）
-        if (this._asrSocketReady && this._asrSocket) {
-          console.log('[ASR-WS] onStop → send end signal')
-          this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
+        this._recordingActive = false  // ✅ 允许 VAD 重新接管
+        // ✅ 关键判断：WS 曾经建立过 → 正常流式流程，不走降级
+        if (this._wsEverOpened) {
+          console.log('[ASR-WS] WS was open, sending end marker only')
+          if (this._asrSocket && this._asrSocket.readyState === 1) {
+            this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
+            // 发完再关闭
+            setTimeout(() => {
+              if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
+              this._asrSocketReady = false
+            }, 200)
+          } else {
+            console.log('[ASR-WS] WS already closed, skip end marker')
+          }
         } else {
-          // WebSocket 未就绪，降级文件上传
-          console.warn('[ASR] WebSocket 未就绪，降级文件上传')
+          // WS 从未建立 → 才走降级上传
+          console.warn('[ASR] WS never opened, fallback upload')
           if (res.tempFilePath) this._sendVoiceToASR(res.tempFilePath)
           else this._startVADLoop()
         }
-        // ✅ 处理完 ASR 后重置 state
-        this._recordingState = ''
+        // ✅ 处理完 ASR 后重置 state（设为 null 让 VAD onStop 的 state===null 判断成立）
+        this._recordingState = null
+        // ✅ Fix 1: 有 pending VAD 重启标记时，直接重启 VAD
+        if (this._pendingRestartVAD) {
+          this._pendingRestartVAD = false
+          console.log('[ASR-WS] onStop → restart VAD (pending)')
+          setTimeout(() => {
+            if (!this._recorderStopping) this._restartVAD('pending')
+          }, 300)
+          return
+        }
+        // ✅ 正常 ASR 结束后也重启 VAD（避免循环断掉）
+        if (this.data.sleepModeActive) {
+          console.log('[ASR-WS] onStop → restart VAD (normal end)')
+          setTimeout(() => {
+            if (!this._recorderStopping && !this._recorderLocked) {
+              this._restartVAD('normal end')
+            } else {
+              console.warn('[ASR-WS] recorder still busy, skip VAD restart')
+            }
+          }, 500)
+          return
+        }
       }
     })
 
     recorderManager.onError((err) => {
       console.error('[Recorder Error]', err)
       this._recordingActive = false  // 重置录音机状态
+      this._recorderLocked = false   // ✅ 出错也要释放锁
+      this._recorderStopping = false // ✅ 出错也要释放停止标志
+      this._vadLoopActive = false    // ✅ 出错也要释放单例锁
+      this._recordingState = null    // ✅ 避免残留 state 影响后续判断
       const isNotFound = err && err.errMsg && err.errMsg.includes('NotFoundError')
       if (isNotFound) {
         // 模拟器无麦克风，提示用户使用真机或文字模式
@@ -2052,13 +2623,20 @@ Page({
       if (this.data.sleepModeActive) {
         this.setData({ isRecording: false, audioLevel: 0 })
         if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
-        this._recordingState = ''
-        this._startVADLoop()
+        // ✅ 延迟重启 VAD，给录音机一点时间完全释放
+        setTimeout(() => {
+          if (!this._recorderStopping) this._restartVAD('recorder error')
+        }, 500)
       }
     })
 
     recorderManager.onFrameRecorded((res) => {
       if (!this._enableFrameRecord) { console.log('[onFrameRecorded] ignored, frameRecord disabled'); return }
+      // ✅ Fix 2: WS 已关闭（收到 done 信号），丢弃帧
+      if (this._wsReceivedDone) {
+        console.log('[onFrameRecorded] WS done, discard frame')
+        return
+      }
       const { frameBuffer, isLastFrame } = res
       if (!frameBuffer || frameBuffer.byteLength === 0) return
       console.log('[onFrameRecorded] fired, hasBuffer=', !!frameBuffer, 'bufferLen=', frameBuffer.byteLength, 'isLastFrame=', isLastFrame)
@@ -2081,13 +2659,74 @@ Page({
       // ✅ 有声帧：计入有效帧计数
       this._voiceFrameCount = (this._voiceFrameCount || 0) + 1
 
-      // ✅ 实时推送音频帧到 WebSocket（未就绪则缓冲）
-      if (this._asrSocketReady && this._asrSocket) {
-        this._asrSocket.send({ data: frameBuffer })
-      } else {
-        this._frameBuffer = this._frameBuffer || []
-        this._frameBuffer.push(frameBuffer)
-        console.log('[onFrameRecorded] buffered, queue size:', this._frameBuffer.length)
+      // ✅ 丢弃前 8 帧 warmup（≈320ms）：采集背景噪音基线
+      const WARMUP_FRAMES = 8
+      const VOICE_MULTIPLIER = 1.5  // 人声阈值 = baseline × 1.5（平衡误触发和漏检）
+      if (this._warmupFrames < WARMUP_FRAMES) {
+        this._warmupFrames++
+        this._warmupRMSList.push(rms)
+        if (this._warmupFrames === WARMUP_FRAMES) {
+          // warmup 结束：用【最小值】而不是最大值作为 baseline
+          // 最小值更能代表真实背景噪音，排除用户提前说话的帧
+          this._noiseBaseline = Math.min(...this._warmupRMSList)
+          this._noiseBaseline = Math.max(this._noiseBaseline, 30)  // 下限保护
+          // ✅ 污染检测：baseline 异常高或呈现衰减形态（TTS 尾音特征），丢弃重新采集
+          const baselineMin = this._noiseBaseline
+          const baselineMax = Math.max(...this._warmupRMSList)
+          const AMBIENT_NOISE_MAX = 600
+          const TTS_DECAY_RATIO = 3.5
+          // ✅ 改为 AND：必须同时满足"绝对值高"且"有衰减特征"才判定为污染
+          const isPolluted = baselineMin > AMBIENT_NOISE_MAX && (baselineMax / baselineMin) > TTS_DECAY_RATIO
+          if (isPolluted) {
+            console.warn('[onFrameRecorded] warmup polluted (min=' + baselineMin.toFixed(0) + ' max=' + baselineMax.toFixed(0) + ' ratio=' + (baselineMax / baselineMin).toFixed(1) + '), resetting')
+            this._warmupFrames = 0
+            this._warmupRMSList = []
+            this._noiseBaseline = 0
+            return
+          }
+          console.log('[onFrameRecorded] warmup done, baseline(min):', this._noiseBaseline.toFixed(2), 'samples:', this._warmupRMSList.map(v => v.toFixed(0)).join(','))
+        } else {
+          console.log('[onFrameRecorded] warmup skip frame', this._warmupFrames, 'rms:', rms.toFixed(2))
+        }
+        return
+      }
+      // ✅ warmup 结束后，检测人声激活
+      const voiceThreshold = (this._noiseBaseline || 0) * VOICE_MULTIPLIER
+      if (!this._voiceDetected) {
+        if (rms >= voiceThreshold) {
+          // 确认是人声，开始发送
+          this._voiceDetected = true
+          console.log('[onFrameRecorded] VOICE DETECTED rms:', rms.toFixed(2), 'threshold:', voiceThreshold.toFixed(2))
+        } else {
+          // 还没检测到人声，丢弃
+          console.log('[onFrameRecorded] waiting for voice rms:', rms.toFixed(2), 'need:', voiceThreshold.toFixed(2))
+          return
+        }
+      }
+
+      // ✅ 帧缓冲：攒够 6400 字节（约 200ms @ 16kHz）再发送，减少 WebSocket 消息频率
+      this._audioFrameChunks = this._audioFrameChunks || []
+      this._audioFrameChunks.push(frameBuffer)
+      const chunkTotal = this._audioFrameChunks.reduce((sum, b) => sum + b.byteLength, 0)
+      const FRAME_THRESHOLD = 6400  // 200ms
+
+      if (chunkTotal >= FRAME_THRESHOLD || isLastFrame) {
+        // 合并帧
+        const merged = new Uint8Array(chunkTotal)
+        let offset = 0
+        for (const chunk of this._audioFrameChunks) {
+          merged.set(new Uint8Array(chunk), offset)
+          offset += chunk.byteLength
+        }
+        this._audioFrameChunks = []
+
+        if (this._asrSocketReady && this._asrSocket) {
+          this._asrSocket.send({ data: merged.buffer })
+        } else {
+          this._frameBuffer = this._frameBuffer || []
+          this._frameBuffer.push(merged.buffer)
+          console.log('[onFrameRecorded] buffered merged frame, queue size:', this._frameBuffer.length)
+        }
       }
 
       // ✅ 最后一帧：发送结束信号
@@ -2130,9 +2769,13 @@ Page({
     this._fetchUsage()
     // 页面从后台返回时，若睡眠模式仍标记为开启，自动恢复 VAD 循环
     // Bug 3 修复：只在 null 状态时启动 VAD，避免 onShow 重复触发
-    if (this.data.sleepModeActive && this._recordingState === null && !this.data.isListening && !this.data.isRecording && !this.data.isPlayingTTS) {
+    // ✅ 使用同步变量判断 TTS 是否正在播放，避免 setData 异步延迟导致误判
+    const isTTSPlaying = this._ttsStreamPlaying || this._ttsPlaying || this.data.isPlayingTTS
+    if (this.data.sleepModeActive && this._recordingState === null && !this.data.isListening && !this.data.isRecording && !isTTSPlaying) {
       console.log('[onShow] 恢复睡眠模式 VAD')
       this._startVADLoop()
+    } else if (isTTSPlaying) {
+      console.log('[onShow] AI replying/TTS playing, skip VAD restart')
     }
     // 加载关系开场白（只在文字模式且消息为空时）
     if (this.data.mode === 'text' && this.data.messages.length === 0) {
@@ -2143,7 +2786,7 @@ Page({
   _loadSessionSummary() {
     const userId = app.globalData.userId || ''
     if (!userId) return
-    wx.request({
+    app.authRequest({
       url: `${API}/api/v1/session/summary?user_id=${encodeURIComponent(userId)}`,
       method: 'GET',
       timeout: 5000,
@@ -2184,13 +2827,22 @@ Page({
   },
 
   async _loadChatHistory() {
+    // 等待登录完成，避免竞态（token 尚未就绪时发起请求）
+    if (app.getLoginPromise()) {
+      try {
+        await app.getLoginPromise()
+      } catch (e) {
+        console.warn('[_loadChatHistory] 登录未完成，跳过加载历史')
+        return
+      }
+    }
     // 已加载过或已有消息时不覆盖
     if (this._historyLoaded || this.data.messages.length > 0) return
     this._historyLoaded = true
     const userId = app.globalData.userId || ''
     const sessionId = app.globalData.sessionId || ''
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/chat/history?user_id=${encodeURIComponent(userId)}&session_id=${encodeURIComponent(sessionId)}`,
         method: 'GET',
         timeout: 8000
@@ -2224,10 +2876,18 @@ Page({
   },
 
   async _fetchUsage() {
+    // 等待登录完成，避免 token 未就绪
+    if (app.getLoginPromise()) {
+      try {
+        await app.getLoginPromise()
+      } catch (e) {
+        return
+      }
+    }
     const userId = app.globalData.userId || ''
     try {
-      const res = await wx.request({
-        url: `${API}/api/v1/usage/${userId}`,
+      const res = await app.authRequest({
+        url: `${API}/api/v1/usage`,
         method: 'GET',
         timeout: 8000
       })
@@ -2249,7 +2909,7 @@ Page({
       cancelText: '取消',
       success: (res) => {
         if (res.confirm) {
-          wx.request({
+          app.authRequest({
             url: `${API}/api/v1/chat/cbt/reset`,
             method: 'POST',
             header: { 'Content-Type': 'application/json' },

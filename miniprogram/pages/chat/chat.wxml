@@ -12,7 +12,7 @@
         <text class="sub-banner-sub">AI语音·AI文本·睡眠日报·熄灯仪式</text>
       </view>
     </view>
-    <text class="sub-banner-cta">开通 ¥30/月起</text>
+    <text class="sub-banner-cta">开通 ¥50/月起</text>
   </view>
 
   <!-- 用量配额提示 -->
@@ -110,7 +110,7 @@
     </view>
 
     <!-- 消息列表 -->
-    <view class="message-list" id="message-list">
+    <scroll-view class="message-list" scroll-y scroll-into-view="{{scrollToMsg}}" scroll-with-animation>
       <view wx:for="{{messages}}" wx:key="id" wx:for-item="msg">
         <view wx:if="{{msg.role === 'user'}}" class="message-item user">
           <view class="bubble user-bubble">{{msg.content}}</view>
@@ -162,7 +162,9 @@
           </view>
         </view>
       </view>
-    </view>
+      <!-- 滚动锚点 -->
+      <view id="msg-bottom"></view>
+    </scroll-view>
 
     <!-- TTS 进度 -->
     <view wx:if="{{isPlayingTTS}}" class="tts-bar">
@@ -358,14 +360,14 @@
   <!-- 隐私协议与权限说明 -->
   <view wx:if="{{showPrivacyModal}}" class="privacy-overlay">
     <view class="privacy-card">
-      <view class="privacy-title">隐私说明</view>
+      <view class="privacy-title">隐私与权限说明</view>
       <view class="privacy-content">
-        <text>欢迎使用知眠。为了提供 AI 语音陪伴服务，我们需要使用您的麦克风进行录音。您的语音仅用于实时对话，不会被未经授权的第三方获取。</text>
-        <text>\n\n点击“同意”即表示您同意我们的隐私政策及麦克风授权。</text>
+        <text>欢迎使用知眠。为了提供 AI 语音陪伴服务，我们需要使用您的麦克风。授权成功后即可使用语音模式。</text>
+        <text>\n\n点击“同意”后，系统将同时请求麦克风权限。也可选择“暂不使用”以文字模式继续。</text>
       </view>
       <view class="privacy-btns">
-        <button class="privacy-btn-disagree" bindtap="onPrivacyDisagree">不同意</button>
-        <button class="privacy-btn-agree" bindtap="onPrivacyAgree">同意</button>
+        <button class="privacy-btn-agree" bindtap="onPrivacyAgree">同意并继续</button>
+        <button class="privacy-btn-disagree" bindtap="onPrivacyDisagree">暂不使用（文字模式）</button>
       </view>
     </view>
   </view>
