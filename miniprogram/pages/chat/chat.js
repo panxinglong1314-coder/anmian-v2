@@ -224,24 +224,27 @@ Page({
 
   onPrivacyAgree() {
     // 【优化】隐私同意和麦克风授权合并为一步
-    // 成功授权后才写 privacy_agreed=true，避免两张皮
+    // 隐私同意 → 立即写入；麦克风授权由原生弹窗处理
+    wx.setStorageSync('privacy_agreed', true)
     this.setData({ showPrivacyModal: false })
     this._requestRecordAuthWithPrivacyAgree()
   },
 
-  // 【新增】隐私同意 + record 授权合并处理
+  // 【优化】隐私同意后请求麦克风授权
+  // 成功 → 直接进入睡眠模式；拒绝 → 进入文字模式，下次不再弹隐私
   _requestRecordAuthWithPrivacyAgree() {
     const proceed = () => {
       wx.authorize({
         scope: 'scope.record',
         success: () => {
-          wx.setStorageSync('privacy_agreed', true)
-          console.log('[Privacy+Auth] 隐私同意 + 录音权限已授权')
+          console.log('[Privacy+Auth] 录音权限已授权，直接进入睡眠模式')
+          this._doEnterSleepMode()
         },
         fail: (err) => {
-          console.log('[Privacy+Auth] 录音权限授权失败:', err)
-          wx.setStorageSync('privacy_agreed', false)
-          // 不写死，下次进入还弹同一张卡，不会迷
+          console.log('[Privacy+Auth] 录音权限拒绝，改用文字模式:', err)
+          // 隐私已同意，不再弹隐私弹窗；降级到文字模式
+          this.setData({ mode: 'text' })
+          wx.showToast({ title: '已切换文字模式，可随时在设置中开启语音', icon: 'none', duration: 3000 })
         }
       })
     }

@@ -362,8 +362,9 @@
     <view class="privacy-card">
       <view class="privacy-title">隐私与权限说明</view>
       <view class="privacy-content">
-        <text>欢迎使用知眠。为了提供 AI 语音陪伴服务，我们需要使用您的麦克风。授权成功后即可使用语音模式。</text>
-        <text>\n\n点击“同意”后，系统将同时请求麦克风权限。也可选择“暂不使用”以文字模式继续。</text>
+        <text>欢迎使用知眠。点击"同意"后，系统将请求麦克风权限。如您选择拒绝，将自动切换为文字模式，不影响核心功能的使用。</text>
+        <text>
+您也可以选择"暂不使用"，直接以文字模式开始。</text>
       </view>
       <view class="privacy-btns">
         <button class="privacy-btn-agree" bindtap="onPrivacyAgree">同意并继续</button>
