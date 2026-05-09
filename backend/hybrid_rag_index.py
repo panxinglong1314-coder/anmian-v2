@@ -1,3 +1,4 @@
+import os
 """
 LSA 语义 RAG 索引 — TF-IDF + TruncatedSVD 降维
 在 1.9GB 内存服务器上实现轻量级语义检索
@@ -15,8 +16,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
 
 # ============ 路径配置 ============
-CORPUS_DIR = Path("/home/ubuntu/anmian/corpus")
-INDEX_DIR = Path("/home/ubuntu/anmian/backend/vector_index")
+CORPUS_DIR = Path(os.environ.get("ANMIAN_CORPUS_DIR", Path(__file__).parent.parent / "corpus"))
+INDEX_DIR = Path(os.environ.get("ANMIAN_INDEX_DIR", Path(__file__).parent / "vector_index"))
 
 # LSA 降维维度（3081 条语料，128 维足够捕捉主要语义）
 LSA_COMPONENTS = 128
@@ -227,38 +228,40 @@ class HybridRAGIndex:
                 break
         return results
 
+    def _retrieve_with_fallback(self, query: str, top_k: int, filters: Optional[Dict[str, Any]] = None):
+        """带 fallback 的检索（供线程池并行调用）"""
+        results = self.retrieve(query, top_k=top_k, filters=filters)
+        if not results:
+            results = self.retrieve(query, top_k=top_k)
+        return results
+
     def retrieve_for_session(self, query: str, ctx: Optional[Dict[str, Any]] = None):
-        """根据会话上下文检索多种类型的相关语料"""
+        """根据会话上下文检索多种类型的相关语料（并行化，减少串行延迟）"""
         ctx = ctx or {}
-        anxiety_level = ctx.get("anxiety_level", 5)
 
-        worry_results = self.retrieve(query, top_k=3, filters={"type": "scenario_router"})
-        if not worry_results:
-            worry_results = self.retrieve(query, top_k=3)
+        from concurrent.futures import ThreadPoolExecutor
+        tasks = [
+            ("worry_scenarios", {"top_k": 3, "filters": {"type": "scenario_router"}}),
+            ("closure_templates", {"top_k": 5, "filters": {"source": "closure_rituals"}}),
+            ("pmr_scripts", {"top_k": 3, "filters": {"type": "relaxation_script"}}),
+            ("breathing_scripts", {"top_k": 3, "filters": {"type": "breathing_script"}}),
+            ("cognitive_distortions", {"top_k": 2, "filters": {"type": "cognitive_distortion"}}),
+        ]
 
-        closure_results = self.retrieve(query, top_k=5, filters={"source": "closure_rituals"})
-        if not closure_results:
-            closure_results = self.retrieve(query, top_k=5)
+        results_map = {}
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            futures = {
+                name: pool.submit(self._retrieve_with_fallback, query, cfg["top_k"], cfg["filters"])
+                for name, cfg in tasks
+            }
+            for name, fut in futures.items():
+                try:
+                    results_map[name] = fut.result(timeout=3.0)
+                except Exception as e:
+                    print(f"[RAG] {name} retrieve error: {e}")
+                    results_map[name] = []
 
-        relaxation_results = self.retrieve(query, top_k=3, filters={"type": "relaxation_script"})
-        if not relaxation_results:
-            relaxation_results = self.retrieve(query, top_k=3)
-
-        breathing_results = self.retrieve(query, top_k=3, filters={"type": "breathing_script"})
-        if not breathing_results:
-            breathing_results = self.retrieve(query, top_k=3)
-
-        distortion_results = self.retrieve(query, top_k=2, filters={"type": "cognitive_distortion"})
-        if not distortion_results:
-            distortion_results = self.retrieve(query, top_k=2)
-
-        return {
-            "worry_scenarios": worry_results,
-            "closure_templates": closure_results,
-            "pmr_scripts": relaxation_results,
-            "breathing_scripts": breathing_results,
-            "cognitive_distortions": distortion_results,
-        }
+        return results_map
 
 
 # 单例（兼容旧接口）

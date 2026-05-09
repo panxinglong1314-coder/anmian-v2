@@ -157,7 +157,7 @@ class SessionLogger:
             return True
 
         # 否则从文件读取并更新
-        log_file = LOG_DIR / f"{session_id}.json"
+        log_file = LOG_DIR / f"sess_{session_id}.json"
         if not log_file.exists():
             return False
         try:
@@ -233,7 +233,7 @@ class SessionLogger:
             "effect_breakdown": {
                 "outcome_score": 1.0 if outcome in ("completed_closure", "sleep_reported") else 0.0,
                 "rating_score": (rating or 3) / 5.0,
-                "anxiety_reduction": max(0, (self._current_session.initial_anxiety or 5) - (self._current_session.final_anxiety or 5)) / 10.0,
+                "anxiety_reduction": max(0, (int(self._current_session.initial_anxiety or 5)) - (int(self._current_session.final_anxiety or 5))) / 10.0,
             },
             "quality_evaluation": quality_eval,
         }
@@ -296,21 +296,27 @@ class SessionLogger:
             print(f"[SessionLogger] Redis save error: {e}")
 
         # 同时写文件（备份）
-        log_file = LOG_DIR / f"{log_entry['session_id']}.json"
-        with open(log_file, "w", encoding="utf-8") as f:
-            json.dump(log_entry, f, ensure_ascii=False, indent=2)
+        log_file = LOG_DIR / f"sess_{log_entry['session_id']}.json"
+        try:
+            with open(log_file, "w", encoding="utf-8") as f:
+                json.dump(log_entry, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"[SessionLogger] File write error: {e}")
 
         # 追加到日索引
         index_file = LOG_DIR / "daily_index.json"
         daily_key = date.today().isoformat()
-        if index_file.exists():
-            with open(index_file, "r", encoding="utf-8") as f:
-                index = json.load(f)
-        else:
-            index = {}
-        index.setdefault(daily_key, []).append(log_entry["session_id"])
-        with open(index_file, "w", encoding="utf-8") as f:
-            json.dump(index, f, ensure_ascii=False)
+        try:
+            if index_file.exists():
+                with open(index_file, "r", encoding="utf-8") as f:
+                    index = json.load(f)
+            else:
+                index = {}
+            index.setdefault(daily_key, []).append(log_entry["session_id"])
+            with open(index_file, "w", encoding="utf-8") as f:
+                json.dump(index, f, ensure_ascii=False)
+        except Exception as e:
+            print(f"[SessionLogger] Index write error: {e}")
 
     # ---------- 查询（用于L3数据准备）----------
 
@@ -334,7 +340,7 @@ class SessionLogger:
                 # 尝试从Redis读取
                 key = f"session_log:*:{sess_id}"
                 # 简化：直接从文件读
-                log_file = LOG_DIR / f"{sess_id}.json"
+                log_file = LOG_DIR / f"sess_{sess_id}.json"
                 if log_file.exists():
                     with open(log_file, "r", encoding="utf-8") as f:
                         log = json.load(f)

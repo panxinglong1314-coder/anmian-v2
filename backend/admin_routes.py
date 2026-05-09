@@ -33,7 +33,7 @@ def _list_session_logs(days: int = 30) -> List[Dict]:
 
 # ==================== 仪表盘 ====================
 
-def get_dashboard_stats(days: int = 7) -> Dict[str, Any]:
+def get_dashboard_stats(days: int = 7, limit: int = 500) -> Dict[str, Any]:
     """仪表盘核心指标"""
     logs = _list_session_logs(days=days)
     if not logs:
@@ -104,7 +104,7 @@ def get_dashboard_stats(days: int = 7) -> Dict[str, Any]:
 
 # ==================== 安全中心 ====================
 
-def get_safety_events(days: int = 30) -> List[Dict]:
+def get_safety_events(days: int = 30, limit: int = 500) -> List[Dict]:
     """安全事件列表"""
     logs = _list_session_logs(days=days)
     events = []
@@ -128,7 +128,7 @@ def get_safety_events(days: int = 30) -> List[Dict]:
 
 # ==================== AI 质量监控 ====================
 
-def get_quality_stats(days: int = 30) -> Dict[str, Any]:
+def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
     """AI 质量监控统计"""
     logs = _list_session_logs(days=days)
     if not logs:
@@ -192,7 +192,7 @@ def get_quality_stats(days: int = 30) -> Dict[str, Any]:
 
 # ==================== 用户管理（轻量） ====================
 
-def get_user_list(days: int = 30) -> List[Dict]:
+def get_user_list(days: int = 30, limit: int = 500) -> List[Dict]:
     """用户列表（去重）"""
     logs = _list_session_logs(days=days)
     users = {}
@@ -222,7 +222,7 @@ def get_user_list(days: int = 30) -> List[Dict]:
     return list(users.values())
 
 
-def get_user_detail(user_id: str) -> Dict[str, Any]:
+def get_user_detail(user_id: str, limit: int = 20) -> Dict[str, Any]:
     """用户详情"""
     logs = []
     for fpath in sorted(glob.glob(str(LOG_DIR / "sess_*.json"))):

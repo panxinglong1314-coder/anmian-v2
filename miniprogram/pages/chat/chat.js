@@ -50,7 +50,7 @@ function _decodeUTF8(buf) {
 // VAD 参数
 const VAD = {
   SILENCE_THRESHOLD: 0.05,
-  SPEECH_TIMEOUT: 2000,  // 静音 2000ms 停止录音（平衡延迟与长句捕捉）
+  SPEECH_TIMEOUT: 4000,  // 静音 4000ms 停止录音（ASR 需要更长句子的上下文）
   MIN_UTTERANCE: 400,    // 最少录音 400ms
 }
 
@@ -396,7 +396,15 @@ Page({
 
     this._asrSocket.onOpen(() => {
       this._asrSocketReady = true
-      console.log('[ASR-WS] socket open')
+      console.log('[ASR-WS] socket open, isRecording now:', this.data.isRecording, '_pendingRecordingFile:', this._pendingRecordingFile)
+      // ✅ WebSocket 就绪后，刷出积压的音频帧
+      if (this._frameBuffer && this._frameBuffer.length > 0) {
+        console.log('[ASR-WS] flushing buffered frames:', this._frameBuffer.length)
+        this._frameBuffer.forEach(buf => {
+          if (this._asrSocket) this._asrSocket.send({ data: buf })
+        })
+        this._frameBuffer = []
+      }
     })
 
     this._asrSocket.onMessage((res) => {
@@ -404,12 +412,13 @@ Page({
       try {
         const data = JSON.parse(res.data)
         if (data.error) {
-          console.error('[ASR-WS] error:', data.error)
+          console.error('[ASR-WS] server error:', data.error)
           this._fallbackUploadASR = true
           this.setData({ _asrPending: false })
           return
         }
         if (data.done) {
+          console.log('[ASR-WS] done signal received')
           if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
           this._asrSocketReady = false
           return
@@ -417,7 +426,7 @@ Page({
         const text = data.text || ''
         const slice_type = data.slice_type != null ? data.slice_type : 0
         const is_final = data.is_final != null ? data.is_final : false
-        console.log('[ASR-WS] result: text="%s" slice=%s is_final=%s' % (text, slice_type, is_final))
+        console.log('[ASR-WS] result: text="%s" slice=%s is_final=%s', text, slice_type, is_final)
         if (is_final || slice_type === 2) {
           if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
           this._asrSocketReady = false
@@ -447,15 +456,22 @@ Page({
       this._asrSocket = null
     })
 
-    // 开始正式录音（PCM，用于 fallback 上传 ASR；frameSize 保证 onFrameRecorded 正常触发）
+    // 开始正式录音（PCM 流式，用于实时 ASR）
+    this._frameBuffer = []  // ✅ 帧缓冲队列（WebSocket 未就绪时积压）
     this._recordingState = 'asr'
+    this._enableFrameRecord = true  // onFrameRecorded 启用，实时推送音频帧
+    // 清除 VAD 残留的 silenceTimer，防止 ASR 开始后误触发停止
+    if (this._silenceTimer) { clearTimeout(this._silenceTimer); this._silenceTimer = null }
+    if (this._volumeSim) clearInterval(this._volumeSim)
     // Bug 修复：先设状态再 start()，防止 onStop 先触发导致状态错误
     recorderManager.start({
       format: 'pcm', sampleRate: 16000,
-      numberOfChannels: 1, encodeBitRate: 64000,
-      duration: 15000
+      numberOfChannels: 1, encodeBitRate: 48000,
+      duration: 60000,
+      enableFrameRecord: true,  // ✅ 启用实时帧回调
+      frameSize: 1              // ✅ 每帧约 40ms，触发 onFrameRecorded
     })
-    console.log('[_正式录音] start() called, duration=15000ms frameSize=1280 state=', this._recordingState)
+    console.log('[_正式录音] start() called, duration=15000ms state=', this._recordingState)
     this._forceStopTimer = setTimeout(() => {
       console.log('[_正式录音] 12s FORCE STOP, state=', this._recordingState, 'isRecording=', this.data.isRecording, 'pending=', !!this._pendingRecordingFile)
       if (this._recordingState === 'asr') {
@@ -494,15 +510,15 @@ Page({
   },
 
   _stop正式录音() {
-    // Bug 1 修复：立即清状态，防止 onStop 逻辑混乱
-    if (this._recordingState !== 'asr') {
+    // Bug 修复：不要在这里清 _recordingState，让 onStop 读取后自行处理
+    if (this._recordingState !== 'asr' && this._recordingState !== 'vad') {
       console.warn('[_ASR] 当前状态', this._recordingState, '，无需停止')
       return
     }
     if (this._volumeSim) clearInterval(this._volumeSim)
     if (this._silenceTimer) clearTimeout(this._silenceTimer)
     this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
-    this._recordingState = ''
+    // ❌ 不在这里清 state，onStop 需要根据 state 判断处理逻辑
     recorderManager.stop()
   },
 
@@ -685,13 +701,20 @@ Page({
       this.setData({ conversationLog: newLog })
     }
 
+    console.log('[_sendToAI] sending SSE request, text=', text.slice(0, 30), 'sleepMode=', fromSleep)
+    let hasStreamTTS = false
     const requestTask = wx.request({
       url: `${API}/api/v1/chat/cbt/stream`,
       method: 'POST',
       header: { 'Content-Type': 'application/json' },
       data: { user_id: userId, message: text, session_id: sessionId },
       enableChunked: true,
+      fail: (err) => {
+        console.error('[_sendToAI] SSE request FAILED:', err)
+        this.setData({ isAIResponding: false, isLoading: false, _asrPending: false })
+      },
       success: (res) => {
+        console.log('[_sendToAI] SSE success, status=', res.statusCode, 'hasData=', !!res.data)
         const finalLog = this.data.conversationLog.map(m => {
           if (m._streaming) delete m._streaming
           return m
@@ -734,17 +757,25 @@ Page({
       fail: (err) => {
         console.error('[Chat Stream Error]', err)
         this.setData({ isAIResponding: false, isLoading: false, _asrPending: false })
-        if (fromSleep) {
+        // ✅ 只在完全没有收到 TTS 时才 fallback（ERR_INCOMPLETE_CHUNKED_ENCODING 等网络错误不代表 TTS 没收到）
+        if (fromSleep && !hasStreamTTS) {
           this._playTTS('刚才没听清楚，可以再说一遍吗？', true)
-        } else {
-          this.setData({ statusText: '聆听中', statusHint: '服务暂时不稳定，请重试' })
-          if (this.data.sleepModeActive) setTimeout(() => this._startVADLoop(), 2000)
+        }
+        if (fromSleep && this.data.sleepModeActive) {
+          setTimeout(() => this._startVADLoop(), 2000)
+        }
+      },
+      complete: () => {
+        // complete 总是在 success/fail 之后调用，确保 VAD 循环最终会重启
+        console.log('[Chat Stream] request complete, hasStreamTTS=', hasStreamTTS, 'isPlayingTTS=', this.data.isPlayingTTS, 'ttsQueue=', (this.data.ttsQueue || []).length)
+        if (fromSleep && this.data.sleepModeActive && !this.data.isPlayingTTS && (this.data.ttsQueue || []).length === 0) {
+          // 兜底：确保 VAD 最终会重启（即使 success 没被调用）
+          setTimeout(() => this._startVADLoop(), 800)
         }
       }
     })
 
     let sseBuffer = ''
-    let hasStreamTTS = false
     requestTask.onChunkReceived((res) => {
       let chunk = ''
       try {
@@ -776,17 +807,34 @@ Page({
         if (!line.startsWith('data: ')) continue
         try {
           const data = JSON.parse(line.slice(6))
+          if (data.event === 'error') {
+            console.error('[SSE] error event:', data.message)
+            this.setData({ isAIResponding: false, isLoading: false })
+            return
+          }
           if (data.event === 'chunk') {
             streamingText += data.data
             flushText()
+            console.log('[SSE] chunk event, text len=', streamingText.length)
           }
           if (data.event === 'final' && data.content) {
             streamingText = data.content
             flushText()
           }
-          if (data.event === 'tts_chunk' && data.audio_base64 && !data.done) {
-            hasStreamTTS = true
-            this._enqueueTTS(data.audio_base64, fromSleep)
+          if (data.event === 'tts_chunk') {
+            console.log('[SSE] tts_chunk event: index=', data.index, 'done=', data.done, 'audioLen=', data.audio_base64 ? data.audio_base64.length : 0, 'hasError=', !!data.error)
+            if (data.audio_base64 && !data.done) {
+              hasStreamTTS = true
+              this._enqueueTTS(data.audio_base64, fromSleep)
+            }
+            if (data.done && !data.error) {
+              console.log('[SSE] tts_chunk done, hasStreamTTS=', hasStreamTTS, 'ttsQueue=', (this.data.ttsQueue || []).length, 'isPlaying=', this.data.isPlayingTTS)
+              // 如果流结束但队列为空，说明音频太短没有触发 enqueue，手动 fallback
+              if (!hasStreamTTS && streamingText.trim()) {
+                console.log('[SSE] tts_chunk done but no chunks received, fallback TTS for:', streamingText.slice(0, 30))
+                this._playTTS(streamingText.trim(), fromSleep)
+              }
+            }
           }
         } catch (e) {
           console.error('[SSE] parse error:', e)
@@ -857,6 +905,7 @@ Page({
     const queue = this.data.ttsQueue || []
     queue.push({ audioBase64, fromSleep })
     this.setData({ ttsQueue: queue })
+    console.log('[TTS] enqueue, fromSleep=', fromSleep, 'queueLen=', queue.length, 'isPlaying=', this.data.isPlayingTTS)
     if (!this.data.isPlayingTTS) {
       this._playNextTTS()
     }
@@ -868,10 +917,12 @@ Page({
     const queue = this.data.ttsQueue || []
     if (queue.length === 0) {
       this.setData({ isPlayingTTS: false })
+      console.log('[TTS] queue empty, nothing to play')
       return
     }
     const item = queue.shift()
     this.setData({ ttsQueue: queue, isPlayingTTS: true })
+    console.log('[TTS] playNext, fromSleep=', item.fromSleep, 'audioLen=', item.audioBase64.length, 'remaining=', queue.length)
 
     // 文字模式（fromSleep=false）：不播音频，静默跳过队列中所有非睡眠音频
     if (!item.fromSleep) {
@@ -893,11 +944,21 @@ Page({
         data: wx.base64ToArrayBuffer(item.audioBase64),
         encoding: 'binary',
         success: () => {
+          // ✅ 先停上一个，再播下一个（避免 504 错误）
+          let prevCtx = this._currentTTSCtx
+          if (prevCtx) {
+            try { prevCtx.stop() } catch(e) {}
+            try { prevCtx.destroy() } catch(e) {}
+          }
           const ctx = wx.createInnerAudioContext({ useWebAudioImplement: false })
           ctx.obeyMuteSwitch = false
+          this._currentTTSCtx = ctx  // 记住当前 context，用于 stop
           ctx.src = filePath
           ctx.onError((err) => {
-            console.error('[TTS] play error:', err)
+            // ✅ errCode:0 是正常的"被打断"，忽略；errCode:10001 才真正报错
+            if (err.errCode !== 10001 && err.errCode !== 0) {
+              console.error('[TTS] play error:', err)
+            }
             ctx.destroy()
             this.setData({ isPlayingTTS: false })
             const remaining = (this.data.ttsQueue || []).filter(i => i.fromSleep)
@@ -916,8 +977,12 @@ Page({
             this.setData({ ttsQueue: remaining })
             if (remaining.length > 0) setTimeout(() => this._playNextTTS(), 400)
           })
+          console.log('[TTS] audio write success, calling ctx.play()')
           setTimeout(() => {
-            try { ctx.play() } catch(e) { console.error('[TTS] play fail:', e) }
+            try {
+              ctx.play()
+              console.log('[TTS] ctx.play() started successfully')
+            } catch(e) { console.error('[TTS] play fail:', e) }
           }, 80)
         },
         fail: (err) => {
@@ -1941,105 +2006,37 @@ Page({
       }
 
       if (state === 'asr') {
-        console.log('[ASR-WS] ==== onStop ASR branch ENTERED, duration:', res.duration, 'fileSize:', res.fileSize, 'tempPath:', res.tempFilePath)
-        // 即使 tempFilePath 为空，也尝试从 _pendingRecordingFile 获取
-        const actualFile = res.tempFilePath || this._pendingRecordingFile
-        if (actualFile) {
-          this._pendingRecordingFile = null  // 清除，避免重复使用
-        }
-        if (res.duration < VAD.MIN_UTTERANCE) {
-          this.setData({ isRecording: false, audioLevel: 0 })
-          if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
-          this._startVADLoop()
+        console.log('[ASR-WS] ==== onStop ASR branch ENTERED, duration:', res.duration, 'fileSize=', res.fileSize, 'tempPath=', res.tempFilePath)
+        // ✅ 第二层：有效帧过滤（少于 800ms 有效语音不发送，跳过噪音误识别）
+        const effectiveFrames = this._voiceFrameCount || 0
+        const effectiveDuration = effectiveFrames * 40  // 每帧约 40ms
+        console.log('[ASR-WS] effective voice frames:', effectiveFrames, '~', effectiveDuration, 'ms')
+        if (effectiveDuration < 800) {
+          console.warn('[ASR-WS] 有效语音太短 (<800ms)，跳过识别，关闭 socket')
+          if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null; this._asrSocketReady = false }
+          this._voiceFrameCount = 0
+          this.setData({ isRecording: false, audioLevel: 0, statusText: '聆听中', statusHint: '继续说吧' })
+          if (this.data.sleepModeActive) setTimeout(() => this._startVADLoop(), 500)
           return
         }
-        this._recordUsage('voice', Math.ceil(res.duration / 1000))
-        this._recordingFilePath = res.tempFilePath
-        this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
-        console.log('[ASR-WS] onStop, socketReady:', this._asrSocketReady, 'fallback:', this._fallbackUploadASR)
-        // 读取录音文件并通过 WebSocket 发送到后端（后端 Relay 到腾讯云）
-        if (actualFile) {
-          const fs = wx.getFileSystemManager()
-          console.log('[ASR-WS] reading PCM from', actualFile, 'size:', res.fileSize)
-          fs.readFile({
-            filePath: res.tempFilePath,
-            success: (readRes) => {
-              console.log('[ASR-WS] readFile SUCCESS, size:', (readRes.data && readRes.data.byteLength) || 0)
-              const data = readRes.data
-              const size = data.byteLength || data.length || 0
-              console.log('[ASR-WS] sending PCM:', size, 'bytes')
-              // WS 不可用时直接用 fallback，不等 socketReady
-              if (!this._asrSocket || !this._asrSocketReady) {
-                console.log('[ASR-WS] socket not ready, using fallback upload')
-                this._sendVoiceToASR(this._recordingFilePath)
-                return
-              }
-              // 腾讯推荐：发送前校验 ArrayBuffer 有效性
-              const arrayBuffer = data
-              if (!arrayBuffer || !(arrayBuffer instanceof ArrayBuffer)) {
-                console.warn('[ASR-WS] ArrayBuffer 无效，跳过发送')
-                this._sendVoiceToASR(this._recordingFilePath)
-                return
-              }
-              if (arrayBuffer.byteLength === 0) {
-                console.warn('[ASR-WS] ArrayBuffer 为空，跳过发送')
-                this._sendVoiceToASR(this._recordingFilePath)
-                return
-              }
-              console.log('[ASR-WS] sending PCM:', arrayBuffer.byteLength, 'bytes')
-              this._asrSocket.send({
-                data: arrayBuffer,
-                success: () => {
-                  console.log('[ASR-WS] send success')
-                },
-                fail: (err) => {
-                  console.error('[ASR-WS] send FAIL:', err)
-                  // 发送失败，切换到 HTTP fallback
-                  this._asrSocket.close()
-                  this._asrSocket = null
-                  this._asrSocketReady = false
-                  this._sendVoiceToASR(this._recordingFilePath)
-                }
-              })
-              // 发送 end 帧
-              setTimeout(() => {
-                if (this._asrSocket) {
-                  this._asrSocket.send({
-                    data: JSON.stringify({ type: 'end' }),
-                    success: () => { console.log('[ASR-WS] send end success') },
-                    fail: (err) => { console.error('[ASR-WS] send end FAIL:', err) }
-                  })
-                }
-              }, 100)
-              // 等待 8 秒，超时则 fallback
-              setTimeout(() => {
-                if (this._asrSocket) {
-                  console.log('[ASR-WS] wait timeout, fallback to upload')
-                  this._asrSocket.close()
-                  this._asrSocket = null
-                  this._asrSocketReady = false
-                  this._sendVoiceToASR(this._recordingFilePath)
-                }
-              }, 12000)
-              // WS 发送后等待 8 秒，超时则 fallback
-              setTimeout(() => {
-                if (this._asrSocket) {
-                  console.log('[ASR-WS] wait timeout, fallback to upload')
-                  this._asrSocket.close()
-                  this._asrSocket = null
-                  this._asrSocketReady = false
-                  this._sendVoiceToASR(this._recordingFilePath)
-                }
-              }, 12000)
-            },
-            fail: (err) => {
-              console.error('[ASR-WS] read file fail:', err)
-              this._sendVoiceToASR(this._recordingFilePath)
-            }
-          })
-        } else {
-          console.log('[ASR-WS] no tempFilePath, skip')
+        this._voiceFrameCount = 0  // 重置计数
+        // 记录用量
+        if (res.duration > 0) {
+          this._recordUsage('voice', Math.ceil(res.duration / 1000))
         }
+        this.setData({ isRecording: false, audioLevel: 0, statusText: '正在理解...' })
+        // ✅ 发送 end 信号（若 isLastFrame 未触发，onStop 补发）
+        if (this._asrSocketReady && this._asrSocket) {
+          console.log('[ASR-WS] onStop → send end signal')
+          this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
+        } else {
+          // WebSocket 未就绪，降级文件上传
+          console.warn('[ASR] WebSocket 未就绪，降级文件上传')
+          if (res.tempFilePath) this._sendVoiceToASR(res.tempFilePath)
+          else this._startVADLoop()
+        }
+        // ✅ 处理完 ASR 后重置 state
+        this._recordingState = ''
       }
     })
 
@@ -2061,29 +2058,65 @@ Page({
     })
 
     recorderManager.onFrameRecorded((res) => {
-      if (this._recordingState !== 'asr') return
-      // 真机上 onFrameRecorded 只在最后触发一次，数据通过 onStop 统一发送
-      const volume = this._calcPCMVolume(res.frameBuffer)
-      if (volume > 0.012) {
+      if (!this._enableFrameRecord) { console.log('[onFrameRecorded] ignored, frameRecord disabled'); return }
+      const { frameBuffer, isLastFrame } = res
+      if (!frameBuffer || frameBuffer.byteLength === 0) return
+      console.log('[onFrameRecorded] fired, hasBuffer=', !!frameBuffer, 'bufferLen=', frameBuffer.byteLength, 'isLastFrame=', isLastFrame)
+
+      // ✅ 第一层：RMS 能量过滤（过滤噪音/底噪帧）
+      const rms = this._calcRMS(frameBuffer)
+      const VOICE_RMS_THRESHOLD = 0.018  // 低于此值不发送（噪音静音过滤）
+      if (rms < VOICE_RMS_THRESHOLD) {
+        // 静音帧：不发送，但继续检测静音超时
         if (this._silenceTimer) clearTimeout(this._silenceTimer)
         this._silenceTimer = setTimeout(() => {
           if (this.data.sleepModeActive && this.data.isRecording) {
+            console.log('[onFrameRecorded] silence timeout, stopping recording')
             this._stop正式录音()
           }
         }, VAD.SPEECH_TIMEOUT)
+        return
       }
+
+      // ✅ 有声帧：计入有效帧计数
+      this._voiceFrameCount = (this._voiceFrameCount || 0) + 1
+
+      // ✅ 实时推送音频帧到 WebSocket（未就绪则缓冲）
+      if (this._asrSocketReady && this._asrSocket) {
+        this._asrSocket.send({ data: frameBuffer })
+      } else {
+        this._frameBuffer = this._frameBuffer || []
+        this._frameBuffer.push(frameBuffer)
+        console.log('[onFrameRecorded] buffered, queue size:', this._frameBuffer.length)
+      }
+
+      // ✅ 最后一帧：发送结束信号
+      if (isLastFrame) {
+        console.log('[Recorder] 最后一帧，发送 end 信号')
+        if (this._asrSocketReady && this._asrSocket) {
+          this._asrSocket.send({ data: JSON.stringify({ type: 'end' }) })
+        } else {
+          this._frameBuffer = this._frameBuffer || []
+          this._frameBuffer.push(JSON.stringify({ type: 'end' }))
+        }
+      }
+
+      // 清除静音计时器（有声期间不触发停止）
+      if (this._silenceTimer) clearTimeout(this._silenceTimer)
     })
   },
 
-  _calcPCMVolume(arrayBuffer) {
+  _calcRMS(arrayBuffer) {
+    // 计算 PCM 帧的 RMS（均方根）能量，用于过滤噪音帧
     const dataView = new DataView(arrayBuffer)
     let sum = 0
     const len = dataView.byteLength
     if (len === 0) return 0
     for (let i = 0; i < len; i += 2) {
-      sum += Math.abs(dataView.getInt16(i, true))
+      const sample = dataView.getInt16(i, true)
+      sum += sample * sample
     }
-    return (sum / (len / 2)) / 32768
+    return Math.sqrt(sum / (len / 2))
   },
 
   onShow() {

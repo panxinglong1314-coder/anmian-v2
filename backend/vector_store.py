@@ -162,12 +162,19 @@ class RAGIndex:
                     "intensity": variant.get("intensity", "moderate"),
                     "id": variant.get("id", "")
                 }))
-            # few-shot示例
+            # few-shot示例（正确字段：input 是 dict，output_script 是 string）
             for ex in data.get("fewshot_examples", {}).get("examples", []):
-                texts.append((f"用户: {ex.get('user', '')}\n助手: {ex.get('assistant', '')}", {
+                inp = ex.get("input", {})
+                if isinstance(inp, dict):
+                    user_msg = inp.get("worry_expressed", "") or inp.get("worry_topic", "")
+                else:
+                    user_msg = str(inp)
+                assistant_msg = ex.get("output_script", "")
+                texts.append((f"用户: {user_msg}\n助手: {assistant_msg}", {
                     "source": "closure_rituals",
                     "type": "fewshot",
-                    "scenario": ex.get("scenario", "")
+                    "scenario": ex.get("scenario", ""),
+                    "intensity": ex.get("intensity", "moderate"),
                 }))
 
         # 2. worry_scenarios.json — 担忧场景路由
