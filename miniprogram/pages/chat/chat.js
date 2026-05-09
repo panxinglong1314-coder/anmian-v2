@@ -223,26 +223,28 @@ Page({
   },
 
   onPrivacyAgree() {
-    // 【优化】隐私同意和麦克风授权合并为一步
-    // 隐私同意 → 立即写入；麦克风授权由原生弹窗处理
+    // 【优化】用户点了"同意"→隐私同意立即写入，然后触发微信隐私协议+麦克风两步授权
     wx.setStorageSync('privacy_agreed', true)
     this.setData({ showPrivacyModal: false })
     this._requestRecordAuthWithPrivacyAgree()
   },
 
-  // 【优化】隐私同意后请求麦克风授权
-  // 成功 → 直接进入睡眠模式；拒绝 → 进入文字模式，下次不再弹隐私
+  // 【优化】隐私同意后请求微信隐私协议+麦克风授权
+  // - getPrivacySetting 检查是否需要微信隐私弹窗
+  // - 若需要：requirePrivacyAuthorize（用户看到微信隐私协议弹窗）
+  // - 然后 authorize scope.record（用户看到麦克风弹窗）
+  // - 麦克风授权成功 → 进入睡眠模式
+  // - 麦克风拒绝 → 进入文字模式（隐私已同意，下次不再弹隐私）
   _requestRecordAuthWithPrivacyAgree() {
-    const proceed = () => {
+    const doRecordAuth = () => {
       wx.authorize({
         scope: 'scope.record',
         success: () => {
-          console.log('[Privacy+Auth] 录音权限已授权，直接进入睡眠模式')
+          console.log('[Privacy+Auth] 麦克风授权成功，直接进入睡眠模式')
           this._doEnterSleepMode()
         },
-        fail: (err) => {
-          console.log('[Privacy+Auth] 录音权限拒绝，改用文字模式:', err)
-          // 隐私已同意，不再弹隐私弹窗；降级到文字模式
+        fail: () => {
+          console.log('[Privacy+Auth] 麦克风拒绝 → 进入文字模式')
           this.setData({ mode: 'text' })
           wx.showToast({ title: '已切换文字模式，可随时在设置中开启语音', icon: 'none', duration: 3000 })
         }
@@ -250,24 +252,34 @@ Page({
     }
 
     if (!wx.getPrivacySetting) {
-      proceed()
+      // 低版本微信，无隐私协议API → 直接请求麦克风授权
+      doRecordAuth()
       return
     }
     wx.getPrivacySetting({
       success: (res) => {
         if (res.needAuthorization) {
+          // 需要微信隐私协议弹窗（用户必须点"同意"才能继续）
           wx.requirePrivacyAuthorize({
-            success: () => proceed(),
+            success: () => {
+              // 隐私协议同意后 → 请求麦克风授权
+              doRecordAuth()
+            },
             fail: () => {
-              wx.showToast({ title: '需同意隐私协议方可继续', icon: 'none' })
+              // 用户拒绝隐私协议 → 隐私未同意，回到隐私弹窗
               wx.setStorageSync('privacy_agreed', false)
+              this.setData({ showPrivacyModal: true })
             }
           })
         } else {
-          proceed()
+          // 不需要微信隐私协议弹窗 → 直接请求麦克风授权
+          doRecordAuth()
         }
       },
-      fail: () => proceed()
+      fail: () => {
+        // getPrivacySetting 失败 → 走麦克风授权尝试
+        doRecordAuth()
+      }
     })
   },
 
@@ -2612,24 +2624,28 @@ Page({
 
     recorderManager.onError((err) => {
       console.error('[Recorder Error]', err)
-      this._recordingActive = false  // 重置录音机状态
-      this._recorderLocked = false   // ✅ 出错也要释放锁
-      this._recorderStopping = false // ✅ 出错也要释放停止标志
-      this._vadLoopActive = false    // ✅ 出错也要释放单例锁
-      this._recordingState = null    // ✅ 避免残留 state 影响后续判断
+      this._recordingActive = false
+      this._recorderLocked = false
+      this._recorderStopping = false
+      this._vadLoopActive = false
+      this._recordingState = null
+
       const isNotFound = err && err.errMsg && err.errMsg.includes('NotFoundError')
       if (isNotFound) {
-        // 模拟器无麦克风，提示用户使用真机或文字模式
-        console.warn('[Recorder] 模拟器无麦克风，建议使用真机调试或切换到文字模式')
-        wx.showToast({ title: '模拟器无麦克风，请用真机或文字模式', icon: 'none', duration: 2000 })
+        // 【修复】模拟器无麦克风 → 退出睡眠模式，切文字模式，不再重启 VAD
+        console.warn('[Recorder] 模拟器无麦克风，自动切换为文字模式')
+        wx.showToast({ title: '模拟器无麦克风，已切换为文字模式', icon: 'none', duration: 3000 })
+        this.exitSleepMode()
+        this.setData({ mode: 'text', sleepModeActive: false, isRecording: false, audioLevel: 0 })
+        return
       }
+
+      // 非 NotFoundError（如权限拒绝）：退出睡眠模式，切文字模式
       if (this.data.sleepModeActive) {
-        this.setData({ isRecording: false, audioLevel: 0 })
+        console.warn('[Recorder] 录音失败，退出睡眠模式')
+        this.exitSleepMode()
+        this.setData({ mode: 'text', sleepModeActive: false, isRecording: false, audioLevel: 0 })
         if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
-        // ✅ 延迟重启 VAD，给录音机一点时间完全释放
-        setTimeout(() => {
-          if (!this._recorderStopping) this._restartVAD('recorder error')
-        }, 500)
       }
     })
 
@@ -2830,15 +2846,32 @@ Page({
   },
 
   async _loadChatHistory() {
-    // 等待登录完成，避免竞态（token 尚未就绪时发起请求）
-    if (app.getLoginPromise()) {
-      try {
-        await app.getLoginPromise()
-      } catch (e) {
-        console.warn('[_loadChatHistory] 登录未完成，跳过加载历史')
+    // 【修复】等待登录完成 + 等待 userId 不再是临时 ID
+    // wxLogin 可能已经在 onLaunch 时完成（1秒内），需要检测是否真的完成了
+    const waitForLogin = () => new Promise((resolve) => {
+      const userId = app.globalData.userId || ''
+      const isTempId = userId.startsWith('user_') && !userId.startsWith('wx_')
+      if (!isTempId && userId) {
+        resolve()
         return
       }
-    }
+      // 等 wxLogin 完成（最长等 8 秒）
+      let waited = 0
+      const interval = setInterval(() => {
+        waited += 100
+        const uid = app.globalData.userId || ''
+        const isTemp = uid.startsWith('user_') && !uid.startsWith('wx_')
+        if (!isTemp && uid) {
+          clearInterval(interval)
+          resolve()
+        } else if (waited > 8000) {
+          clearInterval(interval)
+          console.warn('[_loadChatHistory] 登录超时，使用当前 userId')
+          resolve()
+        }
+      }, 100)
+    })
+    await waitForLogin()
     // 已加载过或已有消息时不覆盖
     if (this._historyLoaded || this.data.messages.length > 0) return
     this._historyLoaded = true
@@ -2879,14 +2912,21 @@ Page({
   },
 
   async _fetchUsage() {
-    // 等待登录完成，避免 token 未就绪
-    if (app.getLoginPromise()) {
-      try {
-        await app.getLoginPromise()
-      } catch (e) {
-        return
-      }
-    }
+    // 【修复】等待 wxLogin 完成 + userId 不是临时 ID
+    const waitForLogin = () => new Promise((resolve) => {
+      const userId = app.globalData.userId || ''
+      const isTempId = userId.startsWith('user_') && !userId.startsWith('wx_')
+      if (!isTempId && userId) { resolve(); return }
+      let waited = 0
+      const interval = setInterval(() => {
+        waited += 100
+        const uid = app.globalData.userId || ''
+        const isTemp = uid.startsWith('user_') && !uid.startsWith('wx_')
+        if (!isTemp && uid) { clearInterval(interval); resolve() }
+        else if (waited > 8000) { clearInterval(interval); resolve() }
+      }, 100)
+    })
+    await waitForLogin()
     const userId = app.globalData.userId || ''
     try {
       const res = await app.authRequest({
