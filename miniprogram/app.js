@@ -25,9 +25,8 @@ App({
   },
 
   onLaunch() {
-    // 0. 检查隐私政策同意状态
-    const privacyAgreed = wx.getStorageSync('privacy_agreed')
-    this.globalData.needShowPrivacy = !privacyAgreed
+    // 0. 提前预检隐私+麦克风授权（首次静默处理，避免进入页面后再弹框）
+    this._preauthorizePrivacyAndMic()
 
     // 1. 获取用户唯一标识（优先本地，后续 wxLogin 可能更新）
     this.getUserId()
@@ -50,11 +49,78 @@ App({
     })
   },
 
-  // 同意隐私政策
+  // 【优化】同意隐私政策（仅在 chat 页面调用，app.js 不再单独处理）
   agreePrivacy() {
     wx.setStorageSync('privacy_agreed', true)
     wx.setStorageSync('privacy_agreed_time', Date.now())
     this.globalData.needShowPrivacy = false
+  },
+
+  // 【新增】onLaunch 预授权：静默处理隐私协议+麦克风授权
+  // 成功 → privacy_agreed=true，后续进 app 直接进睡眠模式
+  // 失败/拒绝 → privacy_agreed=false，用户到 chat 页面后再处理
+  _preauthorizePrivacyAndMic() {
+    // 先检查隐私是否已同意（已同意则跳过）
+    const alreadyAgreed = wx.getStorageSync('privacy_agreed')
+    if (alreadyAgreed) {
+      console.log('[PreAuth] 隐私已同意，检查麦克风权限...')
+      // 隐私已同意 → 检查麦克风权限是否已授权
+      wx.getSetting({
+        success: (res) => {
+          if (!res.authSetting['scope.record']) {
+            // 麦克风未授权，提前静默触发（失败不影响流程）
+            wx.authorize({ scope: 'scope.record', success: () => {
+              console.log('[PreAuth] 麦克风预授权成功')
+            }, fail: () => {
+              console.log('[PreAuth] 麦克风预授权失败（用户将在 chat 页面看到提示）')
+            }})
+          } else {
+            console.log('[PreAuth] 麦克风已授权')
+          }
+        }
+      })
+      this.globalData.needShowPrivacy = false
+      return
+    }
+
+    // 隐私未同意 → 检查是否需要微信隐私协议弹窗
+    if (!wx.getPrivacySetting) {
+      // 低版本微信：直接标记需要显示隐私弹窗
+      this.globalData.needShowPrivacy = true
+      return
+    }
+    wx.getPrivacySetting({
+      success: (res) => {
+        if (res.needAuthorization) {
+          // 需要弹隐私协议 → onLaunch 无法静默处理，跳到 chat 页面处理
+          console.log('[PreAuth] 需要隐私授权，将在 chat 页面引导')
+          this.globalData.needShowPrivacy = true
+        } else {
+          // 不需要微信隐私协议弹窗 → 直接走麦克风授权
+          console.log('[PreAuth] 无需微信隐私协议，直接请求麦克风')
+          wx.authorize({
+            scope: 'scope.record',
+            success: () => {
+              wx.setStorageSync('privacy_agreed', true)
+              wx.setStorageSync('privacy_agreed_time', Date.now())
+              this.globalData.needShowPrivacy = false
+              console.log('[PreAuth] 麦克风授权成功，隐私同意已完成')
+            },
+            fail: () => {
+              // 麦克风拒绝 → 隐私已同意，麦克风未授权
+              wx.setStorageSync('privacy_agreed', true)
+              wx.setStorageSync('privacy_agreed_time', Date.now())
+              this.globalData.needShowPrivacy = false
+              console.log('[PreAuth] 麦克风拒绝，但隐私已同意')
+            }
+          })
+        }
+      },
+      fail: () => {
+        // 出错 → 交给 chat 页面处理
+        this.globalData.needShowPrivacy = true
+      }
+    })
   },
 
   // 拒绝隐私政策
