@@ -1,0 +1,376 @@
+<!-- pages/chat/chat.wxml -->
+<!-- Tab 1: 今晚聊聊 - 睡眠模式 + 呼吸引导入关闭仪式 -->
+
+<view class="page">
+
+  <!-- Premium 订阅 Banner（非会员可见）-->
+  <view wx:if="{{!isPremium}}" class="sub-banner" bindtap="goToSubscribe">
+    <view class="sub-banner-left">
+      <text class="sub-banner-icon">👑</text>
+      <view class="sub-banner-text">
+        <text class="sub-banner-title">解锁全部功能</text>
+        <text class="sub-banner-sub">AI语音·AI文本·睡眠日报·熄灯仪式</text>
+      </view>
+    </view>
+    <text class="sub-banner-cta">开通 ¥50/月起</text>
+  </view>
+
+  <!-- 用量配额提示 -->
+  <view wx:if="{{usageQuota || usageDisplay}}" class="quota-hint">
+    <text class="quota-text">
+      <block wx:if="{{usageQuota}}">今日剩余：语音 {{usageQuota.voice.remaining_minutes}} 分钟 · 文本 {{usageQuota.text.remaining_minutes}} 分钟</block>
+      <block wx:else>{{usageDisplay}}</block>
+    </text>
+  </view>
+
+  <!-- ================================================
+       睡眠模式（默认）
+       ================================================ -->
+  <view wx:if="{{mode === 'sleep'}}" class="sleep-mode">
+
+    <!-- 模式切换（右上角浮层） -->
+    <view class="sleep-header-actions">
+      <view class="mode-toggle-pill" bindtap="toggleMode">
+        <text>{{mode === 'sleep' ? '🔤 文字模式' : '🌙 睡眠模式'}}</text>
+      </view>
+    </view>
+
+    <!-- 居中月亮 + 状态文字 -->
+    <view class="sleep-center-zone">
+      <view class="sleep-moon {{isListening ? 'listening' : ''}}"><view class="moon-body"></view></view>
+      <text class="sleep-status">{{statusText}}</text>
+      <text class="sleep-hint">用正确的认识改善睡眠 - "知眠"</text>
+    </view>
+
+    <!-- 白噪音 -->
+    <view wx:if="{{mode === 'sleep'}}" class="sound-section">
+      <view class="sound-chips">
+        <view
+          wx:for="{{sounds}}"
+          wx:key="id"
+          class="sound-chip {{currentSound === item.id ? 'active' : ''}}"
+          bindtap="playSound"
+          data-id="{{item.id}}"
+        >{{item.name}}</view>
+      </view>
+    </view>
+
+    <!-- 睡眠按钮（在白噪音下方、对话区上方，居中） -->
+    <view class="sleep-btn-area">
+      <view
+        class="sleep-btn {{sleepModeActive ? 'active' : ''}}"
+        bindtap="toggleSleepMode"
+      >
+        <view class="sleep-btn-ring"></view>
+        <view class="sleep-btn-ring r2"></view>
+        <view class="sleep-btn-core">
+          <text class="sleep-btn-icon">{{sleepModeActive ? '🔴' : '🌙'}}</text>
+          <text class="sleep-btn-label">{{sleepModeActive ? '聆听中' : '开始睡眠'}}</text>
+        </view>
+      </view>
+      <text class="sleep-desc">
+        {{sleepModeActive ? '手机放在枕边，开口说话即可' : '点击开始，将手机放在枕边'}}
+      </text>
+    </view>
+
+    <!-- 声波可视化 -->
+    <view wx:if="{{isListening && audioLevel > 0}}" class="sound-viz">
+      <text class="viz-label">正在听...</text>
+      <view class="viz-bars">
+        <view
+          wx:for="{{vizBarHeights}}"
+          wx:key="index"
+          class="viz-bar {{index < audioLevel ? 'viz-active' : ''}}"
+          style="height: {{item}}rpx;"
+        ></view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ================================================
+       文字模式（辅助）
+       ================================================ -->
+  <view wx:elif="{{mode === 'text'}}" class="text-mode">
+
+    <view class="chat-header">
+      <text class="header-title">今晚聊聊</text>
+      <view class="header-right">
+        <view class="header-action-pill" bindtap="resetSession">
+          <text>↺ 重置</text>
+        </view>
+        <view class="mode-toggle-pill" bindtap="toggleMode">
+          <text>🌙 睡眠模式</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 焦虑条 -->
+    <view wx:if="{{anxiety.level !== 'normal'}}" class="anxiety-banner anxiety-{{anxiety.level}}">
+      <text>{{anxiety.level === 'severe' ? '⚠️ 强烈焦虑' : anxiety.level === 'moderate' ? '💡 有些焦虑' : '🌙 感受到担心'}}</text>
+    </view>
+
+    <!-- 消息列表 -->
+    <scroll-view class="message-list" scroll-y scroll-into-view="{{scrollToMsg}}" scroll-with-animation>
+      <view wx:for="{{messages}}" wx:key="id" wx:for-item="msg">
+        <view wx:if="{{msg.role === 'user'}}" class="message-item user">
+          <view class="bubble user-bubble">{{msg.content}}</view>
+          <text class="message-time">{{msg.time}}</text>
+        </view>
+        <view wx:else class="message-item assistant">
+          <view class="ai-avatar"><view class="moon-mini"></view></view>
+          <view class="bubble-col">
+            <view class="bubble ai-bubble">
+              <view
+                class="ai-tts-btn {{msg.isPlayingTTS ? 'playing' : ''}}"
+                bindtap="playAITTS"
+                data-index="{{index}}"
+              >
+                <view class="ai-wave">
+                  <view class="wave-bar"></view>
+                  <view class="wave-bar"></view>
+                  <view class="wave-bar"></view>
+                  <view class="wave-bar"></view>
+                </view>
+                <text class="ai-tts-label">{{msg.isPlayingTTS ? '暂停' : '听'}}</text>
+              </view>
+              <text>{{msg.content}}</text>
+            </view>
+            <view class="feedback-row" wx:if="{{msg.id && msg.feedback !== 0}}">
+              <view class="feedback-btn {{msg.feedback === 1 ? 'active' : ''}}" bindtap="submitFeedback" data-index="{{index}}" data-rating="1">👍</view>
+              <view class="feedback-btn {{msg.feedback === -1 ? 'active' : ''}}" bindtap="submitFeedback" data-index="{{index}}" data-rating="-1">👎</view>
+            </view>
+            <view class="feedback-row" wx:if="{{msg.id && msg.feedback === 0}}">
+              <text class="feedback-thanks">已反馈</text>
+            </view>
+          </view>
+          <text class="message-time">{{msg.time}}</text>
+        </view>
+      </view>
+
+      <!-- AI 输入中 -->
+      <view wx:if="{{isLoading}}" class="message-item assistant">
+        <view class="ai-avatar"><view class="moon-mini"></view></view>
+        <view class="bubble ai-bubble">
+          <view class="ai-tts-btn playing">
+            <view class="ai-wave">
+              <view class="wave-bar"></view>
+              <view class="wave-bar"></view>
+              <view class="wave-bar"></view>
+              <view class="wave-bar"></view>
+            </view>
+            <text class="ai-tts-label">聆听中...</text>
+          </view>
+        </view>
+      </view>
+      <!-- 滚动锚点 -->
+      <view id="msg-bottom"></view>
+    </scroll-view>
+
+    <!-- TTS 进度 -->
+    <view wx:if="{{isPlayingTTS}}" class="tts-bar">
+      <view class="tts-track"><view class="tts-fill" style="width: {{ttsProgress}}%"></view></view>
+      <text class="tts-time">{{ttsCurrentTime || '0:00'}} / {{ttsDuration || '0:00'}}</text>
+    </view>
+
+    <!-- 输入区 -->
+    <view class="input-area">
+      <view class="quick-chips">
+        <view
+          wx:for="{{quickChips}}"
+          wx:key="index"
+          class="quick-chip"
+          bindtap="onQuickChip"
+          data-text="{{item}}"
+        >{{item}}</view>
+      </view>
+      <view class="input-row">
+        <input
+          class="text-input"
+          type="text"
+          placeholder="输入文字..."
+          placeholder-class="text-input-placeholder"
+          value="{{inputText}}"
+          bindinput="onInputChange"
+          bindconfirm="onSendText"
+          confirm-type="send"
+          adjust-position="{{true}}"
+          cursor-spacing="16"
+        />
+        <view class="send-btn {{inputText ? 'active' : ''}}" bindtap="onSendText">
+          <text class="send-btn-text">发送</text>
+        </view>
+      </view>
+    </view>
+
+  </view>
+
+  <!-- ================================================
+       担忧捕获浮层（CBT 担忧写下来）
+       ================================================ -->
+  <view wx:if="{{showWorryPrompt}}" class="worry-prompt-overlay" bindtap="dismissWorryPrompt">
+    <view class="worry-prompt-card" catchtap="stopProp">
+      <view class="worry-prompt-icon">📝</view>
+      <view class="worry-prompt-title">说出来，我帮你记</view>
+      <view class="worry-prompt-sub">不需要想清楚，简单说出来就好</view>
+      <view class="worry-prompt-sub">我会帮你记着，明天17:00专门看它</view>
+      <view class="worry-prompt-btns">
+        <button class="worry-btn-skip" bindtap="dismissWorryPrompt">不用了</button>
+        <button class="worry-btn-capture" bindtap="startWorryCapture">说出来</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 担忧捕获录音中 -->
+  <view wx:if="{{worryCaptureActive}}" class="worry-capturing-overlay">
+    <view class="worry-capturing-card">
+      <view class="worry-capturing-ring">
+        <view class="worry-capturing-dot"></view>
+      </view>
+      <view class="worry-capturing-title">我在听你说...</view>
+      <view class="worry-capturing-sub">说不清楚也没关系，想到什么就说什么</view>
+      <button class="worry-btn-done" bindtap="dismissWorryPrompt">说完啦</button>
+    </view>
+  </view>
+
+  <!-- ================================================
+       关闭仪式浮层
+       ================================================ -->
+  <view wx:if="{{showClosure}}" class="closure-overlay {{_dimming ? 'closure-dimming' : ''}}">
+    <!-- 返回按钮：关闭仪式中途可返回对话 -->
+    <view class="closure-back-btn" bindtap="backFromClosure">
+      <text class="closure-back-text">← 再说几句</text>
+    </view>
+    <view class="closure-card">
+
+      <!-- 步骤 1: 设定睡眠窗口 (NEW) -->
+      <block wx:if="{{closureStep === 1}}">
+        <view class="closure-divider"></view>
+        <view class="step-indicator">步骤 1/4</view>
+        <view class="step-title">设定今晚睡眠</view>
+        <view class="step-subtitle">告诉我你打算睡多久</view>
+
+        <view class="time-picker-row">
+          <view class="time-picker-card">
+            <view class="time-picker-label">计划入睡</view>
+            <picker mode="time" value="{{bedTime}}" bindchange="onBedTimeChange">
+              <view class="time-picker-value">{{bedTime}}</view>
+            </picker>
+          </view>
+          <view class="time-picker-arrow">→</view>
+          <view class="time-picker-card">
+            <view class="time-picker-label">计划起床</view>
+            <picker mode="time" value="{{wakeTime}}" bindchange="onWakeTimeChange">
+              <view class="time-picker-value">{{wakeTime}}</view>
+            </picker>
+          </view>
+        </view>
+
+        <view class="tib-display">
+          <text class="tib-hours">{{tibHours}}</text>
+          <text class="tib-unit">小时睡眠窗口</text>
+        </view>
+
+        <button class="closure-btn-primary" bindtap="submitBedTime">确认，开始睡前仪式</button>
+        <view class="closure-skip" bindtap="onGoBack">取消</view>
+      </block>
+
+      <!-- 步骤 2: 担忧处理（等待用户说完） -->
+      <block wx:if="{{closureStep === 2}}">
+        <view class="closure-divider"></view>
+        <view class="closure-title"><view class="closure-moon"></view>晚安</view>
+        <view class="closure-text">
+          <view>你今晚愿意说出来，已经很好了。</view>
+          <view>担忧已经被放下了。</view>
+          <view>好好休息，明天会更好的。🌙</view>
+        </view>
+        <view class="closure-hint">屏幕即将变暗，放下手机</view>
+      </block>
+
+      <!-- 步骤 3: 呼吸引导（4-7-8 呼吸 × 4 轮）-->
+      <block wx:if="{{closureStep === 3}}">
+        <view class="closure-divider"></view>
+        <view class="step-indicator">步骤 3/4</view>
+        <view class="closure-title"><view class="closure-moon"></view>呼吸引导</view>
+        <view class="closure-subtitle">跟着节奏，慢慢来</view>
+
+        <!-- 呼吸引导 SVG 圆形进度条 -->
+        <view class="breathing-circle-container">
+          <view class="breathing-circle-svg-wrap">
+            <svg class="breathing-svg" viewBox="0 0 220 220">
+              <!-- 背景圆环 -->
+              <circle class="breathing-track" cx="110" cy="110" r="90" />
+              <!-- 进度圆环 -->
+              <circle
+                class="breathing-progress-ring"
+                cx="110" cy="110" r="90"
+                stroke="{{breathPhaseColor || '#F5C869'}}"
+                stroke-dasharray="565.49"
+                stroke-dashoffset="{{565.49 - (breathPhasePercent / 100) * 565.49}}"
+              />
+            </svg>
+            <!-- 中心文字 -->
+            <view class="breathing-center">
+              <text class="breathing-phase-name">{{breathPhaseText || '准备'}}</text>
+              <text class="breathing-countdown" wx:if="{{breathCountdown > 0}}">{{breathCountdown}}秒</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 轮次 + 进度 -->
+        <view class="breath-status">
+          <text>第 {{breathCycle || 1}} / 4 轮</text>
+          <view class="breath-progress-bar">
+            <view class="breath-progress-fill" style="width: {{breathProgress || 0}}%"></view>
+          </view>
+        </view>
+
+        <!-- 全程闭眼，零点击 -->
+        <view class="closure-hint">闭眼，跟随呼吸即可</view>
+      </block>
+
+      <!-- 步骤 4: PMR 身体扫描（AI 语音引导） -->
+      <block wx:if="{{closureStep === 4}}">
+        <view class="closure-divider"></view>
+        <view class="step-indicator">步骤 4/4</view>
+        <view class="closure-title"><view class="closure-meditation-icon"></view>身体放松</view>
+        <view class="closure-subtitle">闭上眼睛，跟我慢慢来</view>
+
+        <!-- 身体扫描波浪动画 -->
+        <view class="pmr-wave-container">
+          <view class="pmr-wave wave1"></view>
+          <view class="pmr-wave wave2"></view>
+          <view class="pmr-wave wave3"></view>
+          <view class="pmr-core">
+            <text class="pmr-body-part">{{pmrCurrentPart || '全身'}}</text>
+          </view>
+        </view>
+
+        <!-- 当前引导部位 -->
+        <view class="pmr-tip">
+          <text>{{pmrTip || '放松每一个部位...'}}</text>
+        </view>
+
+        <!-- 零点击提示 -->
+        <view class="closure-hint">躺好，听我说就好</view>
+      </block>
+
+    </view>
+  </view>
+
+  <!-- 隐私协议与权限说明 -->
+  <view wx:if="{{showPrivacyModal}}" class="privacy-overlay">
+    <view class="privacy-card">
+      <view class="privacy-title">隐私与权限说明</view>
+      <view class="privacy-content">
+        <text>欢迎使用知眠。点击"同意"后，系统将请求麦克风权限。如您选择拒绝，将自动切换为文字模式，不影响核心功能的使用。</text>
+        <text>
+您也可以选择"暂不使用"，直接以文字模式开始。</text>
+      </view>
+      <view class="privacy-btns">
+        <button class="privacy-btn-agree" bindtap="onPrivacyAgree">同意并继续</button>
+        <button class="privacy-btn-disagree" bindtap="onPrivacyDisagree">暂不使用（文字模式）</button>
+      </view>
+    </view>
+  </view>
+
+</view>
