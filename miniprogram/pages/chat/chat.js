@@ -436,6 +436,7 @@ Page({
       isSleepFadingOut: false,
       companionLevel: 0,
       showStimulusCard: false,
+      showCbtPhase: false,
     })
   },
 
