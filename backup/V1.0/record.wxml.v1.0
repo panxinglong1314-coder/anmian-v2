@@ -1,5 +1,4 @@
-<!-- pages/record/record.wxml — V2.0 精简版 -->
-
+<!-- pages/record/record.wxml - 方案B精简版（3区块） -->
 <view class="page">
 
   <!-- 加载中 -->
@@ -30,42 +29,41 @@
 
   <scroll-view class="record-content" scroll-y="true">
 
-    <!-- ===== 区块1：三指标横排 ===== -->
-    <view class="stats-section">
+    <!-- ===== 区块1：三指标卡片 + 洞察 + 担忧箱（融入同一卡片） ===== -->
+    <view class="section-card stats-section">
       <view class="stats-row">
-        <view class="stat-card gold">
-          <view class="stat-value">{{stats.streak || 0}}</view>
+        <view class="stat-card">
+          <view class="stat-value glow-gold">{{stats.streak || 0}}</view>
           <view class="stat-unit">天</view>
           <view class="stat-label">连续使用</view>
         </view>
-        <view class="stat-card green">
-          <view class="stat-value">{{stats.total || 0}}</view>
-          <view class="stat-unit">次</view>
-          <view class="stat-label">总记录</view>
+        <view class="stat-card">
+          <view class="stat-value glow-green">{{stats.total || 0}}</view>
+          <view class="stat-unit">分</view>
+          <view class="stat-label">总时长</view>
         </view>
         <view class="stat-card">
-          <view class="stat-value" style="color: {{sleepScoreColor}}">{{sleepScore || '--'}}</view>
+          <view class="stat-value" style="color:{{sleepScoreColor}}">{{sleepScore || '--'}}</view>
           <view class="stat-unit">分</view>
           <view class="stat-label">睡眠分</view>
         </view>
       </view>
 
-      <!-- 洞察文字（轻量纯文字行） -->
-      <view wx:if="{{insight}}" class="insight-row">
-        <text class="insight-prefix">•</text>
-        <text class="insight-text">{{insight}}</text>
+      <!-- 洞察一行（融入卡片底部） -->
+      <view wx:if="{{insight}}" class="insight-line inset">
+        <text class="insight-label">洞察</text>
+        <text>{{insight}}</text>
       </view>
 
-      <!-- 担忧箱入口（纯文字行） -->
-      <view class="worry-entry" bindtap="goToWorryBox">
-        <text class="worry-entry-text {{unreviewedCount > 0 ? 'has-unread' : ''}}">
-          担忧箱{{unreviewedCount > 0 ? ' · ' + unreviewedCount + '条待处理' : ''}}
-        </text>
+      <!-- 担忧箱入口（融入卡片底部，始终显示） -->
+      <view class="worry-entry inset" bindtap="goToWorryBox">
+        <view class="worry-entry-dot {{unreviewedCount > 0 ? '' : 'dot-empty'}}"></view>
+        <text class="worry-entry-text">{{unreviewedCount > 0 ? '担忧箱 ' + unreviewedCount + '条待处理' : '担忧箱'}}</text>
         <text class="worry-entry-arrow">›</text>
       </view>
     </view>
 
-    <!-- ===== 区块2：睡眠窗口建议 ===== -->
+    <!-- ===== 区块2：睡眠限制建议 + 打卡进度 ===== -->
     <view wx:if="{{sleepRestriction}}" class="section-card restriction-card {{restrictionPhaseClass}}">
       <view class="section-header">
         <text class="section-title">睡眠窗口</text>
@@ -85,21 +83,19 @@
             <text class="restriction-sub">{{sleepRestriction.recommended_tib_hours}}h</text>
           </view>
         </view>
-
+        <view class="restriction-message">{{sleepRestriction.message}}</view>
         <view wx:if="{{sleepRestriction.avg_se}}" class="restriction-se">
           <text class="restriction-se-label">睡眠效率</text>
           <text class="restriction-se-value" style="color: {{sleepRestriction.avg_se >= 85 ? '#7EC8A3' : sleepRestriction.avg_se >= 70 ? '#F5C869' : '#E8846B'}}">{{sleepRestriction.avg_se}}%</text>
           <text wx:if="{{sleepRestriction.avg_se < 70}}" class="restriction-se-hint">偏低，建议调整入睡时间</text>
         </view>
-
-        <!-- 打卡进度 -->
+        <!-- 睡眠计划打卡进度（融入同一 body） -->
         <view wx:if="{{planStats}}" class="plan-progress">
-          <text class="plan-label">本周打卡 {{planStats.weekly}}/{{planStats.target}} · 连续 {{planStats.streak}} 天</text>
+          <text class="plan-label">本周打卡 {{planStats.weekly}}/{{planStats.target}}  连续 {{planStats.streak}}天</text>
           <view class="plan-bar">
             <view class="plan-fill" style="width: {{planStats.weekly / planStats.target * 100}}%"></view>
           </view>
         </view>
-
         <view wx:if="{{sleepRestriction.adjustment_needed}}" class="restriction-action" bindtap="applySleepRestriction">
           <text class="restriction-btn">应用建议窗口</text>
         </view>
@@ -142,21 +138,11 @@
             <text class="se-circle-label">平均睡眠效率</text>
           </view>
           <view class="kpi-row">
-            <view class="kpi">
-              <text class="kpi-val">{{sleepDashboard.stats.avg_tst_hours}}h</text>
-              <text class="kpi-lbl">睡眠时长</text>
-            </view>
-            <view class="kpi">
-              <text class="kpi-val">{{sleepDashboard.stats.avg_quality}}</text>
-              <text class="kpi-lbl">平均质量</text>
-            </view>
-            <view class="kpi">
-              <text class="kpi-val">{{sleepDashboard.stats.total_records}}</text>
-              <text class="kpi-lbl">记录数</text>
-            </view>
+            <view class="kpi"><text class="kpi-val">{{sleepDashboard.stats.avg_tst_hours}}h</text><text class="kpi-lbl">睡眠</text></view>
+            <view class="kpi"><text class="kpi-val">{{sleepDashboard.stats.avg_quality}}</text><text class="kpi-lbl">质量</text></view>
+            <view class="kpi"><text class="kpi-val">{{sleepDashboard.stats.total_records}}</text><text class="kpi-lbl">记录</text></view>
           </view>
         </view>
-
         <view wx:if="{{sleepDashboard.trend.length > 0}}" class="report-section">
           <text class="report-section-title">趋势</text>
           <view class="se-trend-chart">
@@ -168,12 +154,10 @@
             </view>
           </view>
         </view>
-
         <view wx:if="{{sleepDashboard.recommendation}}" class="report-section">
           <text class="report-section-title">改善建议</text>
           <view class="rec-text">{{sleepDashboard.recommendation.general_advice}}</view>
         </view>
-
         <view wx:if="{{!sleepDashboard.hasData}}" class="empty-detail">
           <text>开始记录睡眠，获得个性化分析</text>
         </view>

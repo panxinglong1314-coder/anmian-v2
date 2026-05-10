@@ -1,0 +1,855 @@
+/* pages/chat/chat.wxss - 简化版：睡眠模式 + 关闭仪式含呼吸引导 */
+
+.page { 
+  height: 100vh;
+  background: #0D1B2A; 
+  display: flex; 
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Premium Banner */
+.sub-banner { display: flex; align-items: center; justify-content: space-between; padding: 12rpx 20rpx; background: linear-gradient(90deg,rgba(245,200,105,0.15),rgba(245,200,105,0.08)); border-bottom: 1rpx solid rgba(245,200,105,0.15); cursor: pointer; flex-shrink: 0; }
+.sub-banner-left { display: flex; align-items: center; gap: 10rpx; }
+.sub-banner-icon { font-size: 36rpx; }
+.sub-banner-text { display: flex; flex-direction: column; gap: 2rpx; }
+.sub-banner-title { font-size: 24rpx; color: #F5C869; font-weight: 500; }
+.sub-banner-sub { font-size: 20rpx; color: rgba(245,200,105,0.7); }
+.sub-banner-cta { font-size: 22rpx; color: #F5C869; padding: 6rpx 14rpx; border-radius: 999rpx; background: rgba(245,200,105,0.25); border: 1rpx solid rgba(245,200,105,0.3); white-space: nowrap; }
+
+/* 顶部模式切换按钮 - 悬浮在"今晚聊聊"旁边 */
+.mode-toggle-float {
+  position: absolute;
+  top: calc(12rpx + env(safe-area-inset-top));
+  right: 20rpx;
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+  padding: 10rpx 20rpx;
+  background: rgba(36,52,71,0.7);
+  backdrop-filter: blur(12rpx);
+  border-radius: 999rpx;
+  border: 1rpx solid rgba(255,255,255,0.1);
+  z-index: 100;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.2);
+}
+.mode-icon { font-size: 26rpx; }
+.mode-text { font-size: 24rpx; color: rgba(139,163,185,0.9); }
+
+/* ===== 睡眠模式 ===== */
+.sleep-mode {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  animation: fadeIn 0.3s ease;
+}
+
+/* 模式切换浮层按钮（右上角） */
+.mode-toggle-pill {
+  position: absolute;
+  top: calc(16rpx + env(safe-area-inset-top));
+  right: 24rpx;
+  z-index: 100;
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
+  background: rgba(36,52,71,0.7);
+  backdrop-filter: blur(12rpx);
+  border: 1rpx solid rgba(255,255,255,0.1);
+  font-size: 22rpx;
+  color: #9AABBF;
+  white-space: nowrap;
+}
+
+/* 居中核心区：月亮 + 状态文字 */
+.sleep-center-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: calc(60rpx + env(safe-area-inset-top));
+  padding-bottom: 8rpx;
+  margin-top: 48rpx;
+  position: relative;
+  z-index: 10;
+  flex: 0 0 auto;
+  min-height: 200rpx;
+}
+
+.sleep-moon {
+  width: 100rpx;
+  height: 100rpx;
+  margin-bottom: 20rpx;
+  filter: drop-shadow(0 0 24rpx rgba(245,200,105,0.25));
+  transition: all 0.5s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sleep-moon.listening {
+  filter: drop-shadow(0 0 40rpx rgba(245,200,105,0.55));
+  animation: moonPulse 2s ease-in-out infinite;
+}
+@keyframes moonPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+
+.moon-body {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background: #F5C869;
+  box-shadow: inset -10rpx -6rpx 0 0 rgba(200, 160, 80, 0.35), 0 0 20rpx rgba(245, 200, 105, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+.moon-body::after {
+  content: '';
+  position: absolute;
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  background: #0D1B2A;
+  top: -12rpx;
+  right: -22rpx;
+}
+
+.moon-mini {
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 50%;
+  background: #F5C869;
+  box-shadow: inset -4rpx -2rpx 0 0 rgba(200, 160, 80, 0.35);
+  position: relative;
+  overflow: hidden;
+}
+.moon-mini::after {
+  content: '';
+  position: absolute;
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 50%;
+  background: #0D1B2A;
+  top: -6rpx;
+  right: -10rpx;
+}
+
+.sleep-status {
+  font-size: 36rpx;
+  font-weight: 500;
+  color: #EDE8DF;
+  margin-bottom: 10rpx;
+  text-align: center;
+}
+
+.sleep-hint {
+  font-size: 24rpx;
+  color: #9AABBF;
+  text-align: center;
+  max-width: 440rpx;
+  line-height: 1.5;
+}
+
+/* 氛围光圈（纯装饰，CSS实现） */
+.sleep-mode::before {
+  content: '';
+  position: absolute;
+  top: 35%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 320rpx;
+  height: 320rpx;
+  border-radius: 50%;
+  border: 1rpx solid rgba(245,200,105,0.06);
+  animation: ringExpand 4s ease-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.sleep-mode::after {
+  content: '';
+  position: absolute;
+  top: 35%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 500rpx;
+  height: 500rpx;
+  border-radius: 50%;
+  border: 1rpx solid rgba(245,200,105,0.04);
+  animation: ringExpand 4s ease-out infinite 1.5s;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes ringExpand { 0%{transform:translate(-50%,-50%) scale(0.85);opacity:0.7} 100%{transform:translate(-50%,-50%) scale(1.2);opacity:0} }
+
+/* 对话记录 */
+/* 睡眠模式对话记录已隐藏，保留样式以备未来恢复 */
+.sleep-conversation-wrap { display: none; }
+.sleep-conversation { display: none; }
+.conv-list { display: flex; flex-direction: column; gap: 18rpx; }
+.conv-item { display: flex; align-items: flex-start; gap: 12rpx; max-width: 80%; }
+.conv-user { align-self: flex-end; flex-direction: row-reverse; }
+.conv-assistant { align-self: flex-start; }
+.conv-role { font-size: 24rpx; color: #9AABBF; flex-shrink: 0; margin-top: 4rpx; width: 40rpx; text-align: center; }
+.conv-text { font-size: 28rpx; color: #EDE8DF; line-height: 1.6; background: rgba(36,52,71,0.5); backdrop-filter: blur(12rpx); padding: 12rpx 18rpx; border-radius: 16rpx; border: 1rpx solid rgba(255,255,255,0.06); }
+
+/* 思考动画 */
+.conv-thinking { display: flex; align-items: center; gap: 10rpx; padding: 10rpx 16rpx; background: rgba(36,52,71,0.4); backdrop-filter: blur(12rpx); border-radius: 16rpx; border: 1rpx solid rgba(255,255,255,0.05); }
+.thinking-dots { display: flex; gap: 4rpx; align-items: center; }
+.dot { width: 8rpx; height: 8rpx; border-radius: 50%; background: #9AABBF; animation: dotBounce 1.4s ease-in-out infinite; }
+.dot:nth-child(2){animation-delay:0.2s} .dot:nth-child(3){animation-delay:0.4s}
+@keyframes dotBounce { 0%,80%,100%{transform:scale(1);opacity:0.4} 40%{transform:scale(1.3);opacity:1} }
+.thinking-label { font-size: 24rpx; color: #9AABBF; }
+
+/* 声波可视化 */
+.sound-viz { position: fixed; bottom: calc(240rpx + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10rpx; z-index: 20; animation: fadeInUp 0.3s ease; }
+@keyframes fadeInUp { from{opacity:0;transform:translateX(-50%) translateY(8rpx)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+.viz-label { font-size: 22rpx; color: rgba(139,163,185,0.7); animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
+.viz-bars { display: flex; align-items: flex-end; gap: 5rpx; height: 40rpx; }
+.viz-bar { width: 5rpx; border-radius: 3rpx; background: rgba(139,163,185,0.15); transition: all 0.08s; }
+.viz-active { background: linear-gradient(to top, rgba(245,200,105,0.9),rgba(245,200,105,0.4)); box-shadow: 0 0 6rpx rgba(245,200,105,0.4); }
+
+/* 白噪音 */
+.sound-section { 
+  padding: 8rpx 32rpx 36rpx; 
+  display: flex; 
+  justify-content: center; 
+}
+.sound-chips { display: flex; gap: 10rpx; overflow-x: auto; padding: 4rpx 0; }
+.sound-chips::-webkit-scrollbar { display: none; }
+.sound-chip { padding: 8rpx 16rpx; border-radius: 999rpx; font-size: 22rpx; color: #9AABBF; background: rgba(36,52,71,0.4); backdrop-filter: blur(8rpx); border: 1rpx solid rgba(255,255,255,0.06); white-space: nowrap; flex-shrink: 0; transition: all 0.2s; cursor: pointer; }
+.sound-chip.active { background: rgba(245,200,105,0.15); border-color: rgba(245,200,105,0.3); color: #F5C869; }
+
+/* 睡眠按钮 */
+.sleep-btn-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+  padding: 48rpx 24rpx 24rpx;
+  position: relative; 
+  z-index: 10;
+}
+.sleep-btn { width: 140rpx; height: 140rpx; position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.sleep-btn-ring { position: absolute; inset: 0; border-radius: 50%; border: 2rpx solid rgba(245,200,105,0.2); animation: sleepRing 3s ease-in-out infinite; }
+.sleep-btn-ring.r2 { animation-delay: 1s; }
+@keyframes sleepRing { 0%,100%{transform:scale(1);opacity:0.3} 50%{transform:scale(1.15);opacity:0} }
+.sleep-btn-core { width: 104rpx; height: 104rpx; border-radius: 50%; background: linear-gradient(135deg, rgba(36,52,71,0.9),rgba(27,40,56,0.95)); backdrop-filter: blur(24rpx); border: 2rpx solid rgba(245,200,105,0.3); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6rpx; box-shadow: 0 0 40rpx rgba(245,200,105,0.15),0 8rpx 32rpx rgba(0,0,0,0.4); transition: all 0.4s; }
+.sleep-btn.active .sleep-btn-core { background: linear-gradient(135deg, rgba(232,132,107,0.3),rgba(232,132,107,0.15)); border-color: rgba(232,132,107,0.5); box-shadow: 0 0 50rpx rgba(232,132,107,0.25),0 8rpx 32rpx rgba(0,0,0,0.4); }
+.sleep-btn-icon { font-size: 44rpx; }
+.sleep-btn-label { font-size: 22rpx; color: #EDE8DF; }
+.sleep-desc { font-size: 24rpx; color: #9AABBF; text-align: center; max-width: 360rpx; }
+
+/* ================================================
+   文字模式
+   ================================================ */
+.text-mode { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #0D1B2A; min-height: 0; animation: fadeIn 0.3s ease; }
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16rpx 32rpx 12rpx;
+  padding-top: calc(16rpx + env(safe-area-inset-top));
+  background: rgba(13,27,42,0.85);
+  backdrop-filter: blur(24rpx);
+  border-bottom: 1rpx solid rgba(255,255,255,0.06);
+  position: relative;
+  z-index: 10;
+}
+.header-title { font-size: 32rpx; font-weight: 600; color: #EDE8DF; }
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+.chat-count-hint {
+  font-size: 22rpx;
+  color: #9AABBF;
+  background: rgba(36,52,71,0.5);
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+}
+.sleep-header-actions {
+  position: absolute;
+  top: calc(12rpx + env(safe-area-inset-top));
+  right: 20rpx;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  z-index: 100;
+}
+.sleep-count-hint {
+  background: rgba(36,52,71,0.7);
+}
+.chat-header .mode-toggle-pill {
+  padding: 6rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(36,52,71,0.7);
+  backdrop-filter: blur(12rpx);
+  border: 1rpx solid rgba(255,255,255,0.1);
+  font-size: 22rpx;
+  color: #9AABBF;
+  white-space: nowrap;
+}
+
+.anxiety-banner { padding: 12rpx 24rpx; font-size: 24rpx; text-align: center; backdrop-filter: blur(12rpx); box-sizing: border-box; }
+.anxiety-severe { background: rgba(232,132,107,0.12); color: #E8846B; }
+.anxiety-moderate { background: rgba(107,159,212,0.12); color: #6B9FD4; }
+.anxiety-mild { background: rgba(245,200,105,0.1); color: #F5C869; }
+
+.message-list { flex: 1; min-height: 0; padding: 48rpx 24rpx 24rpx; box-sizing: border-box; background: transparent; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.message-item { display: flex; flex-direction: column; margin-bottom: 24rpx; align-items: flex-end; }
+.message-item.user { align-items: flex-end; }
+.message-item.assistant { align-items: flex-start; }
+.message-time { font-size: 20rpx; color: #4A6580; margin-top: 6rpx; padding: 0 8rpx; }
+
+.bubble { max-width: 85%; padding: 18rpx 20rpx; border-radius: 22rpx; font-size: 30rpx; line-height: 1.6; word-break: break-word; box-sizing: border-box; }
+.user-bubble { background: linear-gradient(135deg, rgba(58,90,124,0.7),rgba(58,90,124,0.45)); backdrop-filter: blur(16rpx); border: 1rpx solid rgba(107,159,212,0.2); box-shadow: 0 4rpx 20rpx rgba(13,27,42,0.4); color: #EDE8DF; border-bottom-right-radius: 8rpx; }
+.ai-bubble { background: linear-gradient(135deg, rgba(36,52,71,0.8),rgba(36,52,71,0.5)); backdrop-filter: blur(16rpx); border: 1rpx solid rgba(255,255,255,0.07); box-shadow: 0 4rpx 20rpx rgba(13,27,42,0.4); color: #EDE8DF; border-bottom-left-radius: 8rpx; display: flex; flex-direction: column; gap: 12rpx; max-width: 85%; }
+.ai-avatar { width: 48rpx; height: 48rpx; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 0 10rpx rgba(245,200,105,0.3)); margin-bottom: 4rpx; flex-shrink: 0; }
+
+/* AI 气泡容器（包含反馈按钮） */
+.bubble-col { display: flex; flex-direction: column; gap: 8rpx; }
+
+/* 反馈按钮行 */
+.feedback-row { display: flex; align-items: center; gap: 16rpx; padding: 0 8rpx; }
+.feedback-btn { font-size: 28rpx; opacity: 0.4; transition: opacity 0.2s; padding: 4rpx; }
+.feedback-btn:active { opacity: 0.8; transform: scale(0.9); }
+.feedback-btn.active { opacity: 1; }
+.feedback-thanks { font-size: 20rpx; color: #7EC8A3; opacity: 0.7; }
+
+/* AI TTS 按钮 */
+.ai-tts-btn { display: flex; align-items: center; gap: 10rpx; padding: 8rpx 14rpx; border-radius: 999rpx; background: rgba(245,200,105,0.1); border: 1rpx solid rgba(245,200,105,0.2); backdrop-filter: blur(8rpx); align-self: flex-start; transition: all 0.2s; cursor: pointer; }
+.ai-tts-btn.playing { background: rgba(245,200,105,0.2); border-color: rgba(245,200,105,0.35); }
+.ai-wave { display: flex; align-items: center; gap: 3rpx; height: 18rpx; }
+.wave-bar { width: 4rpx; border-radius: 2rpx; background: #F5C869; animation: waveAnim 1s ease-in-out infinite; }
+.wave-bar:nth-child(1){height:7rpx;animation-delay:0s} .wave-bar:nth-child(2){height:12rpx;animation-delay:0.15s} .wave-bar:nth-child(3){height:9rpx;animation-delay:0.3s} .wave-bar:nth-child(4){height:14rpx;animation-delay:0.1s}
+@keyframes waveAnim { 0%,100%{transform:scaleY(0.5);opacity:0.5} 50%{transform:scaleY(1.2);opacity:1} }
+.ai-tts-label { font-size: 22rpx; color: #F5C869; }
+
+/* TTS 进度条 */
+.tts-bar { padding: 10rpx 24rpx 6rpx; background: rgba(13,27,42,0.8); backdrop-filter: blur(16rpx); border-top: 1rpx solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 16rpx; box-sizing: border-box; }
+.tts-track { flex: 1; height: 4rpx; background: rgba(36,52,71,0.8); border-radius: 2rpx; overflow: hidden; }
+.tts-fill { height: 100%; background: linear-gradient(90deg,#F5C869,rgba(245,200,105,0.5)); border-radius: 2rpx; transition: width 0.3s linear; box-shadow: 0 0 6rpx rgba(245,200,105,0.4); }
+.tts-time { font-size: 22rpx; color: #9AABBF; flex-shrink: 0; }
+
+/* 文字模式输入区 */
+.input-area { padding: 12rpx 24rpx 0; padding-bottom: calc(env(safe-area-inset-bottom) + 8rpx); background: rgba(13,27,42,0.95); backdrop-filter: blur(40rpx); border-top: 1rpx solid rgba(255,255,255,0.06); display: flex; flex-direction: column; gap: 12rpx; flex-shrink: 0; }
+.quick-chips { display: flex; gap: 10rpx; overflow-x: auto; padding-bottom: 4rpx; }
+.quick-chips::-webkit-scrollbar { display: none; }
+.quick-chip { padding: 8rpx 18rpx; border-radius: 999rpx; background: rgba(36,52,71,0.6); backdrop-filter: blur(12rpx); border: 1rpx solid rgba(255,255,255,0.08); font-size: 24rpx; color: #9AABBF; flex-shrink: 0; white-space: nowrap; }
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  width: 100%;
+}
+.text-input {
+  flex: 1;
+  height: 72rpx;
+  padding: 0 20rpx;
+  background: rgba(36,52,71,0.6);
+  border-radius: 36rpx;
+  border: 1rpx solid rgba(255,255,255,0.1);
+  font-size: 28rpx;
+  color: #EDE8DF;
+  line-height: 72rpx;
+}
+.text-input-placeholder {
+  color: #5A6E7F;
+  font-size: 28rpx;
+}
+.send-btn {
+  width: 96rpx;
+  height: 72rpx;
+  border-radius: 36rpx;
+  background: rgba(36,52,71,0.6);
+  border: 1rpx solid rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.send-btn.active {
+  background: rgba(245,200,105,0.25);
+  border-color: rgba(245,200,105,0.4);
+}
+.send-btn-text {
+  font-size: 26rpx;
+  color: #9AABBF;
+}
+.send-btn.active .send-btn-text {
+  color: #F5C869;
+}
+
+/* ================================================
+   关闭仪式（含呼吸引导步骤）
+   ================================================ */
+.closure-overlay { position: fixed; inset: 0; background: rgba(13,27,42,0.85); backdrop-filter: blur(40rpx); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 32rpx; animation: fadeIn 0.4s ease; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.closure-back-btn { position: absolute; top: 48rpx; left: 32rpx; z-index: 201; padding: 16rpx 24rpx; border-radius: 999rpx; background: rgba(255,255,255,0.08); backdrop-filter: blur(12rpx); border: 1rpx solid rgba(255,255,255,0.1); }
+.closure-back-text { font-size: 26rpx; color: #9AABBF; }
+
+.closure-card {
+  width: 100%; max-width: 520rpx;
+  background: linear-gradient(180deg,rgba(36,52,71,0.92),rgba(27,40,56,0.95));
+  backdrop-filter: blur(32rpx); -webkit-backdrop-filter: blur(32rpx);
+  border-radius: 32rpx; border: 1rpx solid rgba(255,255,255,0.1);
+  box-shadow: 0 16rpx 64rpx rgba(0,0,0,0.5);
+  padding: 40rpx 36rpx;
+  display: flex; flex-direction: column; gap: 20rpx;
+  animation: slideUp 0.4s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes slideUp { from{transform:translateY(40rpx);opacity:0} to{transform:translateY(0);opacity:1} }
+
+.closure-divider { height: 1rpx; background: linear-gradient(90deg,transparent,rgba(107,159,212,0.4),transparent); margin-bottom: 4rpx; }
+.closure-title { font-size: 34rpx; font-weight: 500; color: #F5C869; text-shadow: 0 0 12rpx rgba(245,200,105,0.35); }
+.closure-subtitle { font-size: 26rpx; color: #9AABBF; margin-top: -8rpx; }
+.closure-hint { font-size: 22rpx; color: rgba(139,163,185,0.5); text-align: center; margin-top: 20rpx; font-style: italic; }
+.closure-dimming .closure-card { animation: dimFade 2s ease forwards; }
+@keyframes dimFade { 0% { opacity: 1 } 100% { opacity: 0; transform: scale(0.95) } }
+.closure-text { font-size: 28rpx; line-height: 1.8; color: #EDE8DF; }
+
+/* 呼吸引导（嵌入关闭仪式）—— SVG 圆形进度条 */
+.breathing-circle-container { display: flex; align-items: center; justify-content: center; padding: 16rpx 0; }
+.breathing-circle-svg-wrap { position: relative; width: 280rpx; height: 280rpx; display: flex; align-items: center; justify-content: center; }
+.breathing-svg { width: 280rpx; height: 280rpx; transform: rotate(-90deg); }
+.breathing-track { fill: none; stroke: rgba(36,52,71,0.6); stroke-width: 8; }
+.breathing-progress-ring { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+.breathing-center { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.breathing-phase-name { font-size: 36rpx; font-weight: 500; color: #EDE8DF; text-shadow: 0 0 12rpx rgba(255,255,255,0.2); }
+.breathing-countdown { font-size: 48rpx; font-weight: 600; color: #F5C869; text-shadow: 0 0 16rpx rgba(245,200,105,0.4); margin-top: 4rpx; }
+.breath-tip { font-size: 24rpx; color: #7EC8A3; text-align: center; text-shadow: 0 0 8rpx rgba(126,200,163,0.3); }
+.breath-status { display: flex; flex-direction: column; align-items: center; gap: 8rpx; font-size: 24rpx; color: #9AABBF; }
+.breath-progress-bar { width: 100%; max-width: 300rpx; height: 4rpx; background: rgba(36,52,71,0.8); border-radius: 2rpx; overflow: hidden; }
+.breath-progress-fill { height: 100%; background: linear-gradient(90deg,rgba(126,200,163,0.8),rgba(126,200,163,0.5)); border-radius: 2rpx; transition: width 1s linear; }
+
+/* 关闭仪式标题图标 */
+.closure-title { font-size: 34rpx; font-weight: 500; color: #F5C869; text-shadow: 0 0 12rpx rgba(245,200,105,0.35); display: flex; align-items: center; justify-content: center; gap: 12rpx; }
+.closure-moon { width: 36rpx; height: 36rpx; border-radius: 50%; background: transparent; box-shadow: inset -8rpx -4rpx 0 0 #F5C869; filter: drop-shadow(0 0 6rpx rgba(245,200,105,0.4)); }
+.closure-meditation-icon { width: 36rpx; height: 36rpx; border-radius: 50%; border: 3rpx solid rgba(126,200,163,0.6); box-shadow: 0 0 8rpx rgba(126,200,163,0.3); position: relative; }
+.closure-meditation-icon::after { content: ''; position: absolute; width: 12rpx; height: 12rpx; border-radius: 50%; background: rgba(126,200,163,0.8); top: 50%; left: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 6rpx rgba(126,200,163,0.5); }
+
+/* 关闭仪式按钮 */
+.closure-buttons { display: flex; gap: 12rpx; margin-top: 8rpx; }
+.closure-buttons button { flex: 1; padding: 22rpx; border-radius: 22rpx; font-size: 28rpx; text-align: center; border: none; cursor: pointer; transition: all 0.2s; }
+.btn-secondary { background: rgba(36,52,71,0.55); backdrop-filter: blur(16rpx); color: #9AABBF; border: 1rpx solid rgba(255,255,255,0.1); }
+.btn-primary { background: linear-gradient(135deg,rgba(245,200,105,0.4),rgba(245,200,105,0.2)); backdrop-filter: blur(16rpx); color: #F5C869; border: 1rpx solid rgba(245,200,105,0.35); box-shadow: 0 0 20rpx rgba(245,200,105,0.2); font-weight: 500; }
+
+/* PMR 身体扫描 */
+.pmr-wave-container { position: relative; width: 200rpx; height: 200rpx; margin: 0 auto; display: flex; align-items: center; justify-content: center; }
+.pmr-wave { position: absolute; border-radius: 50%; border: 2rpx solid rgba(126,200,163,0.25); animation: pmrExpand 3s ease-out infinite; }
+.wave1 { width: 100%; height: 100%; animation-delay: 0s; }
+.wave2 { width: 70%; height: 70%; animation-delay: 1s; border-color: rgba(107,159,212,0.25); }
+.wave3 { width: 40%; height: 40%; animation-delay: 2s; border-color: rgba(245,200,105,0.2); }
+@keyframes pmrExpand { 0% { transform: scale(0.9); opacity: 0.6 } 100% { transform: scale(1.4); opacity: 0 } }
+.pmr-core { position: relative; z-index: 2; width: 100rpx; height: 100rpx; border-radius: 50%; background: radial-gradient(circle,rgba(126,200,163,0.4),rgba(126,200,163,0.15)); backdrop-filter: blur(20rpx); border: 3rpx solid rgba(126,200,163,0.45); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30rpx rgba(126,200,163,0.25); }
+.pmr-body-part { font-size: 26rpx; color: #EDE8DF; font-weight: 500; text-align: center; }
+.pmr-tip { font-size: 24rpx; color: #7EC8A3; text-align: center; text-shadow: 0 0 8rpx rgba(126,200,163,0.3); margin-top: 16rpx; min-height: 36rpx; }
+
+/* 担忧捕获浮层 */
+.worry-prompt-overlay { position: fixed; inset: 0; background: rgba(13,27,42,0.6); backdrop-filter: blur(16rpx); display: flex; align-items: center; justify-content: center; z-index: 250; padding: 40rpx; }
+.worry-prompt-card { width: 100%; background: rgba(36,52,71,0.95); border-radius: 28rpx; border: 1rpx solid rgba(245,200,105,0.2); padding: 40rpx 32rpx; display: flex; flex-direction: column; align-items: center; gap: 12rpx; animation: slideUp 0.4s cubic-bezier(0.34,1.56,0.64,1); box-shadow: 0 20rpx 60rpx rgba(0,0,0,0.5); }
+.worry-prompt-icon { font-size: 48rpx; }
+.worry-prompt-title { font-size: 32rpx; font-weight: 500; color: #EDE8DF; }
+.worry-prompt-sub { font-size: 24rpx; color: #9AABBF; text-align: center; line-height: 1.5; }
+.worry-prompt-btns { display: flex; gap: 16rpx; margin-top: 8rpx; width: 100%; }
+.worry-btn-skip { flex: 1; padding: 20rpx; border-radius: 20rpx; background: rgba(36,52,71,0.6); border: 1rpx solid rgba(255,255,255,0.1); color: #9AABBF; font-size: 26rpx; }
+.worry-btn-capture { flex: 1; padding: 20rpx; border-radius: 20rpx; background: linear-gradient(135deg,rgba(245,200,105,0.4),rgba(245,200,105,0.2)); border: 1rpx solid rgba(245,200,105,0.35); color: #F5C869; font-size: 26rpx; font-weight: 500; box-shadow: 0 0 20rpx rgba(245,200,105,0.2); }
+
+/* 担忧捕获录音中 */
+.worry-capturing-overlay { position: fixed; inset: 0; background: rgba(13,27,42,0.85); backdrop-filter: blur(40rpx); display: flex; align-items: center; justify-content: center; z-index: 260; }
+.worry-capturing-card { display: flex; flex-direction: column; align-items: center; gap: 20rpx; padding: 60rpx 40rpx; }
+.worry-capturing-ring { width: 140rpx; height: 140rpx; border-radius: 50%; border: 4rpx solid rgba(245,200,105,0.3); display: flex; align-items: center; justify-content: center; animation: worryRing 2s ease-in-out infinite; }
+.worry-capturing-dot { width: 80rpx; height: 80rpx; border-radius: 50%; background: radial-gradient(circle,rgba(245,200,105,0.5),rgba(245,200,105,0.2)); animation: worryPulse 1.5s ease-in-out infinite alternate; }
+@keyframes worryRing { 0%,100% { transform: scale(1); border-color: rgba(245,200,105,0.3) } 50% { transform: scale(1.05); border-color: rgba(245,200,105,0.6) } }
+@keyframes worryPulse { from { opacity: 0.5; transform: scale(0.95) } to { opacity: 1; transform: scale(1.05) } }
+.worry-capturing-title { font-size: 32rpx; font-weight: 500; color: #F5C869; }
+.worry-capturing-sub { font-size: 24rpx; color: #9AABBF; text-align: center; }
+.worry-btn-done { margin-top: 16rpx; padding: 18rpx 48rpx; border-radius: 999rpx; background: rgba(36,52,71,0.6); border: 1rpx solid rgba(255,255,255,0.1); color: #EDE8DF; font-size: 26rpx; }
+
+/* ====== Step 1: 设定睡眠窗口 ====== */
+.step-indicator {
+  text-align: center;
+  font-size: 24rpx;
+  color: #9AABBF;
+  margin-bottom: 16rpx;
+}
+.step-title {
+  text-align: center;
+  font-size: 44rpx;
+  font-weight: 600;
+  color: #EDE8DF;
+  margin-bottom: 12rpx;
+}
+.step-subtitle {
+  text-align: center;
+  font-size: 28rpx;
+  color: #9AABBF;
+  margin-bottom: 48rpx;
+}
+.time-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24rpx;
+  margin-bottom: 40rpx;
+}
+.time-picker-card {
+  background: rgba(36,52,71,0.8);
+  border-radius: 32rpx;
+  padding: 32rpx 40rpx;
+  text-align: center;
+  flex: 1;
+  border: 1rpx solid rgba(255,255,255,0.08);
+}
+.time-picker-label {
+  font-size: 24rpx;
+  color: #9AABBF;
+  margin-bottom: 16rpx;
+}
+.time-picker-value {
+  font-size: 56rpx;
+  font-weight: 600;
+  color: #F5C869;
+}
+.time-picker-arrow {
+  font-size: 40rpx;
+  color: #9AABBF;
+  flex-shrink: 0;
+}
+.tib-display {
+  text-align: center;
+  margin-bottom: 48rpx;
+}
+.tib-hours {
+  font-size: 96rpx;
+  font-weight: 700;
+  color: #F5C869;
+  display: block;
+  line-height: 1;
+}
+.tib-unit {
+  font-size: 28rpx;
+  color: #9AABBF;
+  display: block;
+  margin-top: 8rpx;
+}
+.closure-btn-primary {
+  width: 100%;
+  background: #F5C869;
+  color: #0D1B2A;
+  border-radius: 999rpx;
+  padding: 32rpx;
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-bottom: 24rpx;
+  border: none;
+}
+.closure-skip {
+  text-align: center;
+  font-size: 28rpx;
+  color: #9AABBF;
+  padding: 16rpx;
+}
+
+/* ===== Sleep Bar (bottom action bar) ===== */
+.sleep-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24rpx;
+  padding: 20rpx 32rpx 40rpx;
+  background: linear-gradient(to top, rgba(13,27,42,0.95) 60%, transparent);
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+.bar-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 20rpx;
+  background: rgba(36,52,71,0.7);
+  border: 1rpx solid rgba(255,255,255,0.08);
+  min-width: 100rpx;
+}
+.bar-btn-icon { font-size: 28rpx; }
+.bar-btn-label { font-size: 20rpx; color: #9AABBF; }
+.worry-btn { border-color: rgba(245,200,105,0.2); }
+.worry-btn .bar-btn-icon { color: #F5C869; }
+.close-btn .bar-btn-icon { color: #F5C869; }
+
+/* Mic button */
+.mic-btn {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 50%;
+  background: rgba(36,52,71,0.8);
+  border: 3rpx solid rgba(245,200,105,0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+  position: relative;
+}
+.mic-btn.active {
+  background: rgba(245,200,105,0.15);
+  border-color: rgba(245,200,105,0.5);
+}
+.mic-btn.recording {
+  background: rgba(232,132,107,0.2);
+  border-color: rgba(232,132,107,0.5);
+  animation: mic-pulse 1s infinite;
+}
+.mic-ring {
+  position: absolute;
+  inset: -12rpx;
+  border-radius: 50%;
+  border: 2rpx solid rgba(245,200,105,0.2);
+}
+.mic-ring.pulse {
+  animation: ring-pulse 1.5s infinite;
+}
+.mic-icon { font-size: 36rpx; }
+.mic-label { font-size: 20rpx; color: #9AABBF; }
+
+@keyframes mic-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+@keyframes ring-pulse {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.3); opacity: 0; }
+}
+
+/* ===== Worry prompt (inline) ===== */
+.worry-prompt {
+  position: fixed;
+  bottom: 200rpx;
+  left: 24rpx;
+  right: 24rpx;
+  background: rgba(36,52,71,0.95);
+  border-radius: 24rpx;
+  border: 1rpx solid rgba(245,200,105,0.2);
+  padding: 24rpx;
+  z-index: 150;
+  animation: slideUp 0.3s ease;
+}
+.worry-prompt-text {
+  font-size: 26rpx;
+  color: #EDE8DF;
+  display: block;
+  margin-bottom: 16rpx;
+}
+.worry-prompt-btns {
+  display: flex;
+  gap: 12rpx;
+}
+.worry-btn-say {
+  flex: 1;
+  text-align: center;
+  padding: 16rpx;
+  background: rgba(245,200,105,0.2);
+  border-radius: 16rpx;
+  font-size: 26rpx;
+  color: #F5C869;
+}
+.worry-btn-dismiss {
+  padding: 16rpx 24rpx;
+  background: rgba(255,255,255,0.05);
+  border-radius: 16rpx;
+  font-size: 24rpx;
+  color: #9AABBF;
+}
+
+/* ===== Text Mode old styles removed ===== */
+.msg-time {
+  font-size: 20rpx;
+  color: #4A6580;
+  margin-top: 6rpx;
+  padding: 0 8rpx;
+}
+.msg-user .msg-time { text-align: right; }
+.msg-loading {
+  font-size: 26rpx;
+  color: #9AABBF;
+  padding: 16rpx;
+}
+.input-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20rpx 32rpx 40rpx;
+  background: linear-gradient(to top, rgba(13,27,42,0.95) 60%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.voice-btn {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 50%;
+  background: rgba(36,52,71,0.9);
+  border: 2rpx solid rgba(245,200,105,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36rpx;
+}
+
+/* 头部操作按钮（重置） */
+.header-action-pill {
+  padding: 6rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(36,52,71,0.7);
+  backdrop-filter: blur(12rpx);
+  border: 1rpx solid rgba(255,255,255,0.1);
+  font-size: 22rpx;
+  color: #9AABBF;
+  white-space: nowrap;
+}
+
+/* 用量配额提示 */
+.quota-hint {
+  padding: 10rpx 32rpx;
+  background: rgba(139, 163, 185, 0.08);
+  display: flex;
+  justify-content: center;
+}
+.quota-text {
+  font-size: 22rpx;
+  color: #9AABBF;
+}
+
+/* 隐私协议弹层 */
+.privacy-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.privacy-card {
+  width: 80%;
+  background: #1B2838;
+  border-radius: 24rpx;
+  padding: 48rpx 40rpx;
+  border: 1rpx solid rgba(245, 200, 105, 0.15);
+}
+.privacy-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #F5C869;
+  text-align: center;
+  margin-bottom: 32rpx;
+}
+.privacy-content {
+  font-size: 28rpx;
+  color: #C8D6E5;
+  line-height: 1.7;
+  margin-bottom: 48rpx;
+  white-space: pre-wrap;
+}
+.privacy-btns {
+  display: flex;
+  gap: 24rpx;
+}
+.privacy-btn-disagree,
+.privacy-btn-agree {
+  flex: 1;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 16rpx;
+  font-size: 30rpx;
+  text-align: center;
+  border: none;
+  padding: 0;
+}
+.privacy-btn-disagree {
+  background: rgba(139, 163, 185, 0.15);
+  color: #8BA3B9;
+}
+.privacy-btn-agree {
+  background: #F5C869;
+  color: #0D1B2A;
+  font-weight: 600;
+}
+
+/* ================================================
+   刺激控制提醒浮层（CBT-I 行为干预）
+   ================================================ */
+.stimulus-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(13, 27, 42, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  backdrop-filter: blur(4px);
+}
+
+.stimulus-card {
+  width: 600rpx;
+  background: linear-gradient(135deg, #1a2a3a 0%, #0d1b2a 100%);
+  border-radius: 32rpx;
+  padding: 48rpx 40rpx;
+  margin: 0 40rpx;
+  box-shadow: 0 8rpx 32rpx rgba(0,0,0,0.4);
+  text-align: center;
+}
+
+.stimulus-icon {
+  font-size: 80rpx;
+  margin-bottom: 24rpx;
+}
+
+.stimulus-title {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #F5C869;
+  margin-bottom: 20rpx;
+}
+
+.stimulus-message {
+  font-size: 30rpx;
+  color: #e0e6ed;
+  line-height: 1.6;
+  margin-bottom: 16rpx;
+  padding: 0 10rpx;
+}
+
+.stimulus-sub {
+  font-size: 24rpx;
+  color: #8a9bae;
+  margin-bottom: 36rpx;
+}
+
+.stimulus-btn {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #F5C869;
+  color: #0D1B2A;
+  font-size: 30rpx;
+  font-weight: 600;
+  border-radius: 44rpx;
+  border: none;
+  margin-top: 8rpx;
+}
