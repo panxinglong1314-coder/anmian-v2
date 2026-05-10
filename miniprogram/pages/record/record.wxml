@@ -1,4 +1,4 @@
-<!-- pages/record/record.wxml — V2.0 精简版 -->
+<!-- pages/record/record.wxml — V2.2（补回晨间打卡 UI）-->
 
 <view class="page">
 
@@ -30,6 +30,13 @@
 
   <scroll-view class="record-content" scroll-y="true">
 
+    <!-- ===== 晨间打卡提示条（早上7-12点未打卡时显示） ===== -->
+    <view wx:if="{{showMorningCheckPrompt}}" class="morning-prompt" bindtap="openMorningCheck">
+      <text class="morning-prompt-icon">🌅</text>
+      <text class="morning-prompt-text">早安，昨晚睡得怎么样？花1分钟记录一下</text>
+      <text class="morning-prompt-arrow">›</text>
+    </view>
+
     <!-- ===== 区块1：三指标横排 ===== -->
     <view class="stats-section">
       <view class="stats-row">
@@ -40,8 +47,8 @@
         </view>
         <view class="stat-card green">
           <view class="stat-value">{{stats.total || 0}}</view>
-          <view class="stat-unit">次</view>
-          <view class="stat-label">总记录</view>
+          <view class="stat-unit">分</view>
+          <view class="stat-label">总时长</view>
         </view>
         <view class="stat-card">
           <view class="stat-value" style="color: {{sleepScoreColor}}">{{sleepScore || '--'}}</view>
@@ -58,8 +65,9 @@
 
       <!-- 担忧箱入口（纯文字行） -->
       <view class="worry-entry" bindtap="goToWorryBox">
+        <view class="worry-entry-dot {{unreviewedCount > 0 ? '' : 'dot-empty'}}"></view>
         <text class="worry-entry-text {{unreviewedCount > 0 ? 'has-unread' : ''}}">
-          担忧箱{{unreviewedCount > 0 ? ' · ' + unreviewedCount + '条待处理' : ''}}
+          {{unreviewedCount > 0 ? '担忧箱 ' + unreviewedCount + '条待处理' : '担忧箱'}}
         </text>
         <text class="worry-entry-arrow">›</text>
       </view>
@@ -84,6 +92,11 @@
             <text class="restriction-value">{{sleepRestriction.recommended_bed_time}} - {{sleepRestriction.recommended_wake_time}}</text>
             <text class="restriction-sub">{{sleepRestriction.recommended_tib_hours}}h</text>
           </view>
+        </view>
+
+        <!-- message 文字保留（精简，融入 body） -->
+        <view wx:if="{{sleepRestriction.message}}" class="restriction-message">
+          {{sleepRestriction.message}}
         </view>
 
         <view wx:if="{{sleepRestriction.avg_se}}" class="restriction-se">
@@ -123,6 +136,56 @@
     </view>
 
   </scroll-view>
+
+  <!-- ================================================
+       晨间打卡弹窗（4步问题）
+       ================================================ -->
+  <view wx:if="{{showMorningCheck}}" class="morning-overlay" catchtouchmove="preventTouchMove">
+    <view class="morning-card">
+      <!-- 关闭按钮 -->
+      <view class="morning-close" bindtap="closeMorningCheck">✕</view>
+
+      <!-- 进度指示 -->
+      <view class="morning-progress">
+        <view wx:for="{{4}}" wx:key="index" class="morning-dot {{index < morningStep ? 'done' : index === morningStep - 1 ? 'active' : ''}}"></view>
+      </view>
+
+      <!-- 步骤标题 -->
+      <view class="morning-step-title">记录今晨 · {{morningStep <= 4 ? morningStep : '✓'}}/4</view>
+
+      <!-- 完成后显示结果 -->
+      <block wx:if="{{morningStep === 5}}">
+        <view class="morning-result-icon">🌅</view>
+        <view class="morning-result-title">已完成今日打卡</view>
+        <view class="morning-result-row">
+          <view class="morning-result-item">
+            <text class="morning-result-value">{{morningSE}}%</text>
+            <text class="morning-result-label">睡眠效率</text>
+          </view>
+          <view class="morning-result-item">
+            <text class="morning-result-value">{{morningTST}}</text>
+            <text class="morning-result-label">实际睡眠</text>
+          </view>
+        </view>
+        <view class="morning-done-btn" bindtap="closeMorningCheck">好的</view>
+      </block>
+
+      <!-- 问题选项 -->
+      <block wx:else>
+        <view class="morning-question">{{morningQuestions[morningStep - 1].q}}</view>
+        <view class="morning-options">
+          <view
+            wx:for="{{morningQuestions[morningStep - 1].options}}"
+            wx:key="index"
+            class="morning-option"
+            bindtap="onMorningAnswer"
+            data-answer="{{item}}"
+            data-index="{{index}}"
+          >{{item}}</view>
+        </view>
+      </block>
+    </view>
+  </view>
 
   <!-- 睡眠效率详情弹窗 -->
   <view wx:if="{{showSleepDashboard}}" class="report-overlay" bindtap="hideSleepDashboard">
