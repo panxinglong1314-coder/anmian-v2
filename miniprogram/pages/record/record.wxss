@@ -1,5 +1,4 @@
-/* pages/record/record.wxss — 精简版 V2.0 */
-/* 原则：去掉杂色、统一字体、模块拆分 */
+/* pages/record/record.wxss — V2.1 精简版（功能完整）*/
 
 /* 页面根容器 */
 .page {
@@ -128,7 +127,7 @@
    ================================================ */
 .insight-row {
   padding: 0 4rpx;
-  margin: 20rpx 0;
+  margin: 16rpx 0 0 0;
   display: flex;
   align-items: flex-start;
   gap: 10rpx;
@@ -235,9 +234,12 @@
   flex-shrink: 0;
 }
 
-/* 去掉独立 message 文字块，降信息密度 */
+/* 精简的 message 文字（次色，低调） */
 .restriction-message {
-  display: none;
+  font-size: 24rpx;
+  color: #8BA3B9;
+  line-height: 1.5;
+  margin-bottom: 16rpx;
 }
 
 .restriction-se {
@@ -323,17 +325,28 @@
 }
 
 /* ================================================
-   担忧箱入口（纯文字行）
+   担忧箱入口（纯文字行，带左侧圆点）
    ================================================ */
 .worry-entry {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 16rpx 4rpx;
-  margin: 8rpx 0 0 0;
+  gap: 12rpx;
+  padding: 14rpx 4rpx 0 4rpx;
+  margin: 0;
   border-top: 1rpx solid rgba(255,255,255,0.06);
 }
+.worry-entry-dot {
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: #F5C869;
+  flex-shrink: 0;
+}
+.worry-entry-dot.dot-empty {
+  background: rgba(139,163,185,0.4);
+}
 .worry-entry-text {
+  flex: 1;
   font-size: 24rpx;
   color: #8BA3B9;
 }
@@ -344,6 +357,34 @@
   font-size: 28rpx;
   color: rgba(139,163,185,0.4);
   flex-shrink: 0;
+}
+
+/* ================================================
+   睡眠计划打卡进度
+   ================================================ */
+.plan-progress {
+  margin-top: 20rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid rgba(255,255,255,0.06);
+}
+.plan-label {
+  font-size: 24rpx;
+  color: #8BA3B9;
+  margin-bottom: 12rpx;
+  display: block;
+}
+.plan-bar {
+  height: 6rpx;
+  background: rgba(36,52,71,0.8);
+  border-radius: 3rpx;
+  overflow: hidden;
+}
+.plan-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #F5C869, #E8B84A);
+  border-radius: 3rpx;
+  transition: width 0.4s ease;
+  min-width: 3rpx;
 }
 
 /* ================================================
@@ -448,31 +489,180 @@
   display: flex; align-items: center; justify-content: center; z-index: 999;
 }
 .loading-text { color: #8BA3B9; font-size: 28rpx; }
+/* ================================================
+   晨间打卡提示条（7-12点未打卡时显示）
+   ================================================ */
+.morning-prompt {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 20rpx 24rpx;
+  background: linear-gradient(135deg, rgba(245,200,105,0.12), rgba(245,200,105,0.06));
+  border: 1rpx solid rgba(245,200,105,0.2);
+  border-radius: 20rpx;
+  margin-bottom: 20rpx;
+}
+.morning-prompt-icon {
+  font-size: 32rpx;
+  flex-shrink: 0;
+}
+.morning-prompt-text {
+  flex: 1;
+  font-size: 26rpx;
+  color: #EDE8DF;
+}
+.morning-prompt-arrow {
+  font-size: 32rpx;
+  color: rgba(245,200,105,0.5);
+  flex-shrink: 0;
+}
 
 /* ================================================
-   睡眠计划打卡进度
+   晨间打卡弹窗
    ================================================ */
-.plan-progress {
-  margin-top: 20rpx;
-  padding-top: 16rpx;
-  border-top: 1rpx solid rgba(255,255,255,0.06);
+.morning-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(13,27,42,0.85);
+  backdrop-filter: blur(20rpx);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
 }
-.plan-label {
-  font-size: 24rpx;
+
+.morning-card {
+  width: 600rpx;
+  background: linear-gradient(180deg, rgba(36,52,71,0.98), rgba(27,40,56,0.99));
+  border-radius: 32rpx;
+  padding: 48rpx 40rpx 40rpx;
+  border: 1rpx solid rgba(255,255,255,0.1);
+  box-shadow: 0 8rpx 40rpx rgba(0,0,0,0.4);
+  position: relative;
+}
+
+.morning-close {
+  position: absolute;
+  top: 24rpx;
+  right: 24rpx;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
   color: #8BA3B9;
-  margin-bottom: 12rpx;
-  display: block;
+  font-size: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.plan-bar {
-  height: 6rpx;
-  background: rgba(36,52,71,0.8);
-  border-radius: 3rpx;
-  overflow: hidden;
+
+.morning-progress {
+  display: flex;
+  justify-content: center;
+  gap: 12rpx;
+  margin-bottom: 32rpx;
 }
-.plan-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #F5C869, #E8B84A);
-  border-radius: 3rpx;
-  transition: width 0.4s ease;
-  min-width: 3rpx;
+
+.morning-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: rgba(139,163,185,0.3);
+}
+
+.morning-dot.active {
+  background: #F5C869;
+}
+
+.morning-dot.done {
+  background: rgba(126,200,163,0.8);
+}
+
+.morning-step-title {
+  font-size: 28rpx;
+  color: #8BA3B9;
+  text-align: center;
+  margin-bottom: 32rpx;
+}
+
+.morning-question {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #EDE8DF;
+  text-align: center;
+  margin-bottom: 32rpx;
+  line-height: 1.5;
+}
+
+.morning-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.morning-option {
+  padding: 20rpx 24rpx;
+  background: rgba(139,163,185,0.08);
+  border-radius: 16rpx;
+  border: 1rpx solid rgba(255,255,255,0.08);
+  font-size: 28rpx;
+  color: #EDE8DF;
+  text-align: center;
+}
+
+.morning-option:active {
+  background: rgba(245,200,105,0.12);
+  border-color: rgba(245,200,105,0.3);
+}
+
+/* 完成后状态 */
+.morning-result-icon {
+  font-size: 64rpx;
+  text-align: center;
+  margin-bottom: 20rpx;
+}
+
+.morning-result-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #EDE8DF;
+  text-align: center;
+  margin-bottom: 32rpx;
+}
+
+.morning-result-row {
+  display: flex;
+  gap: 32rpx;
+  justify-content: center;
+  margin-bottom: 40rpx;
+}
+
+.morning-result-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.morning-result-value {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: #F5C869;
+}
+
+.morning-result-label {
+  font-size: 22rpx;
+  color: #8BA3B9;
+}
+
+.morning-done-btn {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #F5C869;
+  color: #0D1B2A;
+  font-size: 30rpx;
+  font-weight: 600;
+  border-radius: 44rpx;
+  text-align: center;
 }
