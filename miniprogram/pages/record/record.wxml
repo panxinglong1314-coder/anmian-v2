@@ -47,8 +47,8 @@
         </view>
         <view class="stat-card green">
           <view class="stat-value">{{stats.total || 0}}</view>
-          <view class="stat-unit">分</view>
-          <view class="stat-label">总时长</view>
+          <view class="stat-unit">h/天</view>
+          <view class="stat-label">睡眠</view>
         </view>
         <view class="stat-card">
           <view class="stat-value" style="color: {{sleepScoreColor}}">{{sleepScore || '--'}}</view>
