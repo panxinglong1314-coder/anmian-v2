@@ -1279,7 +1279,8 @@ Page({
 
   // 显示刺激控制提醒卡片（计时器触发时调用）
   _showStimulusReminder() {
-    if (!this.data.sleepModeActive) return
+    const isActive = this.data.sleepModeActive || this.data.mode === 'text'
+    if (!isActive) return  // 睡眠模式或文本模式才显示
     if (this._stimulusControlShown) return  // 防止重复弹出
     this._stimulusControlShown = true
 
@@ -1767,6 +1768,8 @@ Page({
             sleepModeActive: false,
             statusText: '聆听中',
             statusHint: '还有什么想说？'
+          }, () => {
+            this._resetStimulusControlTimer()
           })
         } else {
           // 用户说晚安，清理
