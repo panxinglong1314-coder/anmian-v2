@@ -1,257 +1,287 @@
-# 知眠 - CBT-I AI 睡前焦虑陪伴小程序
+# 知眠 - AI 睡前焦虑陪伴小程序
 
-> 🛏️ "睡前来聊，把焦虑关在门外"
+> 🛏️ **"睡前来聊，把焦虑关在门外"**
+>
+> 基于 CBT-I（失眠认知行为疗法）的 AI 睡前陪伴，通过语音对话帮用户释放焦虑、安心入睡。
 
-基于**认知行为疗法-失眠（CBT-I）**的 AI 睡前焦虑陪伴小程序，提供语音+文字双模式，通过 VAD 免手动、关闭仪式、PMR 呼吸引导等干预手段，帮助用户睡前放下焦虑。
+![Version](https://img.shields.io/badge/version-v2.0-blue)
+![Platform](https://img.shields.io/badge/platform-WeChat%20Miniprogram-green)
+![Framework](https://img.shields.io/badge/backend-FastAPI-purple)
 
 ---
 
-## 核心功能
+## 产品介绍
 
-### 睡眠模式（默认）
-- **VAD 免手动**：开口说话自动开始，停止说话自动结束，无需按键
-- **语音 + 文字双模式**：语音识别（腾讯云 ASR）+ 语音播报（MiniMax TTS），麦克风拒绝时自动降级文字模式
-- **CBT-I 担忧关闭仪式**：根据焦虑话题（工作/健康/人际/财务/学业）匹配关闭模板
-- **PMR 渐进式肌肉放松**：引导用户逐步收紧释放身体各部位
-- **呼吸引导**：4-7-8 呼吸法，配合 TTS 语音节奏
-- **白噪音**：5 个免费场景（雨声/森林/壁炉/粉噪音/海浪）
-- **CBT 认知重构**：识别扭曲思维（灾难化/过度概括/贴标签等）
-- **睡前担忧捕获**：结构化记录担忧类型、场景、强度
+知眠是一款**AI 睡前陪伴**小程序，核心解决**睡前焦虑导致失眠**的问题。
 
-### 文字模式
-- 完整 CBT-I 对话流程：担忧捕获 → 关闭仪式 → 睡眠窗口推荐
-- 支持语音输入切换
+用户睡前躺在床上，通过语音或文字与 AI 对话，AI 引导完成 CBT-I 五阶段流程：评估 → 担忧捕获 → 认知重构 → 放松诱导 → 关闭仪式。
 
-### 睡眠追踪
-- **睡眠日记**：记录入睡时间、起床时间、睡眠质量评分
-- **晨间问卷**：TIB（睡眠时机）、起床时间、焦虑评估
-- **连续天数 + 7 天焦虑趋势图**
-- **睡眠窗口推荐**：根据记录智能推荐最优入睡时间
+### 核心功能
 
-### 订阅制
-- 免费用户：每晚 5 次对话额度
-- 付费解锁：全部功能 + 无限对话
+| Tab | 功能 |
+|-----|------|
+| **今晚聊聊** | AI 对话（语音优先）+ 白噪音 5 种 + 关闭仪式（4-7-8 呼吸 + PMR 身体扫描）|
+| **我的记录** | 睡眠日记 + Morning Check-in 7 步问卷 + 焦虑趋势图 + 担忧箱 |
+| **订阅** | 基础 Pro ¥30/月 · 核心 Pro ¥45/月（微信支付接入中）|
 
-### 管理后台
-- 仪表盘：活跃用户、会话量、评分分布、夜间使用占比
-- 安全监控：危机检测、不当建议告警
-- AI 质量评估：对话安全 + 疗效指标
-- 用户列表与详情
+### 差异化定位
+
+- **AI 情感陪伴感** ✗ Sleepio ✗ 绘睡 ✗ 小睡眠：知眠的 AI 陪伴体验在国内竞品中领先
+- **语音优先交互**：VAD 语音活动检测，开口说话自动开始，无需手动按键
+- **CBT-I 结构化**：完整五阶段状态机，非固定脚本，由 LLM 动态组合话术
 
 ---
 
 ## 技术架构
 
-### 小程序端
-| 模块 | 技术 |
-|------|------|
-| 框架 | 微信原生 WXML/WXSS/JS |
-| 语音输入 | VAD 免手动 + 腾讯云 ASR（实时流式） |
-| 语音播报 | MiniMax Speech-02-HD + 腾讯云 TTS Fallback |
-| 隐私授权 | 微信隐私协议 + 麦克风预检（app.js onLaunch） |
-
-### 后端
-| 模块 | 技术 |
-|------|------|
-| 框架 | FastAPI + uvicorn + Python 3.10 |
-| AI 对话 | MiniMax Text（`https://api.minimaxi.com`） |
-| TTS | 腾讯云 / MiniMax Speech-02-HD |
-| ASR | 腾讯云实时 ASR WebSocket |
-| RAG 检索 | **PageIndex**（LLM 推理导航）+ LSA Fallback |
-| CBT 语料 | 132 节点层级树（102 叶子），涵盖关闭仪式/担忧场景/PMR/呼吸引导/CBT认知扭曲 |
-| 会话存储 | Redis（会话日志 + 睡眠记录 + 用户配额） |
-| 对话评估 | LLM 安全检测 + 疗效指标追踪 |
-| 缓存 | jieba LSA 向量索引（2576 chunks，dim=128） |
-| 部署 | Docker + nginx + systemd（腾讯云 Ubuntu） |
-
-### RAG 架构（PageIndex）
+### 整体架构
 
 ```
-用户消息 → PageIndex Engine（MiniMax-M2.7 推理导航）
-           ↓ 阅读 30 个非叶节点摘要（LLM 自主决策）
-           ↓ 选中 4 个最相关叶节点
-           ↓ 格式化注入 system prompt → 千问对话
-           
-Fallback → LSA TF-IDF（本地计算，< 1s）
+┌──────────────────────────────────────────────────────────────┐
+│  微信小程序（原生 WXML/WXSS/JS）                              │
+│  pages: chat / record / subscribe / train / index / morning  │
+└──────────────────────────────────────────────────────────────┘
+                              │ HTTPS
+                              ▼
+┌──────────────────────────────────────────────────────────────┐
+│  Nginx (sleepai.chat) — SSL 终结，反向代理                   │
+└──────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌──────────────────────────────────────────────────────────────┐
+│  FastAPI 后端 — Uvicorn :8000                                │
+│  main.py (4220 行)                                          │
+│  ├── /api/v1/chat      — AI 对话（含 CBT-I 状态机）          │
+│  ├── /api/v1/chat/stream — SSE 流式对话                      │
+│  ├── /api/v1/chat/ws  — WebSocket 对话                      │
+│  ├── /api/v1/tts       — 文字转语音                          │
+│  ├── /api/v1/asr       — 语音转文字                          │
+│  ├── /api/v1/sleep/*  — 睡眠日记/窗口                       │
+│  ├── /api/v1/worry/*  — 担忧捕获                            │
+│  ├── /api/v1/morning/* — 晨间打卡                           │
+│  └── /api/v1/subscription/* — 订阅                          │
+└──────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+┌─────────────────────────┐     ┌─────────────────────────────┐
+│  Redis 7                │     │  千问 / MiniMax LLM         │
+│  会话历史 / CBT状态      │     │  AI 对话生成                │
+│  睡眠记录 / 担忧箱        │     │  TTS / ASR                  │
+│  用量限额 / 用户画像      │     │  RAG 向量检索               │
+└─────────────────────────┘     └─────────────────────────────┘
 ```
 
-**与纯向量检索的区别**：传统 RAG 靠字面相似度；PageIndex 让 LLM 理解焦虑等级×失眠亚型×对话阶段后路由到精准 CBT 节点。
+### 后端模块
 
----
+| 模块 | 文件 | 行数 | 职责 |
+|------|------|------|------|
+| API 路由/鉴权/TTS/ASR | `main.py` | 4220 | 核心业务逻辑 |
+| CBT-I 状态机 | `cbt_manager.py` | 1779 | 五阶段流转/焦虑检测/阶段自适应 |
+| 焦虑等级识别 | `anxiety_detector.py` | 331 | 四级焦虑（正常/轻度/中度/严重）|
+| RAG 检索引擎 | `rag_engine.py` | 271 | 11 个语料库向量检索 |
+| 向量存储 | `vector_store.py` | 347 | 自研 TF-IDF 索引（无外部 API）|
+| 会话日志 | `session_logger.py` | 309 | 训练数据积累，支持导出 |
 
-## 项目结构
+### 前端模块
+
+| 模块 | 文件 | 行数 | 职责 |
+|------|------|------|------|
+| 今晚聊聊 | `chat.js` | 2049 | 语音/文字对话/VAD/TTS播放/担忧弹窗/关闭仪式 |
+| 我的记录 | `record.js` | 707 | 睡眠日记/仪表盘/焦虑趋势/担忧箱/晨间打卡 |
+| 订阅页 | `subscribe.js` | — | 定价 UI/订阅激活 |
+
+### AI 四层进化架构
 
 ```
-.
-├── backend/                    # FastAPI 后端
-│   ├── main.py                 # API 入口（lifespan + 路由注册）
-│   ├── rag_engine.py           # RAG 主引擎（PageIndex + LSA）
-│   ├── page_index/             # PageIndex RAG 模块
-│   │   ├── page_index_tree.py  # 132 节点语料库树 + CorpusTreeBuilder
-│   │   └── page_index_engine.py # LLM 推理导航 + LSA fallback
-│   ├── hybrid_rag_index.py     # LSA TF-IDF 向量索引
-│   ├── cbt_manager.py          # CBT-I 会话状态管理
-│   ├── session_logger.py       # Redis 会话日志写入
-│   ├── dialogue_evaluator.py   # LLM 安全 + 疗效评估
-│   ├── admin_routes.py         # 管理后台 API
-│   └── requirements.txt
-├── miniprogram/                # 微信小程序
-│   ├── app.js                  # 入口（隐私预检 + wxLogin + 会话初始化）
-│   ├── pages/
-│   │   ├── chat/               # Tab 1：今晚聊聊
-│   │   │   ├── chat.js         # VAD + ASR + TTS + CBT 对话流程
-│   │   │   ├── chat.wxml       # 语音波形 + 模式切换 + 关闭仪式
-│   │   │   └── chat.wxss
-│   │   ├── subscribe/          # 订阅页
-│   │   ├── morning/            # 晨间问卷
-│   │   └── privacy/            # 隐私说明
-│   └── js_sdk/
-│       └── tencent-asr-realtime/ # 腾讯云 ASR 实时 WebSocket
-├── corpus/                     # CBT-I 语料库
-│   ├── worry_scenarios.json   # 担忧场景（工作/健康/人际/财务/学业）
-│   ├── closure_rituals.json   # 关闭仪式（标准模板 + 15 变体 + 诱导语）
-│   ├── pmr_scripts.json       # PMR 渐进式肌肉放松
-│   ├── breathing_scripts.json # 呼吸引导（4-7-8 / Box Breathing）
-│   ├── cbt_distortions.json  # 认知扭曲识别
-│   └── sleep_hygiene.json     # 睡眠卫生教育
-├── evaluation_tracking/        # 对话质量追踪数据
-├── docs/                        # 设计文档
-├── requirements.txt             # Python 依赖
-└── docker-compose.yml          # Docker 部署
+L1 Prompt 层      ✅ 系统指令 + 情绪自适应
+L2 RAG 检索层      ✅ 11 个语料库 + 治疗师手记式注入
+L3 Fine-tuning    📋 规划中（已具备训练数据导出能力）
+L4 RLHF 进化      📋 长期规划
 ```
 
 ---
 
-## API 概览（v2.1）
+## CBT-I 五阶段状态机
 
-### 认证
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/auth/wx_login` | 微信登录换取 JWT |
-| GET | `/api/v1/version` | 版本信息 |
+```
+ASSESSMENT → WORRY_CAPTURE → COGNITIVE_RESTRUCTURING 
+→ RELAXATION_INDUCTION → CLOSURE
+```
 
-### AI 对话（CBT-I）
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/chat/cbt` | CBT-I 结构化对话 |
-| POST | `/api/v1/chat/cbt/stream` | CBT-I 流式对话（SSE） |
-| POST | `/api/v1/chat/cbt/reset` | 重置会话 |
-| GET | `/api/v1/chat/history` | 获取会话历史 |
-| GET | `/api/v1/chat/cbt/state/{user_id}` | 获取 CBT 状态 |
-| WS | `/api/v1/chat/ws` | WebSocket 实时对话 |
+| 阶段 | 触发条件 | AI 行为 |
+|------|---------|--------|
+| `ASSESSMENT` | 初始/每天重置 | 了解今晚心情，评估焦虑等级 |
+| `WORRY_CAPTURE` | 检测到担忧意图 | 引导外化担忧，进入"担忧箱" |
+| `COGNITIVE_RESTRUCTURING` | 担忧表达后 | 苏格拉底提问重构认知扭曲 |
+| `RELAXATION_INDUCTION` | 认知重构后 | 4-7-8 呼吸 / PMR 身体扫描 |
+| `CLOSURE` | 放松完成后 | 关闭仪式 + 入睡确认 |
 
-### 语音
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/asr` | 语音转文字 |
-| POST | `/api/v1/asr/stream` | 流式 ASR |
-| WS | `/api/v1/asr/ws` | ASR WebSocket |
-| POST | `/api/v1/tts` | 文字转语音（mp3） |
-| POST | `/api/v1/tts/stream` | 流式 TTS |
-
-### 睡眠追踪
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/sleep/record` | 记录睡眠 |
-| GET | `/api/v1/sleep/records/{user_id}` | 获取睡眠记录 |
-| POST | `/api/v1/sleep/window` | 设置睡眠窗口 |
-| GET | `/api/v1/sleep/window/{user_id}` | 获取睡眠窗口 |
-| POST | `/api/v1/morning/submit` | 提交晨间问卷 |
-| GET | `/api/v1/morning/check` | 检查晨间问卷 |
-| GET | `/api/v1/sleep/diary` | 睡眠日记 |
-| POST | `/api/v1/sleep/diary` | 创建日记 |
-| GET | `/api/v1/sleep/recommendation/{user_id}` | 睡眠推荐 |
-
-### 担忧管理
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/worry` | 记录担忧 |
-| GET | `/api/v1/worries/{user_id}` | 获取担忧列表 |
-
-### 订阅
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/subscription/{user_id}` | 订阅状态 |
-| POST | `/api/v1/subscription/activate` | 激活订阅 |
-
-### AI 评估
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/evaluate/session` | 评估会话 |
-| GET | `/api/v1/evaluate/recent` | 最近评估 |
-| POST | `/api/v1/sessions/{id}/rating` | 用户评分 |
-| GET | `/api/v1/sessions/{id}/report` | 会话报告 |
-
-### 管理后台
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/admin/dashboard` | 仪表盘 |
-| GET | `/api/v1/admin/safety` | 安全事件 |
-| GET | `/api/v1/admin/quality` | AI 质量统计 |
-| GET | `/api/v1/admin/users` | 用户列表 |
-| GET | `/api/v1/admin/users/{user_id}` | 用户详情 |
-
-### 其他
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/rag/status` | RAG 索引状态 |
-| POST | `/api/v1/feedback` | 提交反馈 |
-| GET | `/api/v1/breathing/478` | 4-7-8 呼吸引导数据 |
-| GET | `/api/v1/sounds` | 白噪音列表 |
+另有 `NORMAL_CHAT`（非 CBT 场景）和 `SAFETY_PROTOCOL`（危机干预）。
 
 ---
 
-## 环境变量
+## 部署架构
 
-| 变量 | 必需 | 说明 |
+### 环境
+
+| 环境 | 地址 | 用途 |
 |------|------|------|
-| `MINIMAX_API_KEY` | ✅ | MiniMax API 密钥 |
-| `TENANTCLOUD_APP_ID` | ✅ | 腾讯云 AppID（ASR/TTS） |
-| `TENANTCLOUD_SECRET_ID` | ✅ | 腾讯云 SecretID |
-| `TENANTCLOUD_SECRET_KEY` | ✅ | 腾讯云 SecretKey |
-| `REDIS_HOST` | 否 | Redis 主机（默认 localhost） |
-| `REDIS_PASSWORD` | 否 | Redis 密码 |
-| `REDIS_ASYNC_URL` | 否 | Redis Async URL |
-| `JWT_SECRET` | ✅ | JWT 密钥（生产必改） |
-| `ANMIAN_CORPUS_DIR` | 否 | 语料库目录（默认 `../corpus`） |
-| `ANMIAN_INDEX_DIR` | 否 | 向量索引目录（默认 `backend/vector_index`） |
+| 开发 | `localhost:8000` | 本地调试 |
+| 服务器测试 | `124.222.43.248:8000` | `dev-sync.sh` 快速同步 |
+| 生产后端 | `https://sleepai.chat` | 正式 API |
+| 小程序体验版 | 微信后台 | 团队预览 |
+| 小程序正式版 | 微信后台 | 用户访问 |
+
+### 部署方式
+
+| 方式 | 触发 | 说明 |
+|------|------|------|
+| **GitHub Actions 自动部署** | `git push main`（backend/ 或 workflow 变更）| 自动部署后端 + 上传体验版 |
+| **本地 `dev-sync.sh`** | 手动运行 | rsync 快速同步小程序到服务器 |
+| **微信开发者工具** | 手动 | 真机调试 |
+
+### 服务器信息
+
+- **IP:** `124.222.43.248`
+- **代码路径:** `/home/ubuntu/anmian/`
+- **后端:** Uvicorn `:8000`（systemd 管理）
+- **Nginx:** 443 HTTPS（Docker 部署）
+- **Redis:** Docker 内网访问
+
+### CI/CD 工作流
+
+```
+GitHub: panxinglong1314-coder/anmian-v2
+├── .github/workflows/deploy-backend.yml     — 后端自动部署
+└── .github/workflows/deploy-miniprogram.yml — 小程序体验版上传
+
+服务器: 124.222.43.248
+├── Nginx (Docker) — SSL + 反向代理
+├── Backend (Docker) — FastAPI + Uvicorn
+└── Redis (Docker) — 会话/数据持久化
+```
 
 ---
 
 ## 快速开始
 
-### 1. 后端
+### 后端
 
 ```bash
 cd backend
 pip install -r requirements.txt
-cp .env.example .env
-# 填写 MINIMAX_API_KEY 等环境变量
-
-# 开发模式
 uvicorn main:app --reload --port 8000
-
-# 生产模式（systemd）
-sudo systemctl restart anmian
 ```
 
-### 2. 小程序
+### 小程序
 
-1. 打开**微信开发者工具**，导入 `miniprogram` 目录
-2. 修改 `app.js` 中的 `apiBaseUrl` 为你的后端地址
-3. 填入 AppID：`wx5ce7c0b5a7748df5`
+1. 打开微信开发者工具，导入 `miniprogram/` 目录
+2. 修改 `app.js` 中的 `apiBaseUrl` 为后端地址
+3. 填入 AppID: `wx5ce7c0b5a7748df5`
 4. 点击"编译"预览
 
+### 环境变量
+
+| 变量 | 必需 | 说明 |
+|------|------|------|
+| `MINIMAX_API_KEY` | ✅ | 对话 + TTS + ASR |
+| `QWEN_API_KEY` | ✅ | AI 对话（千问）|
+| `TENCENTCLOUD_APP_ID/SECRET_ID/SECRET_KEY` | ✅ | 腾讯云 TTS/ASR |
+| `REDIS_HOST` | 否 | 默认 localhost |
+| `REDIS_PASSWORD` | 否 | 默认空 |
+| `JWT_SECRET` | ✅ 生产 | 生产环境必须修改 |
+
 ---
 
-## 版本历史
+## API 端点
 
-- **v2.1.0** — PageIndex RAG（LLM 推理导航）+ LSA Fallback、API limit 上限校验、管理后台分页、隐私授权零感知
-- **v2.0.0** — CBT-I 结构化对话、VAD 免手动、PMR 呼吸引导、订阅系统
-- **v1.x** — 基础对话 + TTS/ASR
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/health` | 健康检查 |
+| POST | `/api/v1/chat` | AI 对话（含 CBT-I）|
+| POST | `/api/v1/chat/cbt/stream` | SSE 流式对话 |
+| WS | `/api/v1/chat/ws` | WebSocket 对话 |
+| POST | `/api/v1/tts` | 文字转语音（mp3）|
+| POST | `/api/v1/asr` | 语音转文字 |
+| WS | `/api/v1/asr/ws` | 实时语音识别 |
+| GET | `/api/v1/sounds` | 白噪音场景列表 |
+| GET | `/api/v1/sounds/{id}/url` | 白噪音音频 |
+| GET/POST | `/api/v1/sleep/window` | TIB 睡眠窗口 |
+| POST | `/api/v1/sleep/record` | 创建睡眠记录 |
+| GET | `/api/v1/sleep/records/{user_id}` | 历史记录 |
+| GET | `/api/v1/sleep/dashboard` | 睡眠仪表盘 |
+| POST | `/api/v1/worry` | 捕获担忧 |
+| GET | `/api/v1/worries/{user_id}` | 担忧箱列表 |
+| PATCH | `/api/v1/worry/{worry_key}` | 更新担忧状态 |
+| POST | `/api/v1/morning/submit` | 晨间打卡 |
+| GET | `/api/v1/morning/check` | 打卡状态 |
+| GET | `/api/v1/subscription/{user_id}` | 订阅状态 |
+| POST | `/api/v1/subscription/activate` | 激活订阅 |
+| GET | `/api/v1/memory/{user_id}` | 跨会话记忆 |
+| GET | `/api/v1/breathing/478` | 4-7-8 呼吸引导数据 |
 
 ---
 
-## 许可证
+## 目录结构
 
-Private - All Rights Reserved
+```
+anmian-v2/
+├── backend/
+│   ├── main.py              # FastAPI 核心（4220 行）
+│   ├── cbt_manager.py       # CBT-I 状态机（1779 行）
+│   ├── anxiety_detector.py   # 焦虑检测（331 行）
+│   ├── rag_engine.py         # RAG 检索（271 行）
+│   ├── vector_store.py       # 向量存储（347 行）
+│   ├── session_logger.py     # 会话日志（309 行）
+│   └── requirements.txt
+├── miniprogram/
+│   ├── app.js               # 应用入口
+│   ├── pages/
+│   │   ├── chat/            # 今晚聊聊（语音优先 + CBT-I）
+│   │   ├── record/          # 我的记录（睡眠日记 + 仪表盘）
+│   │   ├── subscribe/       # 订阅页
+│   │   ├── morning/         # 晨间打卡
+│   │   └── ...
+│   └── sitemap.json
+├── corpus/                   # CBT-I 语料库（11 个文件）
+│   ├── CBT-I_MANUAL.md      # 核心协议文档
+│   ├── cognitive_distortions.json
+│   ├── breathing_scripts.json
+│   ├── pmr_scripts.json
+│   ├── closure_rituals.json
+│   └── ...
+├── nginx/
+│   └── nginx.conf           # Nginx 配置
+├── docker-compose.yml        # Docker 编排
+├── deploy.sh                 # 部署脚本
+└── .github/workflows/       # CI/CD
+```
+
+---
+
+## 产品路线图（待完成）
+
+| 优先级 | 功能 | 状态 |
+|--------|------|------|
+| P0 | 刺激控制提醒（20 分钟计时器接 TIB）| ⚠️ 代码有结构，触发未通 |
+| P0 | 订阅微信支付接入 | ⚠️ UI 完成，未接入 |
+| P1 | 失眠亚型激活 | ❌ 未做 |
+| P1 | CBT-I 会话进度感知（用户知道当前阶段）| ❌ 未做 |
+| P1 | 担忧主题周汇总（worry_themes:weekly）| ❌ 未实现 |
+| P2 | 睡眠限制完整功能（TIB/SE 动态调整）| ❌ 未做 |
+| P2 | 每日睡前推送 + 睡眠日记闭环 | ❌ 不做 |
+
+---
+
+## 相关文档
+
+- [知眠项目架构与进展总览](./知眠/知眠%20项目架构与进展总览.md)（Obsidian）
+- [知眠 CI/CD 方案](./知眠%20CI_CD%20方案.md)（Obsidian）
+- [知眠代码功能全面评估报告](./知眠/知眠-代码功能全面评估报告.md)（Obsidian）
+- [知眠技术架构与API文档](./知眠/AI架构/知眠-技术架构与API文档.md)（Obsidian）
+- [前后端同步与部署优化方案](./知眠/前后端同步与部署优化方案.md)（Obsidian）
+
+---
+
+*最后更新：2026-05-10*
