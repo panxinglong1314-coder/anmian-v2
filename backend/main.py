@@ -361,14 +361,14 @@ async def lifespan(app: FastAPI):
     if settings.asr_warmup_connections > 0 and all([settings.tencentcloud_app_id, settings.tencentcloud_secret_id, settings.tencentcloud_secret_key]):
         asyncio.create_task(_warmup_asr_pool())
 
-
-    # ✅ RAG 索引初始化（PageIndex + LSA）
+    # ✅ RAG 索引初始化（启动时自动加载或构建）
     if RAG_AVAILABLE:
         try:
             init_rag()
-            print("   RAG 索引: ✅ PageIndex + LSA 已就绪")
+            print("   RAG 索引: ✅ 已初始化")
         except Exception as e:
             print(f"   RAG 索引: ⚠️ 初始化失败 - {e}")
+
     yield
     print("👋 后端关闭...")
     if async_redis_client:
@@ -633,6 +633,7 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     session_id: Optional[str] = Field(default=None, max_length=64)
+    skip_tts: bool = False  # ✅ 文本模式下跳过 TTS 合成，加速响应
 
     @field_validator("message", mode="before")
     @classmethod
@@ -841,6 +842,80 @@ def get_user_memory(user_id: str) -> dict:
         print(f"[Redis get memory error] {e}")
     return {"concerns": [], "triggers": {}, "last_topic": "", "streak_days": 0}
 
+
+def update_streak(user_id: str) -> int:
+    """更新用户连续使用天数，返回当前连续天数"""
+    key = f"user:streak:{user_id}"
+    today = datetime.now().strftime("%Y-%m-%d")
+    try:
+        raw = redis_client.get(key)
+        if raw:
+            data = json.loads(raw)
+            last_date = data.get("last_date", "")
+            current = data.get("current_streak", 0)
+            if last_date == today:
+                return current
+            yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            if last_date == yesterday:
+                current += 1
+            else:
+                current = 1
+        else:
+            current = 1
+        redis_client.set(key, json.dumps({"current_streak": current, "last_date": today}, ensure_ascii=False))
+        return current
+    except Exception as e:
+        print(f"[update_streak error] {e}")
+        return 0
+
+
+def get_streak_days(user_id: str) -> int:
+    """获取用户当前连续使用天数"""
+    key = f"user:streak:{user_id}"
+    try:
+        raw = redis_client.get(key)
+        if raw:
+            return json.loads(raw).get("current_streak", 0)
+    except Exception:
+        pass
+    return 0
+
+
+def get_user_sleep_stats(user_id: str) -> dict:
+    """获取用户睡眠统计：总时长(分钟)、记录数、最新综合评分"""
+    total_minutes = 0
+    total_records = 0
+    latest_score = 0
+    latest_score_date = ""
+    try:
+        # 遍历最近 90 天的睡眠日记
+        for i in range(90):
+            date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+            diary = get_sleep_diary(user_id, date)
+            if diary and diary.get("tst_minutes", 0) > 0:
+                total_minutes += diary.get("tst_minutes", 0)
+                total_records += 1
+                # 优先使用保存的 sleep_score，无数据时回退计算
+                score = diary.get("sleep_score", 0)
+                if score <= 0 and diary.get("se", 0) > 0:
+                    # 回退计算：SE(百分比) * 0.6 + sleep_quality * 4 (≈ 0-100分)
+                    # 注意：diary 中 se 是 0-1 小数，需先转百分比
+                    se_percent = diary.get("se", 0) * 100
+                    quality = diary.get("sleep_quality", 3)
+                    score = min(100, max(0, round(se_percent * 0.6 + quality * 4)))
+                if score > 0 and date > latest_score_date:
+                    latest_score = score
+                    latest_score_date = date
+    except Exception as e:
+        print(f"[get_user_sleep_stats error] {e}")
+    return {
+        "total_minutes": total_minutes,
+        "total_records": total_records,
+        "latest_score": latest_score,
+        "latest_score_date": latest_score_date,
+    }
+
+
 def update_user_memory(user_id: str, message: str, response: str):
     key = f"user:memory:{user_id}"
     try:
@@ -916,6 +991,7 @@ class MorningSubmitRequest(BaseModel):
     se: float = 0.0                 # 前端计算的睡眠效率
     tst_hours: float = 0.0          # 前端计算的实际睡眠时长
     tib_hours: float = 0.0          # 前端计算的床上时间
+    sleep_score: int = 0            # 前端计算的综合睡眠评分(0-100)
 
 
 class SleepWindowRequest(BaseModel):
@@ -1156,8 +1232,8 @@ def _get_sleep_summary(user_id: str, days: int = 7) -> str:
         
         # 计算平均值
         se_list = [e.get("se", 0) for e in entries if e.get("se", 0) > 0]
-        tst_list = [e.get("tst_hours", 0) for e in entries if e.get("tst_hours", 0) > 0]
-        tib_list = [e.get("tib_hours", 0) for e in entries if e.get("tib_hours", 0) > 0]
+        tst_list = [e.get("tst_minutes", 0) / 60 for e in entries if e.get("tst_minutes", 0) > 0]
+        tib_list = [e.get("tib_minutes", 0) / 60 for e in entries if e.get("tib_minutes", 0) > 0]
         quality_list = [e.get("sleep_quality", 0) for e in entries if e.get("sleep_quality", 0) > 0]
         wake_list = [e.get("wake_count", 0) for e in entries]
         
@@ -1170,7 +1246,7 @@ def _get_sleep_summary(user_id: str, days: int = 7) -> str:
         # 最近一天数据
         latest = entries[0]
         latest_se = latest.get("se", 0)
-        latest_tst = latest.get("tst_hours", 0)
+        latest_tst = latest.get("tst_minutes", 0) / 60
         latest_quality = latest.get("sleep_quality", 0)
         
         # 趋势判断
@@ -2219,6 +2295,7 @@ async def chat_cbt(req: ChatRequest, user: AuthUser = Depends(get_current_user))
 async def _chat_events(req: ChatRequest, user_id: str):
     """CBT-I 动态会话事件生成器（SSE/WebSocket 共用核心逻辑）"""
     session_id = req.session_id or f"cbt_{datetime.now().strftime('%Y%m%d')}"
+    skip_tts = getattr(req, 'skip_tts', False)
 
     # 时间限额检查（所有 AI 生成内容均计入）
     q = _get_remaining_quota(user_id)
@@ -2262,15 +2339,16 @@ async def _chat_events(req: ChatRequest, user_id: str):
         history.append(Message(role="assistant", content=cbt_result['content']))
         save_session_history(user_id, session_id, history)
         has_yielded_tts = False
-        try:
-            sent_any = False
-            async for evt in tencent_tts_stream_sse(cbt_result['content'][:120], voice=base_tts_voice, speed=base_tts_speed):
-                yield evt
-                sent_any = True
-            if sent_any:
-                has_yielded_tts = True
-        except Exception as e:
-            print(f"[TTS-stream] special response error: {e}")
+        if not skip_tts:
+            try:
+                sent_any = False
+                async for evt in tencent_tts_stream_sse(cbt_result['content'][:120], voice=base_tts_voice, speed=base_tts_speed):
+                    yield evt
+                    sent_any = True
+                if sent_any:
+                    has_yielded_tts = True
+            except Exception as e:
+                print(f"[TTS-stream] special response error: {e}")
         yield {"event": "final", "content": cbt_result['content'], "should_close": cbt_result.get('should_close', False)}
         yield {"event": "done", "has_tts": has_yielded_tts}
         return
@@ -2302,13 +2380,14 @@ async def _chat_events(req: ChatRequest, user_id: str):
         history.append(Message(role="assistant", content=quick_greeting))
         save_session_history(user_id, session_id, history)
         yield {"event": "chunk", "data": quick_greeting}
-        try:
-            sent = False
-            async for evt in tencent_tts_stream_sse(quick_greeting[:120], voice=base_tts_voice, speed=base_tts_speed):
-                yield evt
-                sent = True
-        except Exception as e:
-            print(f"[TTS-quick] error: {e}")
+        sent = False
+        if not skip_tts:
+            try:
+                async for evt in tencent_tts_stream_sse(quick_greeting[:120], voice=base_tts_voice, speed=base_tts_speed):
+                    yield evt
+                    sent = True
+            except Exception as e:
+                print(f"[TTS-quick] error: {e}")
         yield {"event": "done", "session_id": session_id, "should_close": False, "has_tts": sent}
         return
 
@@ -2341,6 +2420,10 @@ async def _chat_events(req: ChatRequest, user_id: str):
             full_resp += chunk
             tts_buffer += chunk
             yield {"event": "chunk", "data": chunk}
+
+            # ✅ 文本模式下跳过所有 TTS 合成，加速响应
+            if skip_tts:
+                continue
 
             now_ms = asyncio.get_event_loop().time() * 1000
             if tts_last_flush_time is None:
@@ -2411,7 +2494,7 @@ async def _chat_events(req: ChatRequest, user_id: str):
                 tts_last_flush_time = now_ms
 
         # 流结束：刷新剩余文本
-        if tts_buffer.strip():
+        if not skip_tts and tts_buffer.strip():
             try:
                 async for evt in tencent_tts_stream_sse(tts_buffer[:MAX_TTS_CHARS].strip(), voice=base_tts_voice, speed=base_tts_speed):
                     yield evt
@@ -2456,6 +2539,7 @@ async def chat_cbt_stream(req: ChatRequest, user: AuthUser = Depends(get_current
     CBT-I 动态会话（流式 SSE 版本）
     """
     user_id = user.user_id
+    update_streak(user_id)
 
     async def sse():
         async for event in _chat_events(req, user_id):
@@ -2624,7 +2708,7 @@ async def submit_feedback(req: FeedbackRequest, user: AuthUser = Depends(get_cur
         return {"success": False, "message": "反馈保存失败"}
 
 @app.get("/api/v1/feedback/{user_id}")
-async def get_feedback(user: AuthUser = Depends(get_current_user), limit: int = Query(default=20, ge=1, le=100)):
+async def get_feedback(user: AuthUser = Depends(get_current_user), limit: int = Query(20, le=100)):
     user_id = user.user_id
     """获取用户最近反馈（用于前端展示"已反馈"状态）"""
     from datetime import datetime
@@ -3253,18 +3337,22 @@ async def create_sleep_record(req: SleepRecordRequest, user: AuthUser = Depends(
     return {"status": "ok", "record": record}
 
 @app.get("/api/v1/sleep/records/{user_id}")
-async def get_sleep_records(user: AuthUser = Depends(get_current_user), limit: int = Query(default=7, ge=1, le=30)):
+async def get_sleep_records(user: AuthUser = Depends(get_current_user), limit: int = Query(7, le=30)):
     user_id = user.user_id
     list_key = f"sleep_list:{user_id}"
     raw = redis_client.lrange(list_key, 0, limit - 1)
     records = [json.loads(r) for r in raw]
     scores = [r["score"] for r in records]
+    sleep_stats = get_user_sleep_stats(user_id)
     return {
         "records": records,
         "stats": {
             "count": len(records),
             "avg_score": round(sum(scores)/len(scores), 1) if scores else 0,
-            "streak_days": get_user_memory(user_id).get("streak_days", 0)
+            "streak_days": get_streak_days(user_id),
+            "total_minutes": sleep_stats["total_minutes"],
+            "total_records": sleep_stats["total_records"],
+            "latest_score": sleep_stats["latest_score"],
         }
     }
 
@@ -3334,7 +3422,7 @@ async def create_worry(req: WorryRecordRequest, user: AuthUser = Depends(get_cur
 
 
 @app.get("/api/v1/worries/{user_id}")
-async def get_worries(user: AuthUser = Depends(get_current_user), limit: int = Query(default=20, ge=1, le=100), unreviewed_only: bool = False):
+async def get_worries(user: AuthUser = Depends(get_current_user), limit: int = Query(20, le=100), unreviewed_only: bool = False):
     user_id = user.user_id
     list_key = f"worry_list:{user_id}"
     raw = redis_client.lrange(list_key, 0, limit - 1)
@@ -3493,6 +3581,7 @@ async def morning_submit(req: MorningSubmitRequest, user: AuthUser = Depends(get
             existing_diary["tst_minutes"] = final_tst
             existing_diary["se"] = final_se
             existing_diary["sol_estimate"] = metrics["sol_estimate"]
+            existing_diary["sleep_score"] = req.sleep_score
             existing_diary["updated_at"] = datetime.now().isoformat()
         else:
             # 如果没有睡前设定，创建一个新的日记条目
@@ -3513,10 +3602,12 @@ async def morning_submit(req: MorningSubmitRequest, user: AuthUser = Depends(get
                 "tst_minutes": final_tst,
                 "se": final_se,
                 "sol_estimate": metrics["sol_estimate"],
+                "sleep_score": req.sleep_score,
                 "created_at": datetime.now().isoformat(),
                 "updated_at": datetime.now().isoformat(),
             }
         save_sleep_diary(user_id, today, existing_diary)
+        update_streak(user_id)
 
         return {
             "status": "ok",
@@ -3729,7 +3820,7 @@ async def training_stats(min_score: float = 6.0):
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/v1/training/export")
-async def training_export(min_score: float = 6.0, limit: int = Query(default=500, ge=1, le=2000)):
+async def training_export(min_score: float = 6.0, limit: int = Query(500, le=2000)):
     """导出L3训练数据集（JSONL）"""
     if not RAG_AVAILABLE or not session_logger:
         raise HTTPException(status_code=503, detail="RAG模块未安装")
@@ -3866,6 +3957,7 @@ async def submit_sleep_diary(req: SleepDiarySubmitRequest, user: AuthUser = Depe
             }
 
         save_sleep_diary(user_id, date, existing)
+        update_streak(user_id)
 
         return {
             "status": "ok",
@@ -4393,7 +4485,7 @@ async def evaluate_session(session_data: dict):
 
 
 @app.get("/api/v1/evaluate/recent")
-async def get_recent_evaluations(days: int = 7, limit: int = Query(default=50, ge=1, le=200)):
+async def get_recent_evaluations(days: int = Query(7, le=90), limit: int = Query(50, le=200)):
     """获取最近会话的评估结果"""
     from datetime import datetime, timedelta
     import glob
@@ -4607,33 +4699,33 @@ async def admin_login(request: Request):
 
 
 @app.get("/api/v1/admin/dashboard")
-async def admin_dashboard(days: int = 7, limit: int = Query(default=500, ge=1, le=2000)):
+async def admin_dashboard(days: int = Query(7, le=90), limit: int = Query(500, le=2000)):
     """仪表盘数据"""
     return get_dashboard_stats(days=days, limit=limit)
 
 
 @app.get("/api/v1/admin/safety")
-async def admin_safety(days: int = 30, limit: int = Query(default=500, ge=1, le=2000)):
+async def admin_safety(days: int = Query(30, le=90), limit: int = Query(500, le=2000)):
     """安全中心事件列表"""
     return get_safety_events(days=days, limit=limit)
 
 
 @app.get("/api/v1/admin/quality")
-async def admin_quality(days: int = 30, limit: int = Query(default=500, ge=1, le=2000)):
+async def admin_quality(days: int = Query(30, le=90), limit: int = Query(500, le=2000)):
     """AI 质量监控统计"""
     return get_quality_stats(days=days, limit=limit)
 
 
 @app.get("/api/v1/admin/users")
-async def admin_users(days: int = 30, limit: int = Query(default=500, ge=1, le=2000)):
+async def admin_users(days: int = Query(30, le=90), limit: int = Query(500, le=2000)):
     """用户列表"""
     return get_user_list(days=days, limit=limit)
 
 
 @app.get("/api/v1/admin/users/{user_id}")
-async def admin_user_detail(user_id: str, limit: int = Query(default=20, ge=1, le=100)):
+async def admin_user_detail(user_id: str, limit: int = Query(20, le=100)):
     """用户详情"""
-    return get_user_detail(user_id=user_id, limit=limit)
+    return get_user_detail(user_id, limit=limit)
 
 
 
