@@ -159,6 +159,10 @@ Page({
     // 夜间陪伴模式
     companionLevel: 0,  // 0=未触发, 每触发一次+1
 
+    // 刺激控制提醒
+    showStimulusCard: false,  // 是否显示刺激控制提醒卡片
+    stimulusCardMessage: '',   // 卡片提示语
+
     // 入睡检测
     sleepDetectionQuietMs: 0,
     isSleepFadingOut: false,
@@ -176,6 +180,12 @@ Page({
     { text: '不急', speed: 70 },
     { text: '躺平就好', speed: 70 },
   ],
+
+  // 刺激控制提醒常量
+  STIMULUS_CONTROL_MS: 20 * 60 * 1000,  // 躺床超过20分钟未入睡触发提醒
+  _stimulusControlTimer: null,
+  _stimulusControlShown: false,
+  _sessionStartTime: null,  // 对话开始时间（用于计时）,
 
   // ================================================
   // 模式切换
@@ -393,6 +403,8 @@ Page({
       this._startVADLoop()
       // 启动陪伴计时器
       this._resetCompanionTimer()
+      // 启动刺激控制计时器
+      this._resetStimulusControlTimer()
     })
   },
 
@@ -401,6 +413,7 @@ Page({
     this.stopListening()
     this.stopAll()
     if (this._companionTimer) clearTimeout(this._companionTimer)
+    if (this._stimulusControlTimer) clearTimeout(this._stimulusControlTimer)
     try { innerAudioContext.volume = 0 } catch (e) {}
     this.setData({
       sleepModeActive: false, isListening: false,
@@ -410,6 +423,7 @@ Page({
       sleepDetectionQuietMs: 0,
       isSleepFadingOut: false,
       companionLevel: 0,
+      showStimulusCard: false,
     })
   },
 
@@ -1143,6 +1157,8 @@ Page({
                 this._ttsPlaying = false
                 this.setData({ isPlayingTTS: false, _asrPending: false })
                 if (this.data.sleepModeActive) this._resetCompanionTimer()
+          // 刺激控制计时器：每次AI回复都重置（用户还在互动=还没睡着）
+          this._resetStimulusControlTimerOnActivity()
                 if (this.data.sleepModeActive && !this.data._pmrActive) {
                   this.setData({ statusText: '聆听中', statusHint: '继续说吧' })
                   setTimeout(() => this._startVADLoop(), 500)
@@ -1229,8 +1245,62 @@ Page({
   },
 
   // ================================================
-  // 夜间陪伴模式 — 主动关怀
-  // ================================================
+// 刺激控制提醒（Stimulus Control）— CBT-I 核心行为干预
+// 原理：躺床超过20分钟睡不着 → 起床做无聊的事 → 等困了再回床
+// 目的：重新建立"床 = 睡觉"的信号，打破失眠-焦虑循环
+// ================================================
+
+  // 启动刺激控制计时器（每次进入睡眠模式时调用）
+  _resetStimulusControlTimer() {
+    // 清除旧计时器
+    if (this._stimulusControlTimer) {
+      clearTimeout(this._stimulusControlTimer)
+      this._stimulusControlTimer = null
+    }
+    // 重置显示标志（每次进入睡眠模式可再次触发）
+    this._stimulusControlShown = false
+    // 记录会话开始时间
+    this._sessionStartTime = Date.now()
+
+    // 只有睡眠模式激活时启动
+    if (!this.data.sleepModeActive) return
+
+    console.log('[StimulusControl] Timer started, will fire in', this.STIMULUS_CONTROL_MS / 1000 / 60, 'minutes')
+    this._stimulusControlTimer = setTimeout(() => {
+      this._showStimulusReminder()
+    }, this.STIMULUS_CONTROL_MS)
+  },
+
+  // 显示刺激控制提醒卡片（计时器触发时调用）
+  _showStimulusReminder() {
+    if (!this.data.sleepModeActive) return
+    if (this._stimulusControlShown) return  // 防止重复弹出
+    this._stimulusControlShown = true
+
+    console.log('[StimulusControl] Firing - showing card')
+    this.setData({
+      showStimulusCard: true,
+      stimulusCardMessage: '躺在床上超过 20 分钟还没睡着？起身去别的房间，做点无聊的事，等困了再回来。'
+    })
+  },
+
+  // 用户点"知道了"关闭卡片
+  dismissStimulusCard() {
+    this.setData({ showStimulusCard: false })
+    // 重置标志，下次 20 分钟后再次触发（如果还在睡眠模式）
+    this._stimulusControlShown = false
+  },
+
+  // 每次用户说话/AI 回复时重置计时器（主动互动说明还没睡着）
+  _resetStimulusControlTimerOnActivity() {
+    if (this.data.sleepModeActive && !this.data.isSleepFadingOut) {
+      this._resetStimulusControlTimer()
+    }
+  },
+
+// ================================================
+// 夜间陪伴模式 - 主动关怀
+// ================================================
   _startCompanionTimer() {
     if (this._companionTimer) clearTimeout(this._companionTimer)
     this._companionTimer = setTimeout(() => {

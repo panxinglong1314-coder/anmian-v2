@@ -233,6 +233,20 @@
   </view>
 
   <!-- ================================================
+       刺激控制提醒浮层（CBT-I 行为干预）
+       触发条件：躺床超过 20 分钟未入睡
+       ================================================ -->
+  <view wx:if="{{showStimulusCard}}" class="stimulus-overlay" bindtap="dismissStimulusCard">
+    <view class="stimulus-card" catchtap="stopProp">
+      <view class="stimulus-icon">🛏️</view>
+      <view class="stimulus-title">睡不着就别躺着</view>
+      <view class="stimulus-message">{{stimulusCardMessage}}</view>
+      <view class="stimulus-sub">这是 CBT-I 失眠认知行为疗法的核心技巧</view>
+      <button class="stimulus-btn" bindtap="dismissStimulusCard">知道了，去做点别的</button>
+    </view>
+  </view>
+
+  <!-- ================================================
        关闭仪式浮层
        ================================================ -->
   <view wx:if="{{showClosure}}" class="closure-overlay {{_dimming ? 'closure-dimming' : ''}}">
