@@ -1,0 +1,31 @@
+{
+  "session_id": "sess_e2e_001",
+  "user_id": "test_user_001",
+  "start_time": "2026-04-29T20:11:37.412172",
+  "end_time": null,
+  "turns": [
+    {
+      "role": "user",
+      "content": "我睡不着，很焦虑",
+      "timestamp": "2026-04-29T20:11:37.412205",
+      "technique_used": null,
+      "anxiety_level": "moderate"
+    },
+    {
+      "role": "assistant",
+      "content": "胸口发紧？  \n还是头脑停不下来？  \n选一个，说说看。",
+      "timestamp": "2026-04-29T20:11:37.412217",
+      "technique_used": "text",
+      "anxiety_level": "moderate"
+    }
+  ],
+  "scenario_id": null,
+  "insomnia_subtype": null,
+  "initial_anxiety": "moderate",
+  "final_anxiety": null,
+  "outcome": null,
+  "sleep_quality": null,
+  "rating": 4,
+  "notes": "挺有帮助的",
+  "stage": null
+}
