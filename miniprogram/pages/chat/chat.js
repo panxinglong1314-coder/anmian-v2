@@ -207,7 +207,10 @@ Page({
         isPlayingTTS: false,
         feedback: undefined,
       }))
-      this.setData({ mode: 'text', messages: msgs })
+      this.setData({ mode: 'text', messages: msgs }, () => {
+        // 进入文本模式也启动刺激控制计时器
+        this._resetStimulusControlTimer()
+      })
     } else {
       this.stopAll()
       // ✅ 文本→睡眠：保留 conversationLog 和 conversationRound，不清空历史
@@ -255,7 +258,10 @@ Page({
         },
         fail: () => {
           console.log('[Privacy+Auth] 麦克风拒绝 → 进入文字模式')
-          this.setData({ mode: 'text' })
+          this.setData({ mode: 'text' }, () => {
+            // 进入文本模式，启动刺激控制计时器
+            this._resetStimulusControlTimer()
+          })
           wx.showToast({ title: '已切换文字模式，可随时在设置中开启语音', icon: 'none', duration: 3000 })
         }
       })
@@ -1157,8 +1163,6 @@ Page({
                 this._ttsPlaying = false
                 this.setData({ isPlayingTTS: false, _asrPending: false })
                 if (this.data.sleepModeActive) this._resetCompanionTimer()
-          // 刺激控制计时器：每次AI回复都重置（用户还在互动=还没睡着）
-          this._resetStimulusControlTimerOnActivity()
                 if (this.data.sleepModeActive && !this.data._pmrActive) {
                   this.setData({ statusText: '聆听中', statusHint: '继续说吧' })
                   setTimeout(() => this._startVADLoop(), 500)
@@ -1250,20 +1254,22 @@ Page({
 // 目的：重新建立"床 = 睡觉"的信号，打破失眠-焦虑循环
 // ================================================
 
-  // 启动刺激控制计时器（每次进入睡眠模式时调用）
+  // 启动刺激控制计时器（进入睡眠模式或文本模式聊天时调用）
+  // 固定 20 分钟，不在互动时重置
   _resetStimulusControlTimer() {
     // 清除旧计时器
     if (this._stimulusControlTimer) {
       clearTimeout(this._stimulusControlTimer)
       this._stimulusControlTimer = null
     }
-    // 重置显示标志（每次进入睡眠模式可再次触发）
+    // 重置显示标志（每次可再次触发）
     this._stimulusControlShown = false
     // 记录会话开始时间
     this._sessionStartTime = Date.now()
 
-    // 只有睡眠模式激活时启动
-    if (!this.data.sleepModeActive) return
+    // 睡眠模式 或 文本模式 都启动计时器
+    const isActive = this.data.sleepModeActive || this.data.mode === 'text'
+    if (!isActive) return
 
     console.log('[StimulusControl] Timer started, will fire in', this.STIMULUS_CONTROL_MS / 1000 / 60, 'minutes')
     this._stimulusControlTimer = setTimeout(() => {
@@ -1287,15 +1293,8 @@ Page({
   // 用户点"知道了"关闭卡片
   dismissStimulusCard() {
     this.setData({ showStimulusCard: false })
-    // 重置标志，下次 20 分钟后再次触发（如果还在睡眠模式）
-    this._stimulusControlShown = false
-  },
-
-  // 每次用户说话/AI 回复时重置计时器（主动互动说明还没睡着）
-  _resetStimulusControlTimerOnActivity() {
-    if (this.data.sleepModeActive && !this.data.isSleepFadingOut) {
-      this._resetStimulusControlTimer()
-    }
+    // 关闭卡片后重新启动计时器（新一轮 20 分钟）
+    this._resetStimulusControlTimer()
   },
 
 // ================================================
@@ -2706,7 +2705,9 @@ Page({
         console.warn('[Recorder] 模拟器无麦克风，自动切换为文字模式')
         wx.showToast({ title: '模拟器无麦克风，已切换为文字模式', icon: 'none', duration: 3000 })
         this.exitSleepMode()
-        this.setData({ mode: 'text', sleepModeActive: false, isRecording: false, audioLevel: 0 })
+        this.setData({ mode: 'text', sleepModeActive: false, isRecording: false, audioLevel: 0 }, () => {
+          this._resetStimulusControlTimer()
+        })
         return
       }
 
@@ -2714,7 +2715,9 @@ Page({
       if (this.data.sleepModeActive) {
         console.warn('[Recorder] 录音失败，退出睡眠模式')
         this.exitSleepMode()
-        this.setData({ mode: 'text', sleepModeActive: false, isRecording: false, audioLevel: 0 })
+        this.setData({ mode: 'text', sleepModeActive: false, isRecording: false, audioLevel: 0 }, () => {
+          this._resetStimulusControlTimer()
+        })
         if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
       }
     })
