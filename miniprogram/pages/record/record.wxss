@@ -73,7 +73,7 @@
    区块1：三指标横排
    ================================================ */
 .stats-section {
-  padding: 0 0 28rpx 0;
+  padding: 0 0 12rpx 0;
 }
 
 .stats-row {
@@ -126,23 +126,23 @@
    区块2：洞察文字行（轻量，无边框无背景）
    ================================================ */
 .insight-row {
-  padding: 0 4rpx;
-  margin: 16rpx 0 0 0;
+  padding: 0;
+  margin: 10rpx 0 0 0;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10rpx;
 }
 .insight-text {
   font-size: 24rpx;
   color: #8BA3B9;
-  line-height: 1.6;
+  line-height: 1.5;
   flex: 1;
 }
 .insight-prefix {
   font-size: 24rpx;
   color: #F5C869;
   flex-shrink: 0;
-  line-height: 1.6;
+  align-self: center;
 }
 
 /* ================================================
@@ -178,7 +178,7 @@
 
 /* 睡眠限制卡片：去掉粗边框，改为细线 */
 .restriction-card {
-  border-left: 4rpx solid rgba(245,200,105,0.3);
+  border-left: 3rpx solid rgba(245,200,105,0.18);
 }
 
 /* Phase 颜色指示（细线 + 对应色调文字） */
@@ -330,8 +330,8 @@
 .worry-entry {
   display: flex;
   align-items: center;
-  gap: 12rpx;
-  padding: 14rpx 4rpx 0 4rpx;
+  gap: 10rpx;
+  padding: 10rpx 0 0 0;
   margin: 0;
   border-top: 1rpx solid rgba(255,255,255,0.06);
 }
@@ -341,6 +341,7 @@
   border-radius: 50%;
   background: #F5C869;
   flex-shrink: 0;
+  align-self: center;
 }
 .worry-entry-dot.dot-empty {
   background: rgba(139,163,185,0.4);

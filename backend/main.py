@@ -2326,7 +2326,21 @@ async def _chat_events(req: ChatRequest, user_id: str):
     except Exception:
         pass
 
-    yield {"event": "cbt_state", "data": cbt_result}
+# CBT 阶段中文标签和提示语
+    phase_value = cbt_result.get("next_phase", "")
+    phase_map = {
+        "assessment": ("了解", "先了解一下你今晚的状态，不用急着回答"),
+        "worry_capture": ("说出", "慢慢说就好，我帮你记着"),
+        "cognitive": ("重构", "换个角度看，也许没那么严重"),
+        "relaxation": ("放松", "跟着呼吸，慢慢来"),
+        "closure": ("入睡", "准备好了，我们结束今晚的对话"),
+        "safety": ("", ""),
+        "normal_chat": ("", ""),
+    }
+    label, hint = phase_map.get(phase_value, ("", ""))
+    cbt_result["phase_label"] = label
+    cbt_result["phase_hint"] = hint
+    yield {\event\: \cbt_state\, \data\: cbt_result}
 
     # 获取 TTS 参数（语速由 CBT 状态决定，不从 LLM 输出解析）
     tts_params = cbt_result.get('tts_params', {})

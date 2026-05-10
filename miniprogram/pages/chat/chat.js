@@ -89,6 +89,12 @@ Page({
     isListening: false,
     isRecording: false,
     audioLevel: 0,
+
+    // CBT 阶段进度
+    cbtPhase: '',
+    cbtPhaseLabel: '',
+    cbtPhaseHint: '',
+    showCbtPhase: false,
     statusText: '准备入睡',
     statusHint: '点击下方按钮，将手机放在枕边',
     conversationLog: [],
@@ -1102,6 +1108,23 @@ Page({
           if (data.event === 'final' && data.content) {
             streamingText = data.content
             flushText()
+          }
+          // CBT 阶段状态（用于进度条 UI）
+          if (data.event === 'cbt_state') {
+            const phase = data.data
+            const label = phase.phase_label || ''
+            const hint = phase.phase_hint || ''
+            if (label && phase.phase !== 'normal_chat' && phase.phase !== 'safety') {
+              this.setData({
+                cbtPhase: phase.phase,
+                cbtPhaseLabel: label,
+                cbtPhaseHint: hint,
+                showCbtPhase: true,
+              })
+              console.log("[CBT-UI] phase=", phase.phase, "label=", label, "hint=", hint)
+            } else {
+              this.setData({ showCbtPhase: false })
+            }
           }
           // 兼容新版按句合成（tts_sentence：完整 MP3）
           if (data.event === 'tts_sentence') {

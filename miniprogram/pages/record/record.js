@@ -14,7 +14,7 @@ function _apiReq(url, data, extra = {}) {
       console.warn('[API timeout]', url)
       doResolve({ statusCode: 0, data: null, _timeout: true })
     }, 30000)
-    wx.request({
+    app.authRequest({
       url,
       data,
       timeout: 30000,
@@ -72,6 +72,28 @@ Page({
 
     // 睡眠效率仪表盘
     showSleepDashboard: false,
+    sheetMode: 'view',  // 'view' | 'record'
+    todayDiaryWritten: false,  // 今日是否已填写睡眠日记
+    // 睡眠日记记录表单
+    diaryBedTime: '23:00',
+    diaryWakeTime: '07:00',
+    diarySleepLatency: 15,
+    diaryWakeCount: 0,
+    diaryQuality: 3,
+    diaryNote: '',
+    wakeCountOptions: [
+      { label: '没醒', value: 0 },
+      { label: '1次', value: 1 },
+      { label: '2次', value: 2 },
+      { label: '3次+', value: 3 },
+    ],
+    qualityOptions: [
+      { label: '很差', emoji: '😫', value: 1 },
+      { label: '较差', emoji: '😟', value: 2 },
+      { label: '一般', emoji: '😐', value: 3 },
+      { label: '较好', emoji: '😊', value: 4 },
+      { label: '很好', emoji: '🤩', value: 5 },
+    ],
     sleepDashboard: {
       hasData: false,
       stats: null,
@@ -147,7 +169,7 @@ Page({
     const token = app.getToken()
     if (!token) return
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/user/profile`,
         method: 'GET',
         header: { Authorization: `Bearer ${token}` },
@@ -197,11 +219,26 @@ Page({
         const records = d.records || []
         const weekly = records.length
         const streak = d.stats?.streak_days || 0
+        const totalMinutes = d.stats?.total_minutes || 0
+        const totalRecords = d.stats?.total_records || 0
+        const latestScore = d.stats?.latest_score || 0
+        // 平均每天睡眠时长（小时），保留1位小数
+        const hoursPerDay = totalRecords > 0 ? Math.round(totalMinutes / totalRecords / 60 * 10) / 10 : 0
+        let sleepScoreColor = '#8BA3B9'
+        if (latestScore >= 80) sleepScoreColor = '#7EC8A3'
+        else if (latestScore >= 60) sleepScoreColor = '#F5C869'
+        else if (latestScore > 0) sleepScoreColor = '#E8846B'
         this.setData({
-          'stats.total': d.stats?.count || 0,
+          'stats.total': hoursPerDay,
           'stats.streak': streak,
           // 空状态也显示 0/7，不打断用户预期
           planStats: { weekly, target: 7, streak },
+          // 检查今日是否已记录睡眠（records 按日期倒序，第一条是今天则已记录）
+          todayDiaryWritten: records.length > 0 && this._isToday(records[0].recorded_at),
+          // 最新综合睡眠评分(0-100)
+          sleepScore: latestScore > 0 ? latestScore : '--',
+          sleepScoreColor,
+          sleepRating: latestScore > 0 ? Math.min(5, Math.max(1, Math.ceil(latestScore / 20))) : 0,
         })
         console.log('[Record] planStats set', { weekly, target: 7, streak })
       }
@@ -347,14 +384,34 @@ Page({
     return `${String(wakeH).padStart(2, '0')}:${String(wakeM).padStart(2, '0')}`
   },
 
-  // 显示睡眠效率仪表盘
+  // 显示睡眠效率仪表盘（默认查看模式）
   showSleepDashboardPanel() {
-    this.setData({ showSleepDashboard: true })
+    this.setData({ sheetMode: 'view', showSleepDashboard: true })
+  },
+
+  // 从晨起提示直接打开记录模式
+  openSleepRecordSheet() {
+    this.setData({ sheetMode: 'record', showSleepDashboard: true })
   },
 
   // 隐藏睡眠效率仪表盘
   hideSleepDashboard() {
     this.setData({ showSleepDashboard: false })
+  },
+
+  // 判断某 ISO 时间戳是否是今天
+  _isToday(isoString) {
+    if (!isoString) return false
+    const d = new Date(isoString)
+    const now = new Date()
+    return d.getFullYear() === now.getFullYear()
+      && d.getMonth() === now.getMonth()
+      && d.getDate() === now.getDate()
+  },
+
+  // 切换到记录模式（在查看模式弹窗内点击"记录今早睡眠"）
+  switchToRecordMode() {
+    this.setData({ sheetMode: 'record' })
   },
 
   // 滚动到焦虑趋势区块
@@ -379,14 +436,20 @@ Page({
       this.setData({ showSleepRating: true })
     }
 
-    // 如果有昨晚睡眠数据，显示一下
-    const sleepScore = wx.getStorageSync('last_sleep_score')
-    if (sleepScore) {
-      const colors = ['#E8846B','#E8846B','#F5C869','#7EC8A3','#7EC8A3']
+    // 睡眠分：优先使用 this.data 中已加载的值，无数据时回退到本地缓存
+    let sleepScore = this.data.sleepScore
+    if (!sleepScore || sleepScore === '--') {
+      sleepScore = wx.getStorageSync('last_sleep_score') || 0
+    }
+    if (sleepScore > 0) {
+      let sleepScoreColor = '#8BA3B9'
+      if (sleepScore >= 80) sleepScoreColor = '#7EC8A3'
+      else if (sleepScore >= 60) sleepScoreColor = '#F5C869'
+      else sleepScoreColor = '#E8846B'
       this.setData({
         sleepScore,
-        sleepScoreColor: colors[sleepScore - 1] || '#8BA3B9',
-        sleepRating: sleepScore,
+        sleepScoreColor,
+        sleepRating: Math.min(5, Math.max(1, Math.ceil(sleepScore / 20))),
       })
     }
   },
@@ -407,7 +470,7 @@ Page({
     })
 
     // 上报给后端
-    wx.request({
+    app.authRequest({
       url: `${API}/api/v1/sleep/record`,
       method: 'POST',
       data: { user_id: app.globalData.userId, date: today, score },
@@ -435,7 +498,7 @@ Page({
     const worryId = e.currentTarget.dataset.worryId
     const idx = e.currentTarget.dataset.index
     try {
-      await wx.request({
+      await app.authRequest({
         url: `${API}/api/v1/worry/${worryId}`,
         method: 'PATCH',
         data: { reviewed: true },
@@ -473,7 +536,7 @@ Page({
     // 从后端拉本月的汇总数据
     const userId = app.globalData.userId
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/sleep/records/${userId}?limit=30`,
       })
       if (res.statusCode === 200 && res.data.records) {
@@ -484,7 +547,7 @@ Page({
           : '--'
 
         // 从 memory 拿焦虑关键词
-        const memRes = await wx.request({ url: `${API}/api/v1/memory/${userId}` })
+        const memRes = await app.authRequest({ url: `${API}/api/v1/memory/${userId}` })
         const mem = memRes.data?.memory || {}
         const concerns = Object.entries(mem.triggers || {})
           .sort((a,b) => b[1]-a[1])
@@ -558,9 +621,10 @@ Page({
     const now = new Date()
     const hour = now.getHours()
     if (hour < 7 || hour > 12) return  // not morning hours
+    console.log('[Morning] hour=', hour, 'check status')
 
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/morning/check?user_id=${app.globalData.userId}`,
       })
       if (res.statusCode === 200 && !res.data.completed) {
@@ -635,7 +699,7 @@ Page({
     const sleep_window_end   = `${String(sw.wakeHour !== undefined ? sw.wakeHour : 7).padStart(2,'0')}:${String(sw.wakeMin || 0).padStart(2,'0')}`
 
     try {
-      await wx.request({
+      await app.authRequest({
         url: `${API}/api/v1/morning/submit`,
         method: 'POST',
         header: { 'Content-Type': 'application/json' },
@@ -682,7 +746,7 @@ Page({
     const r = this.data.sleepRestriction
     if (!r || !r.adjustment_needed) return
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/sleep/restriction/apply`,
         method: 'POST',
         header: { 'Content-Type': 'application/json' },
@@ -701,6 +765,61 @@ Page({
       }
     } catch (e) {
       console.error('[applySleepRestriction]', e)
+      wx.showToast({ title: '网络错误', icon: 'none' })
+    }
+  },
+
+  // ========== 睡眠日记表单 ==========
+  onDiaryBedTimeChange(e) {
+    this.setData({ diaryBedTime: e.detail.value })
+  },
+  onDiaryWakeTimeChange(e) {
+    this.setData({ diaryWakeTime: e.detail.value })
+  },
+  onDiarySleepLatencyChange(e) {
+    this.setData({ diarySleepLatency: e.detail.value })
+  },
+  onDiaryWakeCountChange(e) {
+    this.setData({ diaryWakeCount: e.currentTarget.dataset.value })
+  },
+  onDiaryQualityChange(e) {
+    this.setData({ diaryQuality: e.currentTarget.dataset.value })
+  },
+  onDiaryNoteChange(e) {
+    this.setData({ diaryNote: e.detail.value })
+  },
+
+  async submitDiary() {
+    const { diaryBedTime, diaryWakeTime, diarySleepLatency, diaryWakeCount, diaryQuality, diaryNote } = this.data
+    const userId = app.globalData.userId
+    if (!userId) return
+    wx.showLoading({ title: '保存中...', mask: true })
+    try {
+      const res = await app.authRequestAsync({
+        url: `${API}/api/v1/sleep/diary`,
+        method: 'POST',
+        header: { 'Content-Type': 'application/json' },
+        data: {
+          user_id: userId,
+          bed_time: diaryBedTime,
+          wake_time: diaryWakeTime,
+          sleep_latency_minutes: diarySleepLatency,
+          wake_count: diaryWakeCount,
+          quality: diaryQuality,
+          note: diaryNote,
+        },
+      })
+      wx.hideLoading()
+      if (res.statusCode === 200 || res.statusCode === 201) {
+        wx.showToast({ title: '已保存', icon: 'success' })
+        this.setData({ showSleepDashboard: false, todayDiaryWritten: true })
+        this.loadData()
+      } else {
+        wx.showToast({ title: '保存失败', icon: 'none' })
+      }
+    } catch (e) {
+      wx.hideLoading()
+      console.error('[submitDiary]', e)
       wx.showToast({ title: '网络错误', icon: 'none' })
     }
   },
