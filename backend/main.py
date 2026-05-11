@@ -3603,6 +3603,36 @@ async def morning_submit(req: MorningSubmitRequest, user: AuthUser = Depends(get
 
         save_morning_record(user_id, today, record)
 
+        # P1: 晨间打卡 → 更新用户SleepProfile
+        try:
+            from cbt_manager import user_profile_manager
+            user_profile_manager.set_redis(redis_client)
+            profile = await user_profile_manager.load_profile(user_id)
+            # 更新睡眠效率（SE）趋势
+            se_trend = profile.get("sleep_quality_trend", [])
+            se_trend.append(final_se)
+            profile["sleep_quality_trend"] = se_trend[-14:]  # 保留最近14天
+            profile["avg_se"] = round(sum(se_trend) / len(se_trend), 3) if se_trend else 0.0
+            profile["last_sleep_quality"] = req.sleep_quality  # 1-4
+            # 从睡眠数据推断失眠亚型
+            sol_est = metrics.get("sol_estimate", 0)
+            waso_est = req.waso_minutes or metrics.get("waso", 0)
+            if sol_est > 30 and waso_est < 15:
+                profile["insomnia_type"] = "sleep_onset"
+            elif waso_est >= 30:
+                profile["insomnia_type"] = "sleep_maintenance"
+            else:
+                profile["insomnia_type"] = profile.get("insomnia_type", "mixed")
+            # 从疲劳度推断敏感度
+            if req.fatigue_level and req.fatigue_level >= 4:
+                profile["sensitivity"] = "highly_sensitive"
+            # 更新睡眠时间窗口（用于睡前仪式推荐）
+            profile["sleep_window_bed"] = req.bed_time_estimate or ""
+            profile["sleep_window_wake"] = req.wake_time_estimate or ""
+            await user_profile_manager.save_profile(user_id, profile)
+        except Exception as e:
+            print(f"[MorningSubmit] SleepProfile update failed: {e}")
+
         # L2: 晨间打卡 → 标记昨晚会话为"sleep_reported"（最高质量数据）
         if RAG_AVAILABLE and session_logger:
             finalize_session(outcome="sleep_reported", sleep_quality=req.sleep_quality)

@@ -17,7 +17,8 @@ class EmotionResult:
     risk_flag: str        # CONTINUE / CONTINUE_WITH_CARE / IMMEDIATE_SAFETY
     worry_domains: List[str]  # 担忧领域
     cognitive_distortions: List[str]  # 认知扭曲信号
-    suicide_risk: float   # 自杀风险 0-1
+    continuous_anxiety_score: float = 5.0  # 连续焦虑分数 0-10，LLM辅助时可更高精度
+    suicide_risk: float = 0.0  # 自杀风险 0-1
 
 class EmotionAnalyzer:
     """情感分析器（规则基线 + LLM 增强）"""
@@ -98,6 +99,8 @@ class EmotionAnalyzer:
                 intensity = 5
         
         confidence = min(max_score / 6, 1.0) if max_score > 0 else 0.3
+        # 连续焦虑分数
+        continuous_score = self.get_continuous_anxiety_score(text)
         
         return EmotionResult(
             primary=primary,
@@ -107,9 +110,50 @@ class EmotionAnalyzer:
             risk_flag=risk_flag,
             worry_domains=worry_domains,
             cognitive_distortions=cognitive_distortions,
-            suicide_risk=suicide_risk
+            suicide_risk=suicide_risk,
+            continuous_anxiety_score=continuous_score
         )
     
+    def get_continuous_anxiety_score(self, text: str) -> float:
+        """
+        返回连续焦虑评分 0-10。
+        基于关键词加权 + LLM辅助（如有）综合计算。
+        比 analyze().intensity (1-5离散) 更精细。
+        """
+        text_lower = text.lower()
+        base_score = 5.0  # 默认中性
+
+        # 强焦虑词（权重高）
+        high_anxiety = [
+            ("非常害怕", 2.0), ("特别担心", 1.8), ("睡不着", 1.5),
+            ("一直想", 1.5), ("脑子停不下来", 1.5), ("焦虑到", 2.0),
+            ("很紧张", 1.2), ("心慌", 1.5), ("害怕睡着", 1.8),
+            ("反复担心", 1.3), ("灾难化", 2.0), ("控制不住", 1.5),
+        ]
+        # 情绪缓和词（减分）
+        calming = [
+            ("放松", -0.8), ("好多了", -1.5), ("不担心了", -1.5),
+            ("感觉好些", -1.2), ("平静", -1.0), ("安心", -1.2),
+            ("不那么焦虑", -1.3), ("现在好点了", -1.2),
+        ]
+        # 自杀/自伤风险词（直接拉满）
+        crisis = [
+            "想死", "不想活了", "活着没意思", "死了算了", "自杀", "自残"
+        ]
+
+        score = base_score
+        for kw, weight in high_anxiety:
+            if kw in text_lower:
+                score += weight
+        for kw, weight in calming:
+            if kw in text_lower:
+                score += weight
+        for kw in crisis:
+            if kw in text_lower:
+                score = 10.0
+                break
+        return max(0.0, min(10.0, round(score, 1)))
+
     def to_dict(self, result: EmotionResult) -> dict:
         return {
             "primary": result.primary,

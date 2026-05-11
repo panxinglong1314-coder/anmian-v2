@@ -433,14 +433,29 @@ class CBTManager:
         state.turns_in_phase += 1
         state.total_turns += 1
 
-        # ── 1. 情绪检测（关键词 + 语义兜底）─────────────────
+        # ── 1. 实时危机检测（P3增强：危机关键词实时触发，不等情绪分析）────
+        crisis_keywords = {
+            "suicide": ["想死", "不想活了", "活着没意思", "死了算了", "结束生命", "没有希望"],
+            "self_harm": ["自残", "自伤", "割腕", "自杀倾向", "活不下去"],
+        }
+        crisis_type_detected = None
+        user_lower = user_message.lower()
+        for crisis, kws in crisis_keywords.items():
+            if any(kw in user_lower for kw in kws):
+                crisis_type_detected = crisis
+                break
+
+        if crisis_type_detected:
+            state.phase = SessionPhase.SAFETY_PROTOCOL
+            return self._safety_response(state, crisis_type=crisis_type_detected)
+
+        # ── 2. 情绪检测（关键词 + 语义兜底）─────────────────
         anxiety_level, domain, action = self.emotion_detector.detect_anxiety(user_message)
         state.anxiety_level = anxiety_level
         
-        # ── 2. 焦虑分数序列（用于情绪节奏追踪）──────────────
-        ANXIETY_SCORE_MAP = {AnxietyLevel.NORMAL: 1.0, AnxietyLevel.MILD: 2.5, 
-                             AnxietyLevel.MODERATE: 4.0, AnxietyLevel.SEVERE: 5.0}
-        state.anxiety_scores.append(ANXIETY_SCORE_MAP.get(anxiety_level, 1.0))
+        # ── 2. 连续焦虑分数序列（0-10精细维度）─────────────
+        continuous_score = self.emotion_detector.get_continuous_anxiety_score(user_message)
+        state.anxiety_scores.append(continuous_score)
         state.anxiety_scores = state.anxiety_scores[-10:]  # 只保留最近10轮
         
         # ── 3. 情绪节奏计算（线性回归斜率）────────────────
@@ -511,7 +526,10 @@ class CBTManager:
                 personalized_relax_threshold = max(2, min(6, round(avg_recovery * 0.9)))
         
         if state.phase in [SessionPhase.WORRY_CAPTURE, SessionPhase.COGNITIVE_RESTRUCTURING]:
-            if state.turns_in_phase >= personalized_relax_threshold:
+            should_relax, relax_reason = self._gradient_relax_trigger(
+                state, personalized_relax_threshold, profile
+            )
+            if should_relax:
                 state.phase = SessionPhase.RELAXATION_INDUCTION
                 state.relaxation_technique = self._select_relaxation_technique(
                     anxiety_level, worry_category=worry_category, 
@@ -596,6 +614,64 @@ class CBTManager:
         elif state.emotional_momentum == EmotionalMomentum.DETERIORATING:
             return 2.0
         return 3.0
+
+    def _gradient_relax_trigger(self, state: SessionState, base_threshold: int, profile: Dict) -> Tuple[bool, str]:
+        """
+        P0: 梯度衰减判断放松触发时机。
+        替代固定轮次阈值，用情绪收敛速度决定。
+        
+        Returns: (should_trigger: bool, reason: str)
+        """
+        scores = state.anxiety_scores
+        n = len(scores)
+        if n < 3:
+            # 数据不足，用轮次兜底
+            return state.turns_in_phase >= base_threshold, "轮次兜底（数据不足）"
+
+        # 梯度计算：最近N轮 vs 前N轮 的均值差异
+        recent = scores[-3:]
+        baseline = scores[-6:-3] if n >= 6 else scores[:-3]
+        if not baseline:
+            return state.turns_in_phase >= base_threshold, "轮次兜底（基线不足）"
+
+        avg_recent = sum(recent) / len(recent)
+        avg_baseline = sum(baseline) / len(baseline)
+        delta = avg_recent - avg_baseline  # 负=情绪在改善
+
+        import math
+        if n >= 5:
+            # 线性回归斜率
+            try:
+                import numpy as np
+                x = np.arange(n)
+                slope = np.polyfit(x, np.array(scores), 1)[0]
+            except Exception:
+                slope = delta / n
+        else:
+            slope = delta / max(n, 1)
+
+        # 判断条件：梯度明显下降 OR 分数已接近基线（改善超过40%）
+        improved = slope < -0.2 or delta < -1.2  # 下降超过0.2/轮 或 改善超过1.2分
+        near_baseline = avg_recent < (avg_baseline * 0.6) if avg_baseline > 0 else False
+
+        if improved:
+            reason = f"情绪改善（梯度={slope:.2f}，变化量={delta:.1f}）"
+            return state.turns_in_phase >= 2, reason
+        if near_baseline:
+            reason = f"接近基线（当前{avg_recent:.1f} vs 基线{avg_baseline:.1f}）"
+            return state.turns_in_phase >= 2, reason
+
+        # 未达标：用历史个性化阈值兜底（P1增强：利用SleepProfile个性化阈值）
+        threshold = base_threshold
+        if profile:
+            sensitivity = profile.get("sensitivity", "normal")
+            if sensitivity == "highly_sensitive":
+                threshold = max(2, threshold - 1)  # 高敏感用户提前进入放松，更温和
+            avg_se = profile.get("avg_se", 0.0)
+            if avg_se > 0 and avg_se < 0.75:
+                threshold = max(2, threshold - 1)  # SE低=睡眠效率差，提前放松引导
+
+        return state.turns_in_phase >= threshold, f"轮次阈值（梯度={slope:.2f}，个性化threshold={threshold}）"
 
     def _cognitive_restructure_response(self, state: SessionState, distortion: Dict) -> Dict[str, Any]:
         """认知重构阶段的响应——由 LLM 动态生成，此处仅更新状态"""
@@ -1016,14 +1092,42 @@ class CBTManager:
         worry_display = state.worry_topic or "一些事"
         return template.format(worry_topic=worry_display, user_name=state.user_id, session_summary="")
 
-    def _safety_response(self, state: SessionState) -> Dict[str, Any]:
-        """安全协议响应"""
-        content = (
-            "我很在乎你的安全。你现在的感受听起来非常沉重。\n\n"
-            "如果你有立即的危险想法，请拨打：010-82951332（全国心理援助热线）\n\n"
-            "如果你愿意，可以告诉我你现在的情况。我在这里陪着你。"
-        )
-        
+    def _safety_response(self, state: SessionState, crisis_type: str = "general") -> Dict[str, Any]:
+        """安全协议响应（P3增强：含危机分类 + 实时告警）"""
+        CRISIS_MESSAGES = {
+            "suicide": (
+                "我很在乎你的安全。你现在的感受听起来非常沉重。\n\n"
+                "如果你有立即的危险想法，请拨打：010-82951332（全国心理援助热线，24小时）\n\n"
+                "如果你愿意，可以告诉我你现在的情况。我在这里陪着你。"
+            ),
+            "self_harm": (
+                "我听到你说的话了。无论你现在感觉多么痛苦，你并不孤单。\n\n"
+                "请拨打：010-82951332 获得专业支持。你可以联系我陪你度过这段困难的时间。"
+            ),
+            "general": (
+                "我很在乎你的安全。你现在的感受听起来非常沉重。\n\n"
+                "如果你有立即的危险想法，请拨打：010-82951332（全国心理援助热线）\n\n"
+                "如果你愿意，可以告诉我你现在的情况。我在这里陪着你。"
+            ),
+        }
+        content = CRISIS_MESSAGES.get(crisis_type, CRISIS_MESSAGES["general"])
+
+        # P3: 实时危机告警
+        try:
+            from alert_manager import send_alert
+            send_alert({
+                "event": "crisis_detected",
+                "user_id": state.user_id,
+                "session_id": state.session_id,
+                "crisis_type": crisis_type,
+                "phase": state.phase.value,
+                "message_preview": (state.conversation_history[-1]["content"][:100]
+                                   if state.conversation_history else ""),
+                "auto_action": "safety_response_sent",
+            })
+        except Exception:
+            pass
+
         return {
             "response_type": "safety",
             "content": content,
@@ -1031,7 +1135,8 @@ class CBTManager:
             "state_update": _serialize_state(state),
             "next_phase": SessionPhase.SAFETY_PROTOCOL.value,
             "should_close": False,
-            "safety_trigger": True
+            "safety_trigger": True,
+            "crisis_type": crisis_type,
         }
 
     def _assessment_response(self, state: SessionState) -> Dict[str, Any]:
@@ -1057,6 +1162,78 @@ class CBTManager:
             "next_phase": state.phase.value,
             "should_close": False
         }
+
+    # ── P2: 候选响应评分 ──────────────────────────────────────────────
+    def _score_response_candidates(self, responses: List[Dict], state: SessionState,
+                                  profile: Dict) -> List[Tuple[Dict, float]]:
+        """
+        对多个候选响应打分，返回（响应, score）列表，按分降序。
+        特征：技术类型 × 用户类型 × 时段 × 档案偏好 × 情绪节奏。
+        """
+        scored = []
+        for resp in responses:
+            score = 0.0
+            rt = resp.get("response_type", "")
+            anxiety = state.anxiety_level
+            user_style = state.user_style
+            phase = state.phase
+
+            # 1. 档案偏好匹配（+2.0）
+            preferred = profile.get("preferred_technique", "478") if profile else "478"
+            tech_map = {"478": "breathing", "pmr_tiny": "pmr", "pmr_short": "pmr",
+                        "pmr": "pmr", "box_breathing": "breathing", "478_breathing": "breathing",
+                        "478": "breathing", "body_scan": "body_scan", "mindfulness": "mindfulness"}
+            if tech_map.get(preferred) == rt:
+                score += 2.0
+
+            # 2. 焦虑等级适配（+1.0/-0.5）
+            if anxiety == AnxietyLevel.SEVERE and rt in ("pmr", "pmr_tiny", "breathing"):
+                score += 1.0
+            elif anxiety == AnxietyLevel.NORMAL and rt in ("breathing", "mindfulness"):
+                score += 0.5
+            elif anxiety == AnxietyLevel.SEVERE and rt == "closure":
+                score -= 1.0  # 重度焦虑不能马上关闭
+
+            # 3. 用户风格适配（+1.0）
+            if user_style == UserStyle.ANALYTICAL and rt in ("breathing", "pmr_short"):
+                score += 1.0
+            elif user_style == UserStyle.AVOIDANT and rt in ("pmr", "body_scan"):
+                score += 1.0
+            elif user_style == UserStyle.VENTING and rt in ("pmr_short", "pmr"):
+                score += 1.0
+
+            # 4. 情绪节奏加速：情绪已改善 → 加分放松响应（+1.0）
+            if state.emotional_momentum == EmotionalMomentum.IMPROVING and rt in ("pmr", "breathing", "body_scan"):
+                score += 1.0
+            # 情绪恶化 → 减分，立即关闭响应
+            if state.emotional_momentum == EmotionalMomentum.DETERIORATING and rt == "closure":
+                score -= 1.5
+
+            # 5. 阶段合理性（+1.5）
+            if phase == SessionPhase.WORRY_CAPTURE and rt in ("empathy", "continue"):
+                score += 1.5
+            elif phase == SessionPhase.COGNITIVE_RESTRUCTURING and rt in ("cognitive", "socratic"):
+                score += 1.5
+            elif phase == SessionPhase.RELAXATION_INDUCTION and rt in ("pmr", "breathing", "body_scan", "mindfulness"):
+                score += 1.5
+            elif phase == SessionPhase.CLOSURE and rt == "closure":
+                score += 2.0
+
+            # 6. 安全协议一票否决
+            if state.phase == SessionPhase.SAFETY_PROTOCOL:
+                score = -100.0
+
+            scored.append((resp, round(score, 3)))
+        scored.sort(key=lambda x: -x[1])
+        return scored
+
+    def _select_best_response(self, candidates: List[Tuple[Dict, float]]) -> Dict[str, Any]:
+        """选择最优候选响应（top 1）"""
+        if not candidates:
+            return None
+        best, score = candidates[0]
+        best["_selection_score"] = score
+        return best
 
     PHASE_INSTRUCTIONS = {
         "assessment": "当前阶段：评估。任务：1）根据用户具体描述确认感受，把情绪客体化，不评判；2）给选择权；3）不出现'我'，禁止'没关系'/'不用硬撑'。禁止重复用户的词开头。整体不超过40字。",
@@ -1479,9 +1656,19 @@ class UserProfileManager:
             "last_session_date": "",
             "consecutive_negative_sessions": 0,
             "sleep_quality_trend": [],
-            "preferred_voice": "female_warm",  # 音色偏好: female_warm | male_calm | female_young
-            "relationship_depth": 0,  # 关系深度：累计会话次数
-            "session_turns_history": [],  # 最近会话轮数历史（用于依赖度趋势分析）
+            "preferred_voice": "female_warm",
+            "relationship_depth": 0,
+            "session_turns_history": [],
+            # P1: SleepProfile 字段
+            "insomnia_type": "mixed",          # 入睡困难(sleep_onset) / 维持型(sleep_maintenance) / 混合型(mixed)
+            "preferred_technique": "478",       # 用户历史最有效的放松技术
+            "worry_pattern": {},                  # 担忧高频词分布 {keyword: count}
+            "sensitivity": "normal",            # 高敏感型(highly_sensitive) / 正常(normal)
+            "sleep_window_bed": "",             # 习惯卧床起始时间
+            "sleep_window_wake": "",            # 习惯起床时间
+            "caffeine_late": False,             # 睡前摄入咖啡因
+            "avg_se": 0.0,                       # 平均睡眠效率(SE)
+            "last_sleep_quality": 0,             # 最近一次晨间sleep_quality评分(1-4)
         }
     
 
