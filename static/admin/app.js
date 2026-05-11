@@ -88,10 +88,13 @@ async function checkHealth() {
   const label = document.getElementById('health-label');
   if (!dot || !label) return;
   try {
-    const r = await fetch('/api/v1/admin/health');
+    const r = await fetch('/api/v1/admin/health', { headers: { 'X-Admin-Token': adminToken } });
     const data = await r.json();
-    dot.className = data.status === 'healthy' ? 'dot dot-green' : 'dot dot-red';
-    label.textContent = data.status === 'healthy' ? '正常' : '异常';
+    const isHealthy = data.status === 'healthy';
+    const issues = data.issues || [];
+    dot.className = isHealthy ? 'dot dot-green' : 'dot dot-red';
+    label.textContent = isHealthy ? '正常' : '异常(' + issues.length + '项)';
+    if (!isHealthy && issues.length > 0) label.title = issues.join('; ');
   } catch (e) {
     dot.className = 'dot dot-red';
     label.textContent = '离线';
@@ -403,6 +406,23 @@ async function loadQuality() {
 }
 
 // ========== 用户管理 ==========
+async function toggleUser(userId, action) {
+  if (!confirm('确定' + (action === 'disable' ? '禁用' : '启用') + '用户 ' + userId + '？')) return;
+  try {
+    const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/toggle?action=${action}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken }
+    });
+    const data = await r.json();
+    if (data.success) {
+      toast((action === 'disable' ? '已禁用' : '已启用') + ': ' + userId, 'success');
+      loadUsers();
+    } else {
+      toast('操作失败: ' + (data.error || '未知错误'), 'error');
+    }
+  } catch (e) { toast('请求失败: ' + e.message, 'error'); }
+}
+
 async function loadUsers() {
   const data = await fetchJSON(`${API_BASE}/users?days=30`);
   usersCache = Array.isArray(data) ? data : [];
@@ -440,7 +460,13 @@ function renderUsersPage() {
       <td class="text-gray-500 text-xs">${(u.last_seen || '').slice(0, 10)}</td>
       <td class="font-medium text-sm">${u.session_count || 0}</td>
       <td>${u.total_turns ? `<span class="text-xs text-gray-500">${u.total_turns}轮</span>` : '--'}</td>
-      <td><button class="text-blue-600 text-xs hover:underline" onclick="showUserDetail('${(u.user_id || '').replace(/'/g, "\\'")}')">详情</button></td>
+      <td>${u.avg_rating ? '<span class="text-yellow-500 text-xs">★ ' + u.avg_rating + '</span>' : '<span class="text-gray-300 text-xs">--</span>'}</td>
+      <td>
+        <button class="text-red-500 text-xs hover:underline mr-2" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\'")}', 'disable')">禁用</button>
+        <button class="text-green-600 text-xs hover:underline mr-2" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\'")}', 'enable')">启用</button>
+        <button class="text-blue-600 text-xs hover:underline" onclick="showUserDetail('${(u.user_id || '').replace(/'/g, "\'")}')">详情</button>
+      </td>
+
     `;
     tbody.appendChild(row);
   });
@@ -517,7 +543,22 @@ async function loadHealth() {
   document.getElementById('h-total-req').textContent = data.api_stats?.total_requests ?? '--';
   document.getElementById('h-avg-rt').textContent = data.api_stats?.avg_response_ms ? data.api_stats.avg_response_ms + ' ms' : '--';
   document.getElementById('h-p95-rt').textContent = data.api_stats?.p95_response_ms ? data.api_stats.p95_response_ms + ' ms' : '--';
-  document.getElementById('h-error').textContent = data.error || '无';
+  // Issues list
+  const issuesEl = document.getElementById('h-issues-list');
+  if (issuesEl) {
+    const issues = data.issues || [];
+    if (issues.length === 0) {
+      issuesEl.innerHTML = '<p class="text-green-600">✓ 全部正常</p>';
+    } else {
+      issuesEl.innerHTML = issues.map(i => '<p class="text-red-500">✗ ' + i + '</p>').join('');
+    }
+  }
+  // System metrics
+  const sys = data.system || {};
+  document.getElementById('h-sys-load').textContent = sys.load_ratio ? sys.load_ratio.toFixed(2) + ' (核心比)' : '--';
+  const memUsed = sys.memory_used_mb; const memTot = sys.memory_total_mb;
+  document.getElementById('h-sys-mem').textContent = (memUsed && memTot) ? memUsed + '/' + memTot + ' MB' : '--';
+  document.getElementById('h-error').textContent = (data.issues && data.issues.length > 0) ? data.issues[0] : '无';
   document.getElementById('h-timestamp').textContent = data.timestamp ? data.timestamp.slice(0, 19).replace('T', ' ') : '--';
 }
 

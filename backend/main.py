@@ -4792,9 +4792,16 @@ async def admin_users(days: int = Query(30, le=90), limit: int = Query(500, le=2
     return get_user_list(days=days, limit=limit)
 
 
+@app.post("/api/v1/admin/users/{user_id}/toggle")
+async def admin_toggle_user(user_id: str, action: str = Query("disable")):
+    """禁用/启用用户"""
+    from admin_routes import toggle_user_status
+    return toggle_user_status(user_id, action)
+
 @app.get("/api/v1/admin/users/{user_id}")
 async def admin_user_detail(user_id: str, limit: int = Query(20, le=100)):
     """用户详情"""
+    from admin_routes import get_user_detail
     return get_user_detail(user_id, limit=limit)
 
 

@@ -498,6 +498,17 @@ def get_user_list(days: int = 30, limit: int = 500) -> List[Dict]:
         users[uid]["session_count"] += 1
         users[uid]["total_turns"] += s.get("turn_count", 0)
 
+    # Collect ratings per user from eval_records
+    user_ratings = {}
+    for r in eval_records:
+        sid = r.get("session_id", "")
+        uid = sid.split("_")[1] if len(sid.split("_")) >= 2 else "unknown"
+        fb_rating = r.get("feedback_rating") or r.get("auto_rating")
+        if fb_rating and uid not in ("unknown", ""):
+            if uid not in user_ratings:
+                user_ratings[uid] = []
+            user_ratings[uid].append(fb_rating)
+
     for r in eval_records:
         sid = r.get("session_id", "")
         uid = sid.split("_")[1] if len(sid.split("_")) >= 2 else "unknown"
@@ -512,7 +523,45 @@ def get_user_list(days: int = 30, limit: int = 500) -> List[Dict]:
                 users[uid]["last_seen"] = ts
         users[uid]["session_count"] += 1
 
+    # Fill in avg_rating and latest_rating from collected ratings
+    _rn_map = {'🟢': 5, '🟡': 4, '🟠': 3, '🟣': 2}
+    for uid, ratings in user_ratings.items():
+        if uid in users and ratings:
+            def _rn(v):
+                if isinstance(v, (int, float)) and v > 0: return v
+                for _ek, _en in _rn_map.items():
+                    if _ek in v: return _en
+                return None
+            valid_ratings = [_rn(r) for r in ratings]
+            valid_ratings = [r for r in valid_ratings if r is not None and r > 0]
+            if valid_ratings:
+                users[uid]["avg_rating"] = round(sum(valid_ratings) / len(valid_ratings), 1)
+                users[uid]["latest_rating"] = valid_ratings[-1]
+
     return list(users.values())[:limit]
+
+def toggle_user_status(user_id: str, action: str = "disable") -> Dict[str, Any]:
+    """禁用/启用用户"""
+    try:
+        r = _get_redis()
+        key = f"user:disabled:{user_id}"
+        if action == "disable":
+            r.setex(key, 86400 * 365, "1")  # 禁用1年
+            return {"success": True, "user_id": user_id, "status": "disabled"}
+        elif action == "enable":
+            r.delete(key)
+            return {"success": True, "user_id": user_id, "status": "enabled"}
+        else:
+            return {"success": False, "error": "Invalid action"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def is_user_disabled(user_id: str) -> bool:
+    try:
+        r = _get_redis()
+        return r.exists(f"user:disabled:{user_id}") > 0
+    except:
+        return False
 
 def get_user_detail(user_id: str, limit: int = 20) -> Dict[str, Any]:
     eval_records = _load_evaluation_records(days=365)
@@ -551,32 +600,73 @@ def get_user_detail(user_id: str, limit: int = 20) -> Dict[str, Any]:
 # ==================== 服务器健康度 ====================
 
 def get_system_health() -> Dict[str, Any]:
+    issues = []
     try:
         r = _get_redis()
         redis_info = r.info()
         eval_records = _load_evaluation_records(days=30)
-
-        # API统计
         rt = _api_stats["response_times_ms"]
-        avg_rt = round(sum(rt) / len(rt), 1) if rt else 0
-        p95_rt = round(sorted(rt)[int(len(rt) * 0.95)]) if rt else 0
+        avg_rt = round(sum(rt)/len(rt), 1) if rt else 0
+        p95_rt = round(sorted(rt)[int(len(rt)*0.95)]) if rt else 0
 
+        # 1. Redis连接检查
+        try:
+            if not r.ping(): issues.append("Redis ping失败")
+        except: issues.append("Redis连接异常")
+
+        # 2. CPU负载检查
+        try:
+            load1 = os.getloadavg()[0]
+            cpu_count = os.cpu_count() or 1
+            lr = load1 / cpu_count
+            if lr > 2.0: issues.append(f"CPU负载过高({lr:.1f})")
+        except: pass
+
+        # 3. 内存检查
+        try:
+            mem = os.popen("free -m 2>/dev/null | grep Mem: | awk '{print $3,$2}'").read().strip()
+            if mem:
+                parts = mem.split(); used_m = int(parts[0]); total_m = int(parts[1])
+                if total_m > 0 and used_m/total_m > 0.92: issues.append(f"内存使用率过高({used_m}/{total_m}MB)")
+        except: pass
+
+        # 4. 磁盘检查
+        try:
+            du = os.popen("df / 2>/dev/null | tail -1 | awk '{print $5}'").read().strip()
+            if du and du.endswith("%"):
+                pct = int(du[:-1])
+                if pct > 90: issues.append(f"磁盘使用率过高({du})")
+        except: pass
+
+        # 5. API错误率
+        tot_req = _api_stats["total_requests"]
+        tot_err = _api_stats["total_errors"]
+        if tot_req > 10 and tot_err/tot_req > 0.05: issues.append(f"API错误率高({tot_err}/{tot_req})")
+        #elif tot_req == 0: issues.append("API请求量为0(可能未接入)")
+
+        # 6. 评估记录检查
+        if len(eval_records) == 0: issues.append("近30天无评估记录")
+
+        is_healthy = len(issues) == 0
         return {
-            "status": "healthy",
+            "status": "healthy" if is_healthy else "unhealthy",
+            "issues": issues,
             "redis": {
                 "connected": True,
                 "clients": redis_info.get("connected_clients", 0),
-                "used_memory_mb": round(redis_info.get("used_memory", 0) / 1024 / 1024, 1),
+                "used_memory_mb": round(redis_info.get("used_memory", 0)/1024/1024, 1),
                 "uptime_days": round(redis_info.get("uptime_in_days", 0), 1),
                 "total_keys": r.dbsize(),
             },
-            "evaluation": {
-                "records_30d": len(eval_records),
-                "tracking_dir": str(EVAL_TRACK_DIR),
+            "evaluation": {"records_30d": len(eval_records)},
+            "system": {
+                "load_ratio": round(lr, 2) if "lr" in dir() else None,
+                "memory_used_mb": int(used_m) if "used_m" in dir() else None,
+                "memory_total_mb": int(total_m) if "total_m" in dir() else None,
             },
             "api_stats": {
-                "total_requests": _api_stats["total_requests"],
-                "total_errors": _api_stats["total_errors"],
+                "total_requests": tot_req,
+                "total_errors": tot_err,
                 "avg_response_ms": avg_rt,
                 "p95_response_ms": p95_rt,
                 "uptime_since": datetime.fromtimestamp(_api_stats["last_reset"]).isoformat(),
@@ -584,11 +674,8 @@ def get_system_health() -> Dict[str, Any]:
             "timestamp": datetime.now().isoformat(),
         }
     except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat(),
-        }
+        return {"status": "unhealthy", "issues": [f"健康检查异常:{str(e)}"], "timestamp": datetime.now().isoformat()}
+
 
 # ==================== 留存分析 ====================
 

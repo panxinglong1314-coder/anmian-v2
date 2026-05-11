@@ -388,11 +388,18 @@
             </div>
           </div>
           <div class="card">
+            <div class="card-header"><span class="card-title">系统状态</span></div>
+            <div class="card-body space-y-2 text-sm">
+              <div class="flex justify-between"><span class="text-gray-500">CPU负载比</span><span id="h-sys-load" class="font-medium">--</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">内存使用</span><span id="h-sys-mem" class="font-medium">--</span></div>
+            </div>
+          </div>
+          <div class="card">
             <div class="card-header"><span class="card-title">检查说明</span></div>
-            <div class="card-body text-sm text-gray-600 space-y-1">
-              <p>• 健康状态：Redis 连接 + 评估数据目录可访问</p>
+            <div class="card-body text-sm text-gray-600 space-y-1" id="h-issues-list"><p class="text-green-600">✓ 全部正常</p>
+              <p>• 健康状态：Redis连接 + CPU/内存/磁盘 + API错误率</p>
               <p>• 每分钟自动检查一次</p>
-              <p>• Redis 连接数为活跃客户端数量</p>
+              <p>• 发现异常请查看"问题列表"并及时处理</p>
             </div>
           </div>
         </div>
