@@ -406,6 +406,23 @@ async function loadQuality() {
 }
 
 // ========== 用户管理 ==========
+async function deleteUser(userId) {
+  if (!confirm('确定删除用户 ' + userId + '？此操作不可恢复！')) return;
+  try {
+    const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/delete`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Token': adminToken }
+    });
+    const data = await r.json();
+    if (data.success) {
+      toast('已删除: ' + userId, 'success');
+      loadUsers();
+    } else {
+      toast('删除失败: ' + (data.error || '未知错误'), 'error');
+    }
+  } catch (e) { toast('请求失败: ' + e.message, 'error'); }
+}
+
 async function toggleUser(userId, action) {
   if (!confirm('确定' + (action === 'disable' ? '禁用' : '启用') + '用户 ' + userId + '？')) return;
   try {
@@ -462,8 +479,9 @@ function renderUsersPage() {
       <td>${u.total_turns ? `<span class="text-xs text-gray-500">${u.total_turns}轮</span>` : '--'}</td>
       <td>${u.avg_rating ? '<span class="text-yellow-500 text-xs">★ ' + u.avg_rating + '</span>' : '<span class="text-gray-300 text-xs">--</span>'}</td>
       <td>
-        <button class="text-red-500 text-xs hover:underline mr-2" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\'")}', 'disable')">禁用</button>
-        <button class="text-green-600 text-xs hover:underline mr-2" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\'")}', 'enable')">启用</button>
+        <button class="text-red-500 text-xs hover:underline mr-1" onclick="deleteUser('${(u.user_id || '').replace(/'/g, "\'")}')">删除</button>
+        <button class="text-orange-500 text-xs hover:underline mr-1" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\'")}', 'disable')">禁用</button>
+        <button class="text-green-600 text-xs hover:underline mr-1" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\'")}', 'enable')">启用</button>
         <button class="text-blue-600 text-xs hover:underline" onclick="showUserDetail('${(u.user_id || '').replace(/'/g, "\'")}')">详情</button>
       </td>
 
@@ -560,6 +578,46 @@ async function loadHealth() {
   document.getElementById('h-sys-mem').textContent = (memUsed && memTot) ? memUsed + '/' + memTot + ' MB' : '--';
   document.getElementById('h-error').textContent = (data.issues && data.issues.length > 0) ? data.issues[0] : '无';
   document.getElementById('h-timestamp').textContent = data.timestamp ? data.timestamp.slice(0, 19).replace('T', ' ') : '--';
+
+  // Render health time-series chart
+  try {
+    const hist = await fetchJSON(API_BASE + '/health/history?hours=24');
+    renderHealthChart(hist);
+  } catch(e) { console.error('health chart error:', e); }
+}
+
+function renderHealthChart(data) {
+  const el = document.getElementById('health-chart');
+  if (!el) return;
+  if (!data || data.length < 2) {
+    el.innerHTML = '<div class="text-center text-gray-400 text-xs pt-8">数据不足（需要至少2个数据点）</div>';
+    return;
+  }
+  const times = data.map(d => d.ts ? d.ts.slice(11, 16) : '').reverse();
+  const clients = data.map(d => d.clients || 0).reverse();
+  const loads = data.map(d => d.load || 0).reverse();
+  const redisMem = data.map(d => d.mem_mb || 0).reverse();
+  const sysMem = data.map(d => d.sys_mem_mb || 0).reverse();
+
+  const option = {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'line' } },
+    legend: { data: ['Redis连接', 'CPU负载', 'Redis内存MB'], bottom: 0, textStyle: { fontSize: 10 } },
+    grid: { left: '3%', right: '4%', bottom: '20%', top: '8%', containLabel: true },
+    xAxis: { type: 'category', data: times, axisLabel: { fontSize: 9, rotate: 30 } },
+    yAxis: [
+      { type: 'value', name: '连接/负载', axisLabel: { fontSize: 9 }, splitLine: { lineStyle: { opacity: 0.2 } } },
+      { type: 'value', name: '内存MB', axisLabel: { fontSize: 9 }, splitLine: { show: false } }
+    ],
+    series: [
+      { name: 'Redis连接', type: 'line', data: clients, smooth: true, itemStyle: { color: '#3b82f6' }, yAxisIndex: 0 },
+      { name: 'CPU负载', type: 'line', data: loads, smooth: true, itemStyle: { color: '#f97316' }, yAxisIndex: 0 },
+      { name: 'Redis内存MB', type: 'line', data: redisMem, smooth: true, itemStyle: { color: '#a855f7' }, yAxisIndex: 1 },
+    ]
+  };
+
+  if (window._healthChart) { window._healthChart.dispose(); }
+  window._healthChart = echarts.init(el);
+  window._healthChart.setOption(option);
 }
 
 // ========== 留存分析 ==========

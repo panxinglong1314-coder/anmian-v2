@@ -556,6 +556,47 @@ def toggle_user_status(user_id: str, action: str = "disable") -> Dict[str, Any]:
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
+def delete_user_data(user_id: str) -> Dict[str, Any]:
+    """删除用户所有数据（会话、评估、缓存）"""
+    try:
+        r = _get_redis()
+        deleted_keys = []
+        # 删除chat会话
+        for key in r.keys(f"chat:history:{user_id}:*"):
+            r.delete(key)
+            deleted_keys.append(key)
+        # 删除feedback
+        for key in r.keys(f"feedback:{user_id}:*"):
+            r.delete(key)
+            deleted_keys.append(key)
+        # 删除morning
+        for key in r.keys(f"morning:{user_id}:*"):
+            r.delete(key)
+            deleted_keys.append(key)
+        # 删除profile
+        r.delete(f"user:profile:{user_id}")
+        # 删除disabled标记
+        r.delete(f"user:disabled:{user_id}")
+        # 删除评估记录中的该用户数据
+        eval_dir = Path(EVAL_TRACK_DIR)
+        import json as _jd
+        for f in eval_dir.glob("bias_*.jsonl"):
+            lines = []
+            with open(f) as fp:
+                for line in fp:
+                    if not line.strip(): continue
+                    rec = _jd.loads(line)
+                    uid = rec.get("session_id","").split("_")[1] if "_" in rec.get("session_id","") else ""
+                    if uid != user_id:
+                        lines.append(line)
+            with open(f, "w") as fp:
+                fp.writelines(lines)
+        return {"success": True, "user_id": user_id, "deleted_keys": len(deleted_keys)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 def is_user_disabled(user_id: str) -> bool:
     try:
         r = _get_redis()
@@ -675,6 +716,25 @@ def get_system_health() -> Dict[str, Any]:
         }
     except Exception as e:
         return {"status": "unhealthy", "issues": [f"健康检查异常:{str(e)}"], "timestamp": datetime.now().isoformat()}
+
+
+
+
+def get_health_history(hours: int = 24) -> List[Dict]:
+    """获取历史健康快照（从Redis）"""
+    try:
+        import json as _j
+        r = _get_redis()
+        raw = r.lrange("health:history", 0, hours * 60)
+        snapshots = []
+        for item in raw:
+            try:
+                snapshots.append(_j.loads(item))
+            except Exception:
+                pass
+        return snapshots
+    except Exception:
+        return []
 
 
 # ==================== 留存分析 ====================

@@ -4798,6 +4798,12 @@ async def admin_toggle_user(user_id: str, action: str = Query("disable")):
     from admin_routes import toggle_user_status
     return toggle_user_status(user_id, action)
 
+@app.delete("/api/v1/admin/users/{user_id}")
+async def admin_delete_user(user_id: str):
+    """删除用户所有数据"""
+    from admin_routes import delete_user_data
+    return delete_user_data(user_id)
+
 @app.get("/api/v1/admin/users/{user_id}")
 async def admin_user_detail(user_id: str, limit: int = Query(20, le=100)):
     """用户详情"""
@@ -4975,7 +4981,38 @@ async def emotion_analyze(req: EmotionAnalyzeRequest):
 @app.get("/api/v1/admin/health")
 async def admin_health():
     """服务器健康状态"""
-    return get_system_health()
+    from admin_routes import get_system_health
+    result = get_system_health()
+    # Store health snapshot in Redis for time-series chart
+    try:
+        import json as _hj
+        import datetime as _hd
+        import os as _hos
+        r = _hos.popen("free -m 2>/dev/null | grep Mem:").read()
+        mem_m = int(r.split()[1]) if r else 0
+        r2 = _hos.popen("cat /proc/loadavg 2>/dev/null").read()
+        load = float(r2.split()[0]) if r2 else 0
+        from admin_routes import _get_redis
+        redis_cli = _get_redis()
+        snap = _hj.dumps({
+            "ts": _hd.datetime.now().isoformat(),
+            "status": result["status"],
+            "clients": result["redis"]["clients"],
+            "mem_mb": result["redis"]["used_memory_mb"],
+            "load": round(load / (_hos.cpu_count() or 1), 2),
+            "sys_mem_mb": mem_m,
+        }, ensure_ascii=False)
+        redis_cli.lpush("health:history", snap)
+        redis_cli.ltrim("health:history", 0, 1440)
+    except Exception:
+        pass
+    return result
+
+@app.get("/api/v1/admin/health/history")
+async def admin_health_history(hours: int = Query(24, le=168)):
+    """健康历史时间序列"""
+    from admin_routes import get_health_history
+    return get_health_history(hours=hours)
 
 @app.get("/api/v1/admin/retention")
 async def admin_retention(days: int = Query(30, le=90)):
