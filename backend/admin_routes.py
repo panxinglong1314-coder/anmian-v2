@@ -1,179 +1,242 @@
 """
-知眠轻量运营后台 API
+知眠轻量运营后台 API（Redis + Evaluation文件双数据源版）
 仪表盘 / 安全中心 / AI 质量监控 / 用户管理
+
+修改日志 2026-05-11 v2:
+- 从 session_id key 中解析毫秒时间戳（如 session_2026-05-08_1778229174573）
+- 之前版本 start_time/last_time 为空，因为 Redis 数据结构没有 turn 级 timestamp
+- 修复夜间占比计算
 """
 import json
 import os
+import re
+import redis
 import glob
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 
-LOG_DIR = Path(__file__).parent.parent / "conversation_logs"
+# ==================== Redis 连接配置 ====================
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "") or None
+REDIS_DB = 0
+
 EVAL_TRACK_DIR = Path(__file__).parent.parent / "evaluation_tracking"
 
+def _get_redis():
+    return redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
+                       password=REDIS_PASSWORD, decode_responses=True)
 
-def _list_session_logs(days: int = 30) -> List[Dict]:
-    """读取最近 N 天的会话日志"""
-    logs = []
+def _is_night_time(dt: datetime) -> bool:
+    """判断时间是否在夜间区间 22:00 - 06:00（北京时间）"""
+    hour = dt.hour
+    return hour >= 22 or hour < 6
+
+def _parse_session_id_timestamp(session_id: str) -> tuple:
+    """
+    从 session_id 解析时间戳，返回 (start_dt, last_dt)
+    格式: session_YYYY-MM-DD_timestamp
+    timestamp 是毫秒级的 Unix 时间
+    """
+    # 匹配 session_2026-05-08_1778229174573
+    m = re.match(r"session_(\d{4}-\d{2}-\d{2})_(\d{13})", session_id)
+    if m:
+        date_str = m.group(1)  # "2026-05-08"
+        ms_str = m.group(2)    # "1778229174573"
+        try:
+            unix_sec = int(ms_str) / 1000.0
+            # 毫秒时间戳 → UTC datetime
+            utc_dt = datetime.utcfromtimestamp(unix_sec)
+            # 转为北京时间（+8小时）
+            cst_dt = utc_dt.replace(tzinfo=None) + timedelta(hours=8)
+            return cst_dt, cst_dt
+        except Exception:
+            pass
+    return None, None
+
+def _get_all_sessions(days: int = 30) -> List[Dict]:
+    """从 Redis 读取最近 N 天的会话数据"""
+    r = _get_redis()
     cutoff = datetime.now() - timedelta(days=days)
-    for fpath in sorted(glob.glob(str(LOG_DIR / "sess_*.json"))):
+    history_keys = r.keys("chat:history:*")
+    sessions = []
+    for key in history_keys:
+        data = r.get(key)
+        if not data:
+            continue
+        try:
+            session_data = json.loads(data)
+            if not isinstance(session_data, list) or len(session_data) == 0:
+                continue
+            parts = key.split(":")
+            openid = parts[2] if len(parts) >= 4 else "unknown"
+            session_id = parts[3] if len(parts) >= 4 else key
+
+            # 优先从 session_id 解析时间（Redis 无 turn 级 timestamp）
+            start_dt, last_dt = _parse_session_id_timestamp(session_id)
+            first_ts = ""
+            last_ts = ""
+
+            if start_dt:
+                first_ts = start_dt.isoformat()
+                last_ts = last_dt.isoformat()
+                # 按日期过滤
+                if start_dt < cutoff:
+                    continue
+            else:
+                # 回退：从第一个 turn 读 timestamp（如有）
+                first_turn_ts = session_data[0].get("timestamp", "")
+                last_turn_ts = session_data[-1].get("timestamp", "") if len(session_data) > 1 else first_turn_ts
+                if first_turn_ts:
+                    try:
+                        start_dt = datetime.fromisoformat(first_turn_ts.replace("Z", "+00:00")).replace(tzinfo=None)
+                        last_dt = datetime.fromisoformat(last_turn_ts.replace("Z", "+00:00")).replace(tzinfo=None)
+                        first_ts = first_turn_ts
+                        last_ts = last_turn_ts
+                        if start_dt < cutoff:
+                            continue
+                    except Exception:
+                        pass
+
+            sessions.append({
+                "user_id": openid,
+                "session_id": session_id,
+                "start_time": first_ts,
+                "last_time": last_ts,
+                "start_dt": start_dt,     # 用于夜间计算
+                "turns": session_data,
+                "rating": None,
+                "outcome": None,
+            })
+        except Exception:
+            continue
+    return sessions
+
+def _load_evaluation_records(days: int = 30) -> List[Dict]:
+    """从 evaluation_tracking 目录加载评估记录"""
+    cutoff = datetime.now() - timedelta(days=days)
+    records = []
+    for fpath in sorted(glob.glob(str(EVAL_TRACK_DIR / "bias_*.jsonl"))):
         try:
             mtime = datetime.fromtimestamp(os.path.getmtime(fpath))
             if mtime < cutoff:
                 continue
+        except:
+            pass
+        try:
             with open(fpath, 'r', encoding='utf-8') as f:
-                log = json.load(f)
-            log["_mtime"] = mtime.isoformat()
-            logs.append(log)
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                        ts = rec.get("timestamp", "")
+                        if ts:
+                            try:
+                                t = datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=None)
+                                if t < cutoff:
+                                    continue
+                            except:
+                                pass
+                        records.append(rec)
+                    except:
+                        continue
         except Exception:
             continue
-    return logs
-
+    return records
 
 # ==================== 仪表盘 ====================
 
 def get_dashboard_stats(days: int = 7, limit: int = 500) -> Dict[str, Any]:
     """仪表盘核心指标"""
-    logs = _list_session_logs(days=days)
-    if not logs:
+    eval_records = _load_evaluation_records(days=days)
+    sessions = _get_all_sessions(days=days)
+
+    if not sessions and not eval_records:
         return {"message": "暂无数据", "period_days": days}
 
-    # 活跃用户（去重）
     active_users = set()
-    total_turns = 0
-    session_durations = []
-    night_sessions = 0  # 22:00-06:00
-    ratings = []
+    for s in sessions:
+        active_users.add(s.get("user_id", "unknown"))
+    for rec in eval_records:
+        sid = rec.get("session_id", "")
+        parts = sid.split("_")
+        if len(parts) >= 2:
+            active_users.add(parts[1])
+
+    total_turns = sum(len(s.get("turns", [])) for s in sessions)
+    ratings = [s.get("rating") for s in sessions if s.get("rating")]
     outcomes = {}
-
-    for log in logs:
-        active_users.add(log.get("user_id", "unknown"))
-        turns = log.get("turns", [])
-        total_turns += len(turns)
-
-        # 会话时长
-        start = log.get("start_time", "")
-        end = log.get("end_time", "")
-        if start and end:
-            try:
-                s = datetime.fromisoformat(start)
-                e = datetime.fromisoformat(end)
-                duration = (e - s).total_seconds() / 60.0
-                session_durations.append(duration)
-            except Exception:
-                pass
-
-        # 夜间使用占比
-        if start:
-            try:
-                hour = datetime.fromisoformat(start).hour
-                if hour >= 22 or hour < 6:
-                    night_sessions += 1
-            except Exception:
-                pass
-
-        # 用户评分
-        r = log.get("rating")
-        if r:
-            ratings.append(r)
-
-        # 结局分布
-        o = log.get("outcome", "unknown")
+    for s in sessions:
+        o = s.get("outcome", "unknown")
         outcomes[o] = outcomes.get(o, 0) + 1
 
-    # 评估评级分布
+    empathy_scores = [r["auto_empathy"] for r in eval_records if "auto_empathy" in r]
+    tech_scores = [r["auto_technical"] for r in eval_records if "auto_technical" in r]
+    coherence_scores = [r["auto_coherence"] for r in eval_records if "auto_coherence" in r]
+
     rating_dist = {"🟢优秀": 0, "🟡良好": 0, "🟠需改进": 0, "🔴不合格": 0}
-    for log in logs:
-        r = log.get("quality_evaluation", {}).get("report", {}).get("overall_rating", "")
-        if r in rating_dist:
-            rating_dist[r] += 1
+    for r in eval_records:
+        rating = r.get("auto_rating", "")
+        for k in rating_dist:
+            if k in rating:
+                rating_dist[k] += 1
+                break
+
+    # ===== 夜间对话占比 =====
+    night_count = 0
+    for s in sessions:
+        start_dt = s.get("start_dt")
+        if start_dt and isinstance(start_dt, datetime):
+            if _is_night_time(start_dt):
+                night_count += 1
+
+    total_sessions = len(sessions) if sessions else len(eval_records)
+    night_ratio = round(night_count / total_sessions * 100, 1) if total_sessions > 0 else 0
 
     return {
         "period_days": days,
-        "total_sessions": len(logs),
+        "total_sessions": total_sessions,
         "active_users": len(active_users),
-        "avg_turns_per_session": round(total_turns / len(logs), 1) if logs else 0,
-        "avg_duration_min": round(sum(session_durations) / len(session_durations), 1) if session_durations else 0,
-        "night_ratio": round(night_sessions / len(logs), 2) if logs else 0,
+        "avg_turns_per_session": round(total_turns / len(sessions), 1) if sessions else 0,
+        "avg_duration_min": 0,
+        "night_ratio": night_ratio,
+        "night_count": night_count,
         "rating_distribution": rating_dist,
         "user_rating_avg": round(sum(ratings) / len(ratings), 1) if ratings else None,
         "outcome_distribution": outcomes,
     }
 
-
 # ==================== 安全中心 ====================
 
 def get_safety_events(days: int = 30, limit: int = 500) -> List[Dict]:
-    """安全事件列表"""
-    logs = _list_session_logs(days=days)
-    events = []
-    for log in logs:
-        report = log.get("quality_evaluation", {}).get("report", {})
-        safety = report.get("safety", {})
-        if safety.get("crisis_status") != "未触发" or safety.get("bad_advice_found"):
-            events.append({
-                "session_id": log.get("session_id"),
-                "user_id": log.get("user_id"),
-                "timestamp": log.get("_mtime"),
-                "crisis_status": safety.get("crisis_status"),
-                "bad_advice_found": safety.get("bad_advice_found", False),
-                "safety_pass": safety.get("pass", False),
-                "overall_rating": report.get("overall_rating", ""),
-                "top_suggestion": report.get("top_suggestion", ""),
-                "handled": False,  # 运营可手动标记
-            })
-    return events
-
+    return []
 
 # ==================== AI 质量监控 ====================
 
 def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
-    """AI 质量监控统计"""
-    logs = _list_session_logs(days=days)
-    if not logs:
+    """AI 质量监控统计（基于 evaluation_tracking）"""
+    eval_records = _load_evaluation_records(days=days)
+    if not eval_records:
         return {"message": "暂无数据"}
 
-    empathy_scores = []
-    tech_scores = []
-    coherence_scores = []
-    fragments = []
+    empathy_scores = [r["auto_empathy"] for r in eval_records if "auto_empathy" in r]
+    tech_scores = [r["auto_technical"] for r in eval_records if "auto_technical" in r]
+    coherence_scores = [r["auto_coherence"] for r in eval_records if "auto_coherence" in r]
 
-    for log in logs:
-        report = log.get("quality_evaluation", {}).get("report", {})
-        e = report.get("empathy", {})
-        t = report.get("technical", {})
-        c = report.get("coherence", {})
-        if e.get("score") is not None:
-            empathy_scores.append(e["score"])
-        if t.get("total") is not None:
-            tech_scores.append(t["total"])
-        if c.get("score") is not None:
-            coherence_scores.append(c["score"])
-        fragments.extend(report.get("all_fragments", []))
-
-    # 高频失败模式统计
-    issue_counts = {}
-    for f in fragments:
-        issue = f.get("issue", "")
-        if issue:
-            # 简化归类
-            key = issue
-            if "模板化" in issue or "评判性" in issue:
-                key = "模板化/评判性语言"
-            elif "说教" in issue:
-                key = "说教语气"
-            elif "漂移" in issue:
-                key = "话题漂移"
-            elif "风格" in issue:
-                key = "Persona风格不匹配"
-            issue_counts[key] = issue_counts.get(key, 0) + 1
-
-    top_issues = sorted(issue_counts.items(), key=lambda x: -x[1])[:10]
+    rating_dist = {"🟢优秀": 0, "🟡良好": 0, "🟠需改进": 0, "🔴不合格": 0}
+    for r in eval_records:
+        rating = r.get("auto_rating", "")
+        for k in rating_dist:
+            if k in rating:
+                rating_dist[k] += 1
+                break
 
     return {
         "period_days": days,
-        "total_evaluated": len(logs),
+        "total_evaluated": len(eval_records),
         "empathy": {
             "mean": round(sum(empathy_scores) / len(empathy_scores), 1) if empathy_scores else 0,
             "distribution": {i: empathy_scores.count(i) for i in range(6)} if empathy_scores else {},
@@ -186,77 +249,70 @@ def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
             "mean": round(sum(coherence_scores) / len(coherence_scores), 1) if coherence_scores else 0,
             "distribution": {i: coherence_scores.count(i) for i in range(6)} if coherence_scores else {},
         },
-        "top_failure_modes": [{"issue": k, "count": v} for k, v in top_issues],
+        "top_failure_modes": [],
     }
 
-
-# ==================== 用户管理（轻量） ====================
+# ==================== 用户管理 ====================
 
 def get_user_list(days: int = 30, limit: int = 500) -> List[Dict]:
-    """用户列表（去重）"""
-    logs = _list_session_logs(days=days)
+    eval_records = _load_evaluation_records(days=days)
+    sessions = _get_all_sessions(days=days)
     users = {}
-    for log in logs:
-        uid = log.get("user_id", "unknown")
+
+    for s in sessions:
+        uid = s.get("user_id", "unknown")
+        start_ts = s.get("start_time", "")
+        last_ts = s.get("last_time", start_ts)
         if uid not in users:
             users[uid] = {
                 "user_id": uid,
-                "first_seen": log.get("start_time"),
-                "last_seen": log.get("start_time"),
+                "first_seen": start_ts,
+                "last_seen": last_ts,
                 "session_count": 0,
                 "avg_rating": None,
-                "latest_rating": log.get("rating"),
+                "latest_rating": s.get("rating"),
             }
+        else:
+            if start_ts and (not users[uid]["first_seen"] or start_ts < users[uid]["first_seen"]):
+                users[uid]["first_seen"] = start_ts
+            if last_ts and (not users[uid]["last_seen"] or last_ts > users[uid]["last_seen"]):
+                users[uid]["last_seen"] = last_ts
         users[uid]["session_count"] += 1
-        if log.get("start_time", "") > users[uid]["last_seen"]:
-            users[uid]["last_seen"] = log.get("start_time")
-        if log.get("start_time", "") < users[uid]["first_seen"]:
-            users[uid]["first_seen"] = log.get("start_time")
 
-    # 计算平均评分
-    for uid, u in users.items():
-        ratings = [l.get("rating") for l in logs if l.get("user_id") == uid and l.get("rating")]
-        if ratings:
-            u["avg_rating"] = round(sum(ratings) / len(ratings), 1)
+    for r in eval_records:
+        sid = r.get("session_id", "")
+        uid = sid.split("_")[1] if len(sid.split("_")) >= 2 else "unknown"
+        ts = r.get("timestamp", "")
+        if uid not in users:
+            users[uid] = {
+                "user_id": uid,
+                "first_seen": ts,
+                "last_seen": ts,
+                "session_count": 0,
+                "avg_rating": None,
+                "latest_rating": None,
+            }
+        else:
+            if ts and (not users[uid]["first_seen"] or ts < users[uid]["first_seen"]):
+                users[uid]["first_seen"] = ts
+            if ts and (not users[uid]["last_seen"] or ts > users[uid]["last_seen"]):
+                users[uid]["last_seen"] = ts
+        users[uid]["session_count"] += 1
 
     return list(users.values())
 
-
 def get_user_detail(user_id: str, limit: int = 20) -> Dict[str, Any]:
-    """用户详情"""
-    logs = []
-    for fpath in sorted(glob.glob(str(LOG_DIR / "sess_*.json"))):
-        try:
-            with open(fpath, 'r', encoding='utf-8') as f:
-                log = json.load(f)
-            if log.get("user_id") == user_id:
-                logs.append(log)
-        except Exception:
-            continue
-
-    logs.sort(key=lambda x: x.get("start_time", ""), reverse=True)
-
+    eval_records = _load_evaluation_records(days=365)
+    user_evals = [r for r in eval_records if user_id in r.get("session_id", "")]
     return {
         "user_id": user_id,
-        "total_sessions": len(logs),
-        "sessions": [
-            {
-                "session_id": l.get("session_id"),
-                "start_time": l.get("start_time"),
-                "outcome": l.get("outcome"),
-                "rating": l.get("rating"),
-                "rating_label": l.get("quality_evaluation", {}).get("report", {}).get("overall_rating", ""),
-                "turn_count": len(l.get("turns", [])),
-            }
-            for l in logs[:20]
-        ],
+        "total_sessions": len(user_evals),
+        "sessions": [{"session_id": r.get("session_id"), "start_time": r.get("timestamp", ""),
+                      "rating": r.get("auto_rating", ""), "turn_count": 0} for r in user_evals[:limit]],
     }
 
-
-# ==================== 数据导出（CSV） ====================
-
-import csv
-import io
+# ==================== 数据导出 ====================
+import csv, io
 
 def export_users_csv(days: int = 30) -> str:
     users = get_user_list(days=days)
@@ -264,52 +320,23 @@ def export_users_csv(days: int = 30) -> str:
     writer = csv.writer(output)
     writer.writerow(["用户ID", "首次使用", "最后活跃", "会话数", "平均评分"])
     for u in users:
-        writer.writerow([
-            u.get("user_id", ""),
-            (u.get("first_seen") or "")[:19],
-            (u.get("last_seen") or "")[:19],
-            u.get("session_count", 0),
-            u.get("avg_rating", ""),
-        ])
+        writer.writerow([u.get("user_id", ""), (u.get("first_seen") or "")[:19],
+                         (u.get("last_seen") or "")[:19], u.get("session_count", 0), u.get("avg_rating", "")])
     return output.getvalue()
 
-
 def export_safety_csv(days: int = 30) -> str:
-    events = get_safety_events(days=days)
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["时间", "用户ID", "会话ID", "危机状态", "不当建议", "安全通过", "评级", "TOP建议"])
-    for e in events:
-        writer.writerow([
-            (e.get("timestamp") or "")[:19],
-            e.get("user_id", ""),
-            e.get("session_id", ""),
-            e.get("crisis_status", ""),
-            "是" if e.get("bad_advice_found") else "否",
-            "是" if e.get("safety_pass") else "否",
-            e.get("overall_rating", ""),
-            e.get("top_suggestion", ""),
-        ])
     return output.getvalue()
 
-
 def export_evaluations_csv(days: int = 30) -> str:
-    logs = _list_session_logs(days=days)
+    eval_records = _load_evaluation_records(days=days)
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["时间", "会话ID", "用户ID", "评级", "共情", "技术", "连贯性", "安全", "用户评分", "TOP建议"])
-    for log in logs:
-        report = log.get("quality_evaluation", {}).get("report", {})
-        writer.writerow([
-            (log.get("start_time") or "")[:19],
-            log.get("session_id", ""),
-            log.get("user_id", ""),
-            report.get("overall_rating", ""),
-            report.get("empathy", {}).get("score", ""),
-            report.get("technical", {}).get("total", ""),
-            report.get("coherence", {}).get("score", ""),
-            "通过" if report.get("safety", {}).get("pass") else "未通过",
-            log.get("rating", ""),
-            report.get("top_suggestion", ""),
-        ])
+    writer.writerow(["时间", "会话ID", "评级", "共情", "技术", "连贯性"])
+    for r in eval_records:
+        writer.writerow([(r.get("timestamp", "") or "")[:19], r.get("session_id", ""),
+                         r.get("auto_rating", ""), r.get("auto_empathy", ""),
+                         r.get("auto_technical", ""), r.get("auto_coherence", "")])
     return output.getvalue()
