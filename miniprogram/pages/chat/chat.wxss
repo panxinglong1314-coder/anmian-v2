@@ -866,3 +866,9 @@
   from { opacity: 0; transform: translateY(-4rpx); }
   to { opacity: 0.7; transform: translateY(0); }
 }
+
+/* 评分星星 */
+.rating-stars { display: flex; flex-direction: column; align-items: flex-start; gap: 6rpx; padding: 8rpx 0; }
+.rating-label { font-size: 22rpx; color: rgba(255,255,255,0.6); }
+.stars-row { display: flex; gap: 8rpx; }
+.star { font-size: 40rpx; color: rgba(255,255,255,0.25); transition: color 0.15s; }
