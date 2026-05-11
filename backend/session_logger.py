@@ -226,9 +226,38 @@ class SessionLogger:
         # 运行对话质量评估
         eval_result = dialogue_evaluator.evaluate_session(self._current_session.to_dict())
         quality_eval = dialogue_evaluator.to_dict(eval_result)
+        session_dict = self._current_session.to_dict()
+
+        # 关联晨间睡眠数据
+        user_id = session_dict.get("user_id", "")
+        session_id = session_dict.get("session_id", "")
+        session_date = None
+        if session_id:
+            import re
+            m = re.match(r"session_(\d{4}-\d{2}-\d{2})_", session_id)
+            if m:
+                session_date = m.group(1)
+
+        morning_data = None
+        if user_id and session_date:
+            try:
+                morning_data = _get_morning_data(user_id, session_date)
+            except Exception:
+                pass
+
+        # 构造带晨间数据的增强评估报告
+        enhanced_report = dict(quality_eval)
+        if morning_data:
+            enhanced_report["_morning"] = {
+                "sleep_quality": morning_data.get("sleep_quality"),
+                "se": morning_data.get("se"),
+                "tst_minutes": morning_data.get("tst_minutes"),
+                "fatigue_level": morning_data.get("fatigue_level"),
+                "waso_minutes": morning_data.get("waso_minutes", 0),
+            }
 
         log_entry = {
-            **self._current_session.to_dict(),
+            **session_dict,
             "effect_score": effect_score,
             "effect_breakdown": {
                 "outcome_score": 1.0 if outcome in ("completed_closure", "sleep_reported") else 0.0,
@@ -237,6 +266,8 @@ class SessionLogger:
             },
             "quality_evaluation": quality_eval,
         }
+        if morning_data:
+            log_entry["morning_data"] = morning_data
 
         self._save_log(log_entry)
 
@@ -244,9 +275,15 @@ class SessionLogger:
         try:
             report = quality_eval.get("report", {})
             if report:
-                send_alert(report, self._current_session.to_dict())
+                send_alert(report, session_dict)
         except Exception as e:
             print(f"[SessionLogger] 告警发送失败: {e}")
+
+        # 记录会话粒度评估（关联晨间睡眠数据）
+        try:
+            record_session_evaluation(session_id, enhanced_report, user_id=user_id)
+        except Exception as e:
+            print(f"[SessionLogger] 评估记录失败: {e}")
 
         self._current_session = None
 

@@ -175,12 +175,6 @@ class DialogueEvaluator:
         # 生成摘要
         summary = self._generate_summary(dimensions, overall)
 
-        # 记录自动评估结果用于偏差追踪
-        try:
-            record_evaluation(session_log.get("session_id", "unknown"), report)
-        except Exception:
-            pass
-
         return SessionEvaluation(
             session_id=session_log.get("session_id", "unknown"),
             overall_score=round(overall, 1),
