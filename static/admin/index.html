@@ -147,11 +147,20 @@
       <div class="nav-item" data-page="users" onclick="showPage('users')">
         <span class="icon">👥</span>用户列表
       </div>
+      <div class="nav-item" data-page="retention" onclick="showPage('retention')">
+        <span class="icon">📈</span>留存分析
+      </div>
+      <div class="nav-group-label">系统</div>
+      <div class="nav-item" data-page="health" onclick="showPage('health')">
+        <span class="icon">🖥️</span>服务器监控
+      </div>
     </nav>
     <div class="border-t border-gray-700/50 p-3">
       <div class="flex items-center justify-between text-xs text-gray-500">
         <span>更新 <span id="last-update">--:--</span></span>
-        <span class="flex items-center gap-1"><span class="dot dot-green"></span>自动刷新</span>
+        <span class="flex items-center gap-1"><span id="health-dot" class="dot dot-green"></span><span id="health-label" class="text-xs">正常</span></span>
+        <span class="text-gray-300">|</span>
+        <span class="flex items-center gap-1 text-xs text-gray-500">自动刷新</span>
       </div>
       <button onclick="logout()" class="mt-2 w-full text-left text-xs text-gray-500 hover:text-gray-300 py-1.5 px-2 rounded hover:bg-gray-700/50 transition">
         ⎋ 退出登录
@@ -197,6 +206,12 @@
             <div class="metric-label">平均轮次</div>
             <div class="metric-sub" id="d-avg-turns-sub">暂无数据</div>
             <div class="metric-bar-bg"><div class="metric-bar-fill" id="d-avg-turns-bar" style="width:0%;background:#10b981"></div></div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="d-avg-duration">--</div>
+            <div class="metric-label">平均时长</div>
+            <div class="metric-sub" id="d-avg-duration-sub">分钟/会话</div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="d-avg-duration-bar" style="width:0%;background:#6366f1"></div></div>
           </div>
           <div class="card metric-card">
             <div class="metric-value" id="d-night-ratio">--</div>
@@ -308,6 +323,7 @@
             <span class="card-title">用户列表</span>
             <div class="flex items-center gap-2">
               <input id="users-search" type="text" placeholder="搜索用户ID..." class="search-input" oninput="filterUsers()">
+              <input id="export-days" type="number" value="30" min="1" max="365" class="border border-gray-300 rounded px-2 py-1 text-xs w-16">
               <button id="btn-export-users" onclick="downloadCSV('users')" class="btn btn-default btn-sm">📥 导出 CSV</button>
             </div>
           </div>
@@ -329,6 +345,76 @@
 </div>
 
 <!-- 建议 Modal -->
+
+      <!-- 服务器监控 -->
+      <div id="page-health" class="page hidden space-y-4">
+        <div class="grid grid-cols-4 gap-4">
+          <div class="card metric-card">
+            <div class="metric-value" id="h-status">--</div>
+            <div class="metric-label">服务状态</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-blue-600" id="h-redis-clients">--</div>
+            <div class="metric-label">Redis 连接数</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-purple-600" id="h-redis-memory">--</div>
+            <div class="metric-label">Redis 内存</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-green-600" id="h-eval-records">--</div>
+            <div class="metric-label">30天评估记录</div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="card">
+            <div class="card-header"><span class="card-title">Redis 详情</span></div>
+            <div class="card-body space-y-2 text-sm">
+              <div class="flex justify-between"><span class="text-gray-500">运行天数</span><span id="h-redis-uptime" class="font-medium">--</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">更新时间</span><span id="h-timestamp" class="font-mono text-xs text-gray-600">--</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">错误信息</span><span id="h-error" class="font-medium text-red-500">无</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">检查说明</span></div>
+            <div class="card-body text-sm text-gray-600 space-y-1">
+              <p>• 健康状态：Redis 连接 + 评估数据目录可访问</p>
+              <p>• 每分钟自动检查一次</p>
+              <p>• Redis 连接数为活跃客户端数量</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 留存分析 -->
+      <div id="page-retention" class="page hidden space-y-4">
+        <div class="grid grid-cols-5 gap-4">
+          <div class="card metric-card">
+            <div class="metric-value" id="r-avg-dau">--</div>
+            <div class="metric-label">日均活跃用户</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="r-total-users">--</div>
+            <div class="metric-label">总活跃用户</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-green-600" id="r-new-users">--</div>
+            <div class="metric-label">新用户</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="r-retention-d1">--</div>
+            <div class="metric-label">次日留存率</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="r-retention-d7">--</div>
+            <div class="metric-label">7日留存率</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">每日活跃用户趋势（近30天）</span></div>
+          <div class="card-body"><div id="retention-chart" style="height:300px"></div></div>
+        </div>
+      </div>
 <div id="suggestion-modal" class="hidden">
   <div class="modal-overlay" onclick="closeModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
@@ -344,6 +430,6 @@
   </div>
 </div>
 
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

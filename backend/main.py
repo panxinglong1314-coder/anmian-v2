@@ -121,7 +121,7 @@ try:
     import sys
     sys.path.insert(0, str(__file__).rsplit('/', 1)[0])
     from rag_engine import init_rag, build_rag_index, build_rag_system_prompt, log_cbt_turn_with_rag, finalize_session, rag_index
-    from admin_routes import get_dashboard_stats, get_safety_events, get_quality_stats, get_user_list, get_user_detail, export_users_csv, export_safety_csv, export_evaluations_csv
+    from admin_routes import get_dashboard_stats, get_safety_events, get_quality_stats, get_user_list, get_user_detail, export_users_csv, export_safety_csv, export_evaluations_csv, get_system_health, get_retention_stats
     from session_logger import session_logger, LOG_DIR
     from dialogue_evaluator import dialogue_evaluator
     RAG_AVAILABLE = True
@@ -2340,7 +2340,7 @@ async def _chat_events(req: ChatRequest, user_id: str):
     label, hint = phase_map.get(phase_value, ("", ""))
     cbt_result["phase_label"] = label
     cbt_result["phase_hint"] = hint
-    yield {\event\: \cbt_state\, \data\: cbt_result}
+    yield {"event": "cbt_state", "data": cbt_result}
 
     # 获取 TTS 参数（语速由 CBT 状态决定，不从 LLM 输出解析）
     tts_params = cbt_result.get('tts_params', {})
@@ -4906,4 +4906,18 @@ async def emotion_analyze(req: EmotionAnalyzeRequest):
         return analyzer.to_dict(result)
     except Exception as e:
         print(f"[EmotionAPI] 分析失败: {e}")
+
+# ==================== 服务器健康 & 留存分析 API ====================
+
+@app.get("/api/v1/admin/health")
+async def admin_health():
+    """服务器健康状态"""
+    return get_system_health()
+
+@app.get("/api/v1/admin/retention")
+async def admin_retention(days: int = Query(30, le=90)):
+    """用户留存分析"""
+    return get_retention_stats(days=days)
+
+if __name__ == "__main__":
         raise HTTPException(status_code=500, detail=f"情感分析失败: {str(e)}")
