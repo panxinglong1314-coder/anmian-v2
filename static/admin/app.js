@@ -3,56 +3,31 @@ let adminToken = localStorage.getItem('admin_token') || '';
 let refreshTimer = null;
 let chartInstances = {};
 let healthInterval = null;
-
-// 缓存用户列表数据用于前端搜索/分页
 let usersCache = [];
 let usersPage = 1;
 const USERS_PER_PAGE = 10;
 
-// ========== Toast 通知 ==========
-
+// ========== Toast ==========
 function toast(message, type = 'info', duration = 3000) {
   const container = document.getElementById('toast-container');
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
-  el.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+  el.innerHTML = `<span>${type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ'}</span><span>${message}</span>`;
   container.appendChild(el);
-  setTimeout(() => {
-    el.style.animation = 'toastOut .3s ease forwards';
-    setTimeout(() => el.remove(), 300);
-  }, duration);
+  setTimeout(() => { el.style.animation = 'toastOut .3s ease forwards'; setTimeout(() => el.remove(), 300); }, duration);
 }
 
 // ========== Modal ==========
-
-function showModal(content) {
+function showModal(content, title = '详情') {
   const modal = document.getElementById('suggestion-modal');
   document.getElementById('suggestion-modal-body').textContent = content;
+  document.querySelector('.modal-title').textContent = title;
   modal.classList.remove('hidden');
 }
+function hideModal() { document.getElementById('suggestion-modal').classList新增('hidden'); }
+function closeModal(e) { if (e.target === e.currentTarget) hideModal(); }
 
-function hideModal() {
-  document.getElementById('suggestion-modal').classList.add('hidden');
-}
-
-function closeModal(e) {
-  if (e.target === e.currentTarget) hideModal();
-}
-
-// ========== Loading 状态 ==========
-
-function setLoading(id, loading) {
-  const btn = document.getElementById(id);
-  if (!btn) return;
-  const original = btn.dataset.original || btn.textContent;
-  if (!btn.dataset.original) btn.dataset.original = original;
-  btn.textContent = loading ? '⏳ 处理中...' : original;
-  btn.disabled = loading;
-}
-
-// ========== 认证 ==========
-
+// ========== Auth ==========
 function checkAuth() {
   if (adminToken) {
     document.getElementById('login-page').classList.add('hidden');
@@ -70,13 +45,11 @@ function checkAuth() {
 }
 
 async function doLogin() {
-  const input = document.getElementById('login-input');
-  const token = input.value.trim();
+  const token = document.getElementById('login-input').value.trim();
   if (!token) return;
   try {
     const r = await fetch('/api/v1/admin/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token })
     });
     const data = await r.json();
@@ -89,10 +62,7 @@ async function doLogin() {
       document.getElementById('login-error').classList.remove('hidden');
       toast('密码错误', 'error');
     }
-  } catch (e) {
-    document.getElementById('login-error').classList.remove('hidden');
-    toast('登录失败: ' + e.message, 'error');
-  }
+  } catch (e) { toast('登录失败: ' + e.message, 'error'); }
 }
 
 function logout() {
@@ -105,17 +75,13 @@ function logout() {
   toast('已退出登录', 'info');
 }
 
-// ========== 健康检查轮询 ==========
-
+// ========== Health ==========
 function startHealthCheck() {
   stopHealthCheck();
   checkHealth();
-  healthInterval = setInterval(checkHealth, 60000); // 每分钟
+  healthInterval = setInterval(checkHealth, 60000);
 }
-
-function stopHealthCheck() {
-  if (healthInterval) clearInterval(healthInterval);
-}
+function stopHealthCheck() { if (healthInterval) clearInterval(healthInterval); }
 
 async function checkHealth() {
   const dot = document.getElementById('health-dot');
@@ -124,21 +90,15 @@ async function checkHealth() {
   try {
     const r = await fetch('/api/v1/admin/health');
     const data = await r.json();
-    if (data.status === 'healthy') {
-      dot.className = 'dot dot-green';
-      label.textContent = '正常';
-    } else {
-      dot.className = 'dot dot-red';
-      label.textContent = '异常';
-    }
+    dot.className = data.status === 'healthy' ? 'dot dot-green' : 'dot dot-red';
+    label.textContent = data.status === 'healthy' ? '正常' : '异常';
   } catch (e) {
     dot.className = 'dot dot-red';
     label.textContent = '离线';
   }
 }
 
-// ========== 请求封装 ==========
-
+// ========== Request ==========
 async function fetchJSON(url) {
   try {
     const headers = { 'Content-Type': 'application/json' };
@@ -146,24 +106,20 @@ async function fetchJSON(url) {
     const r = await fetch(url, { headers });
     if (r.status === 401) { logout(); toast('认证已过期', 'error'); return { error: '未授权' }; }
     return await r.json();
-  } catch (e) {
-    toast('请求失败: ' + e.message, 'error');
-    return { error: e.message };
-  }
+  } catch (e) { toast('请求失败: ' + e.message, 'error'); return { error: e.message }; }
 }
 
-// ========== CSV 导出 ==========
-
+// ========== CSV ==========
 async function downloadCSV(type) {
-  const btnId = type === 'safety' ? 'btn-export-safety' : type === 'evaluations' ? 'btn-exportquality' : 'btn-export-users';
-  setLoading(btnId, true);
+  const btnMap = { safety: 'btn-export-safety', evaluations: 'btn-export-quality', users: 'btn-export-users' };
+  const btn = document.getElementById(btnMap[type]);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 导出中...'; }
   const days = document.getElementById('export-days')?.value || 30;
-  const url = `${API_BASE}/export/${type}?days=${days}`;
   try {
     const headers = {};
     if (adminToken) headers['X-Admin-Token'] = adminToken;
-    const r = await fetch(url, { headers });
-    if (r.status === 401) { logout(); toast('认证已过期', 'error'); return; }
+    const r = await fetch(`${API_BASE}/export/${type}?days=${days}`, { headers });
+    if (r.status === 401) { logout(); return; }
     const blob = await r.blob();
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -171,18 +127,13 @@ async function downloadCSV(type) {
     document.body.appendChild(a); a.click(); a.remove();
     toast('导出成功', 'success');
   } catch (e) { toast('导出失败: ' + e.message, 'error'); }
-  finally { setLoading(btnId, false); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '📥 导出 CSV'; } }
 }
 
-// ========== 页面路由 ==========
-
+// ========== Router ==========
 const pageTitles = {
-  dashboard: '仪表盘',
-  safety: '安全中心',
-  quality: 'AI 质量监控',
-  users: '用户列表',
-  health: '服务器监控',
-  retention: '留存分析',
+  dashboard: '仪表盘', safety: '安全中心', quality: 'AI 质量监控',
+  users: '用户列表', health: '服务器监控', retention: '留存分析',
 };
 
 function showPage(name) {
@@ -192,22 +143,16 @@ function showPage(name) {
   const nav = document.querySelector(`[data-page="${name}"]`);
   if (nav) nav.classList.add('active');
   document.getElementById('page-title').textContent = pageTitles[name] || name;
-  if (name === 'dashboard') loadDashboard(7);
-  if (name === 'safety') loadSafety();
-  if (name === 'quality') loadQuality();
-  if (name === 'users') loadUsers();
-  if (name === 'health') loadHealth();
-  if (name === 'retention') loadRetention();
+  const loaders = { dashboard: loadDashboard, safety: loadSafety, quality: loadQuality,
+                     users: loadUsers, health: loadHealth, retention: loadRetention };
+  if (loaders[name]) loaders[name](loaders[name] === loadDashboard ? 7 : 30);
 }
 
-// ========== 自动刷新 ==========
-
+// ========== Auto Refresh ==========
 function startAutoRefresh() {
   stopAutoRefresh();
   refreshTimer = setInterval(() => {
-    const active = document.querySelector('.nav-item.active');
-    if (!active) return;
-    const page = active.dataset.page;
+    const page = document.querySelector('.nav-item.active')?.dataset.page;
     if (page === 'dashboard') loadDashboard(7);
     if (page === 'safety') loadSafety();
     if (page === 'quality') loadQuality();
@@ -216,58 +161,38 @@ function startAutoRefresh() {
     if (page === 'retention') loadRetention();
   }, 300000);
 }
+function stopAutoRefresh() { if (refreshTimer) clearInterval(refreshTimer); }
 
-function stopAutoRefresh() {
-  if (refreshTimer) clearInterval(refreshTimer);
-  refreshTimer = null;
-}
-
-// ========== 空状态 ==========
-
+// ========== Utils ==========
 function emptyStateHTML(title, desc, icon = '📭') {
   return `<div class="empty-state"><div class="empty-state-icon">${icon}</div><div class="empty-state-title">${title}</div><div class="empty-state-desc">${desc}</div></div>`;
 }
 
-// ========== 趋势箭头 ==========
-
 function trendBadge(delta) {
-  if (delta === null || delta === undefined) return '<span class="text-gray-400 text-xs">--</span>';
+  if (delta === null || delta === undefined) return '<span class="text-gray-400 text-xs ml-1">--</span>';
   const sign = delta > 0 ? '+' : '';
   const cls = delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-500' : 'text-gray-400';
   const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
   return `<span class="${cls} text-xs font-medium ml-1">${arrow}${sign}${delta}%</span>`;
 }
 
-// ========== 仪表盘 ==========
-
-let currentDashboardDays = 7;
-
 function setMetricCard(id, value, sub, barPercent, barColor) {
   document.getElementById(id).textContent = value;
   const subEl = document.getElementById(id + '-sub');
-  if (subEl) subEl.textContent = sub;
+  if (subEl) subEl.innerHTML = sub;
   const bar = document.getElementById(id + '-bar');
-  if (bar) { bar.style.width = barPercent + '%'; if (barColor) bar.style.background = barColor; }
+  if (bar) { bar.style.width = Math.min(barPercent, 100) + '%'; if (barColor) bar.style.background = barColor; }
 }
 
+// ========== 仪表盘 ==========
 async function loadDashboard(days) {
-  currentDashboardDays = days;
-  document.querySelectorAll('#page-dashboard .tab-btn').forEach(t => t.classList.remove('active'));
-  const tab = document.getElementById('tab-d-' + days);
-  if (tab) tab.classList.add('active');
-
   const data = await fetchJSON(`${API_BASE}/dashboard?days=${days}`);
   const hasData = data && !data.error && !data.message;
 
   if (!hasData) {
-    setMetricCard('d-active-users', '--', '暂无数据', 0, '#3b82f6');
-    setMetricCard('d-sessions', '--', '暂无数据', 0, '#8b5cf6');
-    setMetricCard('d-avg-turns', '--', '暂无数据', 0, '#10b981');
-    setMetricCard('d-avg-duration', '--', '暂无数据', 0, '#6366f1');
-    setMetricCard('d-night-ratio', '--', '暂无数据', 0, '#f59e0b');
-    setMetricCard('d-avg-rating', '--', '暂无数据', 0, '#ef4444');
-    renderChart('chart-rating-dist', null, emptyStateHTML('暂无评级数据', '当前时间范围内暂无会话评估记录', '📊'));
-    renderChart('chart-outcome', null, emptyStateHTML('暂无结局数据', '当前时间范围内暂无会话记录', '📈'));
+    ['active-users', 'sessions', 'avg-turns', 'avg-duration', 'night-ratio', 'avg-rating'].forEach(id => {
+      setMetricCard('d-' + id, '--', '暂无数据', 0, '#3b82f6');
+    });
     document.getElementById('last-update').textContent = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
     return;
   }
@@ -275,140 +200,162 @@ async function loadDashboard(days) {
   const total = data.total_sessions || 0;
   const trend = data.trend || {};
   setMetricCard('d-active-users', data.active_users ?? 0,
-    `共 ${total} 会话 ${trendBadge(trend.users_delta)}`, Math.min((data.active_users || 0) / Math.max(total, 1) * 100, 100), '#3b82f6');
+    `共 ${total} 会话${trendBadge(trend.users_delta)}`, Math.min((data.active_users || 0) / Math.max(total, 1) * 100, 100), '#3b82f6');
   setMetricCard('d-sessions', total,
     `环比 ${trendBadge(trend.sessions_delta)}`, Math.min(total / 50 * 100, 100), '#8b5cf6');
-  setMetricCard('d-avg-turns', data.avg_turns_per_session ?? 0, '每会话平均轮次', Math.min((data.avg_turns_per_session || 0) / 20 * 100, 100), '#10b981');
-  // ✅ 修复: avg_duration_min 直接使用（不再硬编码0）
-  setMetricCard('d-avg-duration', data.avg_duration_min || 0, '平均会话时长(分钟)', Math.min((data.avg_duration_min || 0) / 60 * 100, 100), '#6366f1');
-  // ✅ 修复: night_ratio 直接是百分比数值（如 5.5 表示 5.5%），不再 ×100
-  setMetricCard('d-night-ratio', (data.night_ratio ?? 0) + '%', '22:00-06:00 占比', Math.min(data.night_ratio ?? 0, 100), '#f59e0b');
+  setMetricCard('d-avg-turns', data.avg_turns_per_session ?? 0,
+    '每会话平均轮次', Math.min((data.avg_turns_per_session || 0) / 20 * 100, 100), '#10b981');
+  // avg_duration: 从轮次估算（每轮约2分钟）
+  const avgDur = data.avg_duration_min || 0;
+  setMetricCard('d-avg-duration', avgDur > 0 ? avgDur + 'min' : '--',
+    avgDur > 0 ? '每会话估算时长' : '暂无数据', Math.min(avgDur / 60 * 100, 100), '#6366f1');
+  setMetricCard('d-night-ratio', (data.night_ratio ?? 0) + '%',
+    '22:00-06:00', Math.min(data.night_ratio ?? 0, 100), '#f59e0b');
   const rating = data.user_rating_avg;
-  setMetricCard('d-avg-rating', rating ?? '--', rating ? `满分 5.0` : '暂无评分', rating ? (rating / 5 * 100) : 0, '#ef4444');
+  setMetricCard('d-avg-rating', rating ?? '--',
+    rating ? '满分 5.0' : '暂无评分', rating ? (rating / 5 * 100) : 0, '#ef4444');
 
   // 评级分布饼图
   const dist = data.rating_distribution || {};
   const totalRated = Object.values(dist).reduce((a, b) => a + b, 0);
   if (totalRated === 0) {
-    renderChart('chart-rating-dist', null, emptyStateHTML('暂无评级数据', '当前时间范围内暂无已评估的会话', '📊'));
+    renderChart('chart-rating-dist', null, emptyStateHTML('暂无评级数据', '当前时间范围内暂无会话评估记录', '📊'));
   } else {
     renderChart('chart-rating-dist', {
       tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
       legend: { bottom: 0, itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 12 } },
-      series: [{
-        type: 'pie', radius: ['40%', '65%'], center: ['50%', '45%'],
-        avoidLabelOverlap: true,
+      series: [{ type: 'pie', radius: ['40%', '65%'], center: ['50%', '45%'],
         label: { show: true, formatter: '{b}\n{c}', fontSize: 11 },
-        labelLine: { show: true },
         data: [
           { value: dist['🟢优秀'] || 0, name: '优秀', itemStyle: { color: '#22c55e' } },
           { value: dist['🟡良好'] || 0, name: '良好', itemStyle: { color: '#eab308' } },
           { value: dist['🟠需改进'] || 0, name: '需改进', itemStyle: { color: '#f97316' } },
           { value: dist['🔴不合格'] || 0, name: '不合格', itemStyle: { color: '#ef4444' } },
-        ]
-      }]
+        ] }]
     });
   }
 
-  // 会话结局柱状图
+  // 会话结局
   const outcomes = data.outcome_distribution || {};
-  if (Object.keys(outcomes).length === 0) {
-    renderChart('chart-outcome', null, emptyStateHTML('暂无结局数据', '当前时间范围内暂无会话记录', '📈'));
+  renderChart('chart-outcome', Object.keys(outcomes).length ? {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+    xAxis: { type: 'category', data: Object.keys(outcomes), axisLabel: { fontSize: 11 } },
+    yAxis: { type: 'value', minInterval: 1 },
+    series: [{ type: 'bar', data: Object.values(outcomes), itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0] }, barWidth: '50%' }]
+  } : null, Object.keys(outcomes).length === 0 ? emptyStateHTML('暂无结局数据', '', '📈') : null);
+
+  // 每日趋势图
+  const daily = data.daily_trend || [];
+  if (daily.length > 1) {
+    renderChart('chart-daily-trend', {
+      tooltip: { trigger: 'axis', axisPointer: { type: 'line' } },
+      legend: { data: ['会话数', '活跃用户'], bottom: 0 },
+      grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+      xAxis: { type: 'category', data: daily.map(d => d.date.slice(5)), axisLabel: { fontSize: 9, rotate: 45 } },
+      yAxis: { type: 'value', minInterval: 1 },
+      series: [
+        { name: '会话数', type: 'bar', data: daily.map(d => d.sessions), itemStyle: { color: '#8b5cf6' } },
+        { name: '活跃用户', type: 'line', data: daily.map(d => d.active_users), smooth: true, itemStyle: { color: '#3b82f6' } },
+      ]
+    }, null);
   } else {
-    renderChart('chart-outcome', {
+    renderChart('chart-daily-trend', null, emptyStateHTML('数据不足', '需要更多天的数据才能展示趋势', '📈'));
+  }
+
+  // 24小时时段热力图
+  const hourly = data.hourly_distribution || [];
+  if (hourly.length === 24) {
+    const maxHourly = Math.max(...hourly, 1);
+    renderChart('chart-hourly', {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-      xAxis: { type: 'category', data: Object.keys(outcomes), axisLabel: { fontSize: 11 } },
+      xAxis: { type: 'category', data: Array.from({length: 24}, (_, i) => `${i}:00`), axisLabel: { fontSize: 9, rotate: 45 } },
       yAxis: { type: 'value', minInterval: 1 },
-      series: [{ type: 'bar', data: Object.values(outcomes), itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0] }, barWidth: '50%' }]
-    });
+      series: [{
+        type: 'bar',
+        data: hourly.map((v, h) => ({
+          value: v,
+          itemStyle: {
+            color: h >= 22 || h < 6 ? `rgba(251,191,36,${Math.max(0.1, v / maxHourly)})` : `rgba(59,130,246,${Math.max(0.1, v / maxHourly)})`
+          }
+        })),
+        barWidth: '50%',
+      }]
+    }, null);
+  } else {
+    renderChart('chart-hourly', null, emptyStateHTML('暂无时段数据', '', '🕐'));
   }
 
   document.getElementById('last-update').textContent = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 }
 
 // ========== 安全中心 ==========
-
 async function loadSafety() {
   const data = await fetchJSON(`${API_BASE}/safety?days=30`);
   const events = Array.isArray(data) ? data : [];
 
   const total = events.length;
-  const missed = events.filter(e => e.crisis_status === '漏报').length;
+  const crisis = events.filter(e => e.crisis_status === '已识别').length;
   const bad = events.filter(e => e.bad_advice_found).length;
-  const pass = events.filter(e => e.safety_pass).length;
+  // safety_pass: 直接从事件数据中统计
+  const safe = events.filter(e => e.safety_pass === true).length;
 
-  document.getElementById('s-total').textContent = total || events.length;
-  document.getElementById('s-missed').textContent = missed;
+  document.getElementById('s-total').textContent = total;
+  document.getElementById('s-missed').textContent = crisis;
   document.getElementById('s-bad').textContent = bad;
-  document.getElementById('s-pass').textContent = total > 0 ? (pass + (events.length - missed - bad)) : (events.length);
+  document.getElementById('s-pass').textContent = safe;
 
   const tbody = document.getElementById('safety-table');
   tbody.innerHTML = '';
   if (!events.length) {
-    tbody.innerHTML = `<tr><td colspan="6">${emptyStateHTML('暂无安全事件', '最近30天内未检测到安全相关事件', '🛡️')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7">${emptyStateHTML('暂无安全事件', '最近30天未检测到危机或不当建议', '🛡️')}</td></tr>`;
     return;
   }
   events.forEach(e => {
-    const tr = document.createElement('tr');
-    const cs = e.crisis_status;
-    let badge = 'badge-green', text = '正常';
-    if (cs === '已识别') { badge = 'badge-yellow'; text = '已识别'; }
-    else if (cs === '已处理') { badge = 'badge-blue'; text = '已处理'; }
-    else if (cs === '漏报') { badge = 'badge-red'; text = '漏报'; }
-    const badBadge = e.bad_advice_found
-      ? '<span class="badge badge-red"><span class="dot dot-red"></span>是</span>'
-      : '<span class="badge badge-green"><span class="dot dot-green"></span>否</span>';
+    const severity = e.severity || '正常';
+    const sevCls = severity === '危险' ? 'badge-red' : severity === '警告' ? 'badge-orange' : 'badge-gray';
+    const crisisCls = e.crisis_status === '已识别' ? 'badge-yellow' : 'badge-green';
     const suggestion = (e.top_suggestion || '暂无').replace(/"/g, '&quot;').replace(/'/g, "\\'");
-    tr.innerHTML = `
-      <td>${(e.timestamp || '').slice(0, 16)}</td>
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td class="text-gray-500 text-xs">${(e.timestamp || '').slice(0, 16)}</td>
       <td><span class="truncate-id font-mono text-xs text-gray-500">${e.user_id || '--'}</span></td>
-      <td><span class="badge ${badge}">${text}</span></td>
-      <td>${badBadge}</td>
-      <td>${e.overall_rating || '<span class="text-gray-400">--</span>'}</td>
-      <td><button class="text-blue-600 text-xs hover:underline" onclick="showModal('${suggestion}')">查看建议</button></td>
+      <td><span class="badge ${sevCls}">${severity}</span></td>
+      <td><span class="badge ${crisisCls}">${e.crisis_status || '正常'}</span></td>
+      <td>${e.bad_advice_found ? '<span class="badge badge-red">是</span>' : '<span class="badge badge-green">否</span>'}</td>
+      <td class="text-xs">${e.empathy !== undefined ? `共${e.empathy}/5` : '--'} / ${e.tech !== undefined ? `技${e.tech}/9` : ''}</td>
+      <td><button class="text-blue-600 text-xs hover:underline" onclick="showModal('${suggestion}', '处理建议')">查看建议</button></td>
     `;
-    tbody.appendChild(tr);
+    tbody.appendChild(row);
   });
 }
 
 // ========== AI 质量 ==========
-
-function formatScore(value, max, label) {
-  if (value === undefined || value === null || value === '--') return { text: '--', pct: 0, sub: '暂无数据' };
-  const num = parseFloat(value);
-  const pct = Math.min((num / max) * 100, 100);
-  return { text: num.toFixed(1), pct, sub: `${label} · ${num.toFixed(1)}/${max}` };
-}
-
 async function loadQuality() {
   const data = await fetchJSON(`${API_BASE}/quality?days=30`);
   const hasData = data && !data.error && !data.message;
 
   if (!hasData) {
-    setMetricCard('q-empathy', '--', '暂无数据', 0, '#8b5cf6');
-    setMetricCard('q-tech', '--', '暂无数据', 0, '#06b6d4');
-    setMetricCard('q-coherence', '--', '暂无数据', 0, '#10b981');
-    renderChart('chart-empathy-dist', null, emptyStateHTML('暂无共情数据', '当前时间范围内暂无评估记录', '📊'));
-    renderChart('chart-tech-dist', null, emptyStateHTML('暂无技术有效性数据', '当前时间范围内暂无评估记录', '📊'));
+    ['q-empathy', 'q-tech', 'q-coherence'].forEach(id => setMetricCard(id, '--', '暂无数据', 0, '#3b82f6'));
+    ['chart-empathy-dist', 'chart-tech-dist'].forEach(id => renderChart(id, null, emptyStateHTML('暂无数据', '', '📊')));
     document.getElementById('quality-failures').innerHTML = emptyStateHTML('数据积累中', '预计 10 条会话后展示高频失败模式', '🔧');
     return;
   }
 
-  const emp = formatScore(data.empathy?.mean, 5, '共情');
-  setMetricCard('q-empathy', emp.text, emp.sub, emp.pct, '#8b5cf6');
-  const tech = formatScore(data.technical?.mean, 9, '技术有效性');
-  setMetricCard('q-tech', tech.text, tech.sub, tech.pct, '#06b6d4');
-  const coh = formatScore(data.coherence?.mean, 5, '连贯性');
-  setMetricCard('q-coherence', coh.text, coh.sub, coh.pct, '#10b981');
+  const emp = data.empathy?.mean, tech = data.technical?.mean, coh = data.coherence?.mean;
+  setMetricCard('q-empathy', emp?.toFixed(1) ?? '--', `共情 · ${emp}/5`, Math.min((emp || 0) / 5 * 100, 100), '#8b5cf6');
+  setMetricCard('q-tech', tech?.toFixed(1) ?? '--', `技术 · ${tech}/9`, Math.min((tech || 0) / 9 * 100, 100), '#06b6d4');
+  setMetricCard('q-coherence', coh?.toFixed(1) ?? '--', `连贯 · ${coh}/5`, Math.min((coh || 0) / 5 * 100, 100), '#10b981');
 
+  // 共情分布
   const empDist = data.empathy?.distribution || {};
   const empTotal = Object.values(empDist).reduce((a, b) => a + b, 0);
   if (empTotal === 0) {
-    renderChart('chart-empathy-dist', null, emptyStateHTML('暂无共情分布数据', '当前时间范围内暂无评估记录', '📊'));
+    renderChart('chart-empathy-dist', null, emptyStateHTML('暂无数据', '', '📊'));
   } else {
     renderChart('chart-empathy-dist', {
-      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      tooltip: { trigger: 'axis' },
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
       xAxis: { type: 'category', data: ['0','1','2','3','4','5'], axisLabel: { fontSize: 11 } },
       yAxis: { type: 'value', minInterval: 1 },
@@ -416,13 +363,14 @@ async function loadQuality() {
     });
   }
 
+  // 技术分布
   const techDist = data.technical?.distribution || {};
   const techTotal = Object.values(techDist).reduce((a, b) => a + b, 0);
   if (techTotal === 0) {
-    renderChart('chart-tech-dist', null, emptyStateHTML('暂无技术有效性分布数据', '当前时间范围内暂无评估记录', '📊'));
+    renderChart('chart-tech-dist', null, emptyStateHTML('暂无数据', '', '📊'));
   } else {
     renderChart('chart-tech-dist', {
-      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      tooltip: { trigger: 'axis' },
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
       xAxis: { type: 'category', data: ['0','1','2','3','4','5','6','7','8','9'], axisLabel: { fontSize: 11 } },
       yAxis: { type: 'value', minInterval: 1 },
@@ -430,33 +378,41 @@ async function loadQuality() {
     });
   }
 
+  // 失败模式（带改进建议）
   const failures = data.top_failure_modes || [];
   const fDiv = document.getElementById('quality-failures');
-  fDiv.innerHTML = failures.length ? failures.map((f, i) => `
-    <div class="flex items-center justify-between py-2.5 ${i < failures.length - 1 ? 'border-b border-gray-100' : ''}">
-      <div class="flex items-center gap-3">
-        <span class="w-5 h-5 rounded bg-gray-100 text-gray-500 text-xs flex items-center justify-center font-medium">${i + 1}</span>
-        <span class="text-sm text-gray-700">${f.issue}</span>
+  if (!failures.length) {
+    fDiv.innerHTML = emptyStateHTML('数据积累中', '预计 10 条会话后展示高频失败模式', '🔧');
+    return;
+  }
+  fDiv.innerHTML = failures.map((f, i) => `
+    <div class="p-3 border-b border-gray-100 last:border-0">
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex items-start gap-2 flex-1">
+          <span class="flex-shrink-0 w-5 h-5 rounded bg-red-100 text-red-600 text-xs flex items-center justify-center font-bold mt-0.5">${i + 1}</span>
+          <div>
+            <div class="text-sm font-medium text-gray-800">${f.issue}</div>
+            <div class="text-xs text-gray-500 mt-0.5">出现次数: <span class="font-medium">${f.count}</span> 次</div>
+          </div>
+        </div>
+        <button onclick="showModal('${(f.suggestion || '建议人工复核').replace(/'/g, "\\'")}', '改进建议: ${f.issue}')"
+          class="flex-shrink-0 text-blue-600 text-xs hover:underline">改进建议 →</button>
       </div>
-      <span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">${f.count} 次</span>
     </div>
-  `).join('') : emptyStateHTML('数据积累中', '预计 10 条会话后展示高频失败模式', '🔧');
+  `).join('');
 }
 
 // ========== 用户管理 ==========
-
 async function loadUsers() {
   const data = await fetchJSON(`${API_BASE}/users?days=30`);
   usersCache = Array.isArray(data) ? data : [];
   usersPage = 1;
-  document.getElementById('users-search').value = '';
+  if (document.getElementById('users-search')) document.getElementById('users-search').value = '';
   renderUsersPage();
 }
 
-function filterUsers() { usersPage = 1; renderUsersPage(); }
-
 function getFilteredUsers() {
-  const q = document.getElementById('users-search').value.trim().toLowerCase();
+  const q = (document.getElementById('users-search')?.value || '').trim().toLowerCase();
   if (!q) return usersCache;
   return usersCache.filter(u => (u.user_id || '').toLowerCase().includes(q));
 }
@@ -468,26 +424,25 @@ function renderUsersPage() {
   if (usersPage > totalPages) usersPage = totalPages;
   const start = (usersPage - 1) * USERS_PER_PAGE;
   const pageData = filtered.slice(start, start + USERS_PER_PAGE);
-
   const tbody = document.getElementById('users-table');
   tbody.innerHTML = '';
+
   if (!total) {
-    tbody.innerHTML = `<tr><td colspan="6">${emptyStateHTML('暂无用户数据', '当前时间范围内暂无活跃用户', '👥')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6">${emptyStateHTML('暂无用户', '', '👥')}</td></tr>`;
     renderPagination(0, 0, 0);
     return;
   }
   pageData.forEach(u => {
-    const tr = document.createElement('tr');
-    const uid = u.user_id || '--';
-    tr.innerHTML = `
-      <td><span class="truncate-id font-mono text-xs text-gray-600" title="${uid}">${uid}</span></td>
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><span class="truncate-id font-mono text-xs text-gray-600">${u.user_id || '--'}</span></td>
       <td class="text-gray-500 text-xs">${(u.first_seen || '').slice(0, 10)}</td>
       <td class="text-gray-500 text-xs">${(u.last_seen || '').slice(0, 10)}</td>
-      <td class="font-medium text-sm">${u.session_count}</td>
-      <td>${u.avg_rating !== undefined && u.avg_rating !== null ? '⭐ ' + u.avg_rating.toFixed(1) : '<span class="text-gray-400">--</span>'}</td>
-      <td><button class="text-blue-600 text-xs hover:underline" onclick="showUserDetail('${uid.replace(/'/g, "\\'")}')">详情</button></td>
+      <td class="font-medium text-sm">${u.session_count || 0}</td>
+      <td>${u.total_turns ? `<span class="text-xs text-gray-500">${u.total_turns}轮</span>` : '--'}</td>
+      <td><button class="text-blue-600 text-xs hover:underline" onclick="showUserDetail('${(u.user_id || '').replace(/'/g, "\\'")}')">详情</button></td>
     `;
-    tbody.appendChild(tr);
+    tbody.appendChild(row);
   });
   renderPagination(usersPage, totalPages, total);
 }
@@ -497,14 +452,10 @@ function renderPagination(current, total, count) {
   if (total <= 1) { container.innerHTML = `<span class="pagination-info">共 ${count} 条</span>`; return; }
   let html = '<div class="pagination">';
   html += `<button ${current === 1 ? 'disabled' : ''} onclick="goUsersPage(${current - 1})">上一页</button>`;
-  const maxButtons = 5;
-  let start = Math.max(1, current - Math.floor(maxButtons / 2));
-  let end = Math.min(total, start + maxButtons - 1);
-  if (end - start < maxButtons - 1) start = Math.max(1, end - maxButtons + 1);
-  for (let i = start; i <= end; i++) html += `<button class="${i === current ? 'active' : ''}" onclick="goUsersPage(${i})">${i}</button>`;
+  for (let i = 1; i <= total; i++) html += `<button class="${i === current ? 'active' : ''}" onclick="goUsersPage(${i})">${i}</button>`;
   html += `<button ${current === total ? 'disabled' : ''} onclick="goUsersPage(${current + 1})">下一页</button>`;
   html += '</div>';
-  html += `<span class="pagination-info">${(current - 1) * USERS_PER_PAGE + 1}-${Math.min(current * USERS_PER_PAGE, count)} / 共 ${count} 条</span>`;
+  html += `<span class="pagination-info">${start = (current-1)*USERS_PER_PAGE+1}-${Math.min(current*USERS_PER_PAGE,count)} / 共 ${count} 条</span>`;
   container.innerHTML = html;
 }
 
@@ -516,71 +467,68 @@ async function showUserDetail(userId) {
   const html = sessions.length ? sessions.map(s => `
     <div class="py-2.5 border-b border-gray-100 text-sm">
       <div class="flex justify-between items-center">
-        <span class="text-gray-600 font-mono text-xs">${s.session_id?.slice(0, 30) || ''}...</span>
+        <span class="text-gray-400 text-xs font-mono">${s.session_id?.slice(0, 35) || ''}</span>
         <span class="text-gray-400 text-xs">${(s.start_time || '').slice(0, 16)}</span>
       </div>
+      ${s.user_preview ? `<div class="mt-1 text-xs text-gray-600 bg-gray-50 rounded px-2 py-1 truncate">👤 ${s.user_preview}</div>` : ''}
       <div class="flex gap-3 mt-1.5 items-center">
-        <span class="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">${s.turn_count || 0} 轮</span>
-        <span class="text-xs text-gray-500">时长: <span class="font-medium">${s.duration_min || 0}min</span></span>
-        <span class="text-xs text-gray-500">评分: <span class="font-medium">${s.rating || '--'}</span></span>
+        <span class="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">${s.turn_count || 0} 轮</span>
+        <span class="text-xs text-gray-500">估算时长: <span class="font-medium">${s.duration_min || 0}min</span></span>
       </div>
     </div>
-  `).join('') : '<p class="text-gray-400 text-sm py-4">无会话记录</p>';
+  `).join('') : '<p class="text-gray-400 text-sm py-4 text-center">无会话记录</p>';
 
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.onclick = (e) => { if (e.target === e.currentTarget) modal.remove(); };
   modal.innerHTML = `
-    <div class="modal-box" style="max-width:560px;" onclick="event.stopPropagation()">
+    <div class="modal-box" style="max-width:600px;max-height:80vh;display:flex;flex-direction:column" onclick="event.stopPropagation()">
       <div class="modal-header">
         <span class="font-semibold text-gray-800 text-sm">用户详情</span>
         <button onclick="this.closest('.modal-overlay').remove()" class="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
       </div>
-      <div class="modal-body">
-        <p class="text-xs text-gray-500 font-mono mb-3 break-all">${userId}</p>
-        <div class="grid grid-cols-3 gap-3 mb-4 text-xs">
-          <div class="bg-gray-50 rounded p-2"><div class="text-gray-500">总会话</div><div class="font-semibold text-gray-800 text-sm mt-0.5">${data.total_sessions || 0}</div></div>
-          <div class="bg-gray-50 rounded p-2"><div class="text-gray-500">首次使用</div><div class="font-semibold text-gray-800 text-sm mt-0.5">${(data.first_seen || '').slice(0, 10) || '--'}</div></div>
-          <div class="bg-gray-50 rounded p-2"><div class="text-gray-500">最后活跃</div><div class="font-semibold text-gray-800 text-sm mt-0.5">${(data.last_seen || '').slice(0, 10) || '--'}</div></div>
+      <div class="modal-body overflow-auto flex-1">
+        <p class="text-xs text-gray-400 font-mono mb-3 break-all">${userId}</p>
+        <div class="grid grid-cols-3 gap-2 mb-3">
+          <div class="bg-gray-50 rounded p-2 text-center"><div class="text-gray-500 text-xs">总会话</div><div class="font-bold text-gray-800 text-sm mt-0.5">${data.total_sessions || 0}</div></div>
+          <div class="bg-gray-50 rounded p-2 text-center"><div class="text-gray-500 text-xs">首次使用</div><div class="font-bold text-gray-800 text-sm mt-0.5">${(data.first_seen || '').slice(0, 10) || '--'}</div></div>
+          <div class="bg-gray-50 rounded p-2 text-center"><div class="text-gray-500 text-xs">最后活跃</div><div class="font-bold text-gray-800 text-sm mt-0.5">${(data.last_seen || '').slice(0, 10) || '--'}</div></div>
         </div>
+        <div class="text-xs text-gray-500 mb-2">会话列表（最近${sessions.length}条）</div>
         <div class="space-y-0">${html}</div>
       </div>
-      <div class="modal-footer">
-        <button onclick="this.closest('.modal-overlay').remove()" class="btn btn-primary btn-sm">关闭</button>
-      </div>
+      <div class="modal-footer"><button onclick="this.closest('.modal-overlay').remove()" class="btn btn-primary btn-sm">关闭</button></div>
     </div>
   `;
   document.body.appendChild(modal);
 }
 
-// ========== 服务器健康监控 ==========
-
+// ========== 服务器健康 ==========
 async function loadHealth() {
   const data = await fetchJSON(`${API_BASE}/health`);
-  const status = data.status === 'healthy';
-
-  document.getElementById('h-status').textContent = status ? '运行正常' : '异常';
-  document.getElementById('h-status').className = status ? 'metric-value text-green-600' : 'metric-value text-red-600';
+  const ok = data.status === 'healthy';
+  document.getElementById('h-status').textContent = ok ? '运行正常' : '异常';
+  document.getElementById('h-status').className = ok ? 'metric-value text-green-600' : 'metric-value text-red-600';
   document.getElementById('h-redis-clients').textContent = data.redis?.clients ?? '--';
   document.getElementById('h-redis-memory').textContent = data.redis?.used_memory_mb ? data.redis.used_memory_mb + ' MB' : '--';
   document.getElementById('h-redis-uptime').textContent = data.redis?.uptime_days ? data.redis.uptime_days + ' 天' : '--';
+  document.getElementById('h-redis-keys').textContent = data.redis?.total_keys ?? '--';
   document.getElementById('h-eval-records').textContent = data.evaluation?.records_30d ?? '--';
+  document.getElementById('h-total-req').textContent = data.api_stats?.total_requests ?? '--';
+  document.getElementById('h-avg-rt').textContent = data.api_stats?.avg_response_ms ? data.api_stats.avg_response_ms + ' ms' : '--';
+  document.getElementById('h-p95-rt').textContent = data.api_stats?.p95_response_ms ? data.api_stats.p95_response_ms + ' ms' : '--';
   document.getElementById('h-error').textContent = data.error || '无';
   document.getElementById('h-timestamp').textContent = data.timestamp ? data.timestamp.slice(0, 19).replace('T', ' ') : '--';
 }
 
 // ========== 留存分析 ==========
-
 async function loadRetention() {
   const data = await fetchJSON(`${API_BASE}/retention?days=30`);
   const stats = data.daily_stats || [];
-
   if (!stats.length) {
-    document.getElementById('retention-chart').innerHTML = emptyStateHTML('暂无留存数据', '需要更多用户会话数据', '📈');
+    document.getElementById('retention-chart').innerHTML = emptyStateHTML('暂无留存数据', '', '📈');
     return;
   }
-
-  // DAU 趋势图
   renderChart('retention-chart', {
     tooltip: { trigger: 'axis', axisPointer: { type: 'line' } },
     legend: { data: ['活跃用户', '新用户'], bottom: 0 },
@@ -591,9 +539,8 @@ async function loadRetention() {
       { name: '活跃用户', type: 'line', data: stats.map(s => s.active_users), smooth: true, itemStyle: { color: '#3b82f6' }, areaStyle: { color: 'rgba(59,130,246,0.1)' } },
       { name: '新用户', type: 'line', data: stats.map(s => s.new_users), smooth: true, itemStyle: { color: '#10b981' } },
     ]
-  });
+  }, null);
 
-  // 统计卡片
   const totalActive = stats.reduce((a, s) => a + s.active_users, 0);
   const totalNew = stats.reduce((a, s) => a + s.new_users, 0);
   const avgDAU = stats.length ? Math.round(totalActive / stats.length) : 0;
@@ -604,26 +551,15 @@ async function loadRetention() {
   document.getElementById('r-retention-d7').textContent = data.retention?.d7 !== null ? data.retention.d7 + '%' : '数据不足';
 }
 
-// ========== 图表工具 ==========
-
+// ========== Charts ==========
 function renderChart(id, option, emptyHTML) {
   const el = document.getElementById(id);
   if (!el) return;
-  if (emptyHTML) {
-    if (chartInstances[id]) { chartInstances[id].dispose(); delete chartInstances[id]; }
-    el.innerHTML = emptyHTML;
-    return;
-  }
-  if (el.innerHTML && !chartInstances[id]) el.innerHTML = '';
+  if (emptyHTML) { if (chartInstances[id]) { chartInstances[id].dispose(); delete chartInstances[id]; } el.innerHTML = emptyHTML; return; }
   if (chartInstances[id]) chartInstances[id].dispose();
   chartInstances[id] = echarts.init(el);
   chartInstances[id].setOption(option);
 }
 
-window.addEventListener('resize', () => {
-  Object.values(chartInstances).forEach(c => c && c.resize());
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-  checkAuth();
-});
+window.addEventListener('resize', () => Object.values(chartInstances).forEach(c => c?.resize()));
+document.addEventListener('DOMContentLoaded', checkAuth);

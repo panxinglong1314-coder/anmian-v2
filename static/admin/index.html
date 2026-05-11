@@ -235,6 +235,14 @@
             <div class="card-header"><span class="card-title">会话结局分布</span></div>
             <div class="card-body"><div id="chart-outcome" style="height:260px"></div></div>
           </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">每日会话趋势</span></div>
+            <div class="card-body"><div id="chart-daily-trend" style="height:200px"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">24小时时段分布 <span class="text-xs text-gray-400 font-normal ml-1">（橙色=夜间22-6点）</span></span></div>
+            <div class="card-body"><div id="chart-hourly" style="height:180px"></div></div>
+          </div>
         </div>
       </div>
 
@@ -268,7 +276,7 @@
           </div>
           <div class="card-body p-0">
             <table class="data-table">
-              <thead><tr><th>时间</th><th>用户ID</th><th>危机状态</th><th>不当建议</th><th>评级</th><th>操作</th></tr></thead>
+              <thead><tr><th>时间</th><th>用户ID</th><th>严重程度</th><th>危机状态</th><th>不当建议</th><th>评分详情</th><th>操作</th></tr></thead>
               <tbody id="safety-table"></tbody>
             </table>
           </div>
@@ -323,13 +331,13 @@
             <span class="card-title">用户列表</span>
             <div class="flex items-center gap-2">
               <input id="users-search" type="text" placeholder="搜索用户ID..." class="search-input" oninput="filterUsers()">
-              <input id="export-days" type="number" value="30" min="1" max="365" class="border border-gray-300 rounded px-2 py-1 text-xs w-16">
+              <input id="export-days" type="number" value="30" min="1" max="365" class="border border-gray-300 rounded px-2 py-1 text-xs w-16" placeholder="天数">
               <button id="btn-export-users" onclick="downloadCSV('users')" class="btn btn-default btn-sm">📥 导出 CSV</button>
             </div>
           </div>
           <div class="card-body p-0">
             <table class="data-table">
-              <thead><tr><th>用户ID</th><th>首次使用</th><th>最后活跃</th><th>会话数</th><th>平均评分</th><th>操作</th></tr></thead>
+              <thead><tr><th>用户ID</th><th>首次使用</th><th>最后活跃</th><th>会话数</th><th>总轮次</th><th>平均评分</th><th>操作</th></tr></thead>
               <tbody id="users-table"></tbody>
             </table>
           </div>
@@ -372,7 +380,11 @@
             <div class="card-body space-y-2 text-sm">
               <div class="flex justify-between"><span class="text-gray-500">运行天数</span><span id="h-redis-uptime" class="font-medium">--</span></div>
               <div class="flex justify-between"><span class="text-gray-500">更新时间</span><span id="h-timestamp" class="font-mono text-xs text-gray-600">--</span></div>
-              <div class="flex justify-between"><span class="text-gray-500">错误信息</span><span id="h-error" class="font-medium text-red-500">无</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">Redis Key数</span><span id="h-redis-keys" class="font-medium">--</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">API总请求</span><span id="h-total-req" class="font-medium">--</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">API平均响应</span><span id="h-avg-rt" class="font-medium">--</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">API P95响应</span><span id="h-p95-rt" class="font-medium">--</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">错误信息</span><span id="h-error" class="font-medium text-red-500">无</span></div>
             </div>
           </div>
           <div class="card">
@@ -430,6 +442,6 @@
   </div>
 </div>
 
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
