@@ -15,6 +15,7 @@ import os
 from dialogue_evaluator import dialogue_evaluator
 from alert_manager import send_alert, send_daily_report
 
+from evaluation_tracker import record_session_evaluation, _get_morning_data
 # ============ 配置 ============
 
 LOG_DIR = Path(__file__).parent.parent / "conversation_logs"
