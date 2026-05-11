@@ -132,6 +132,76 @@ def _get_session_detail(key: str) -> Optional[Dict]:
     except:
         return None
 
+
+
+# ==================== 用户评分数据（汇总三个来源） ====================
+
+def _get_user_ratings(days: int = 30) -> list:
+    """
+    汇总用户评分，从三个来源：
+    1. Redis chat:history:* 中的 rating 字段
+    2. conversation_logs/ 中的会话日志文件的 rating 字段
+    3. Redis feedback:* 中的每日反馈（转换为1-5分）
+    """
+    from pathlib import Path
+    ratings = []
+    cutoff = datetime.now() - timedelta(days=days)
+
+    # 来源1: Redis chat:history 会话
+    sessions = _get_all_sessions(days=days)
+    for s in sessions:
+        r = s.get("rating")
+        if r and isinstance(r, (int, float)) and 1 <= r <= 5:
+            ratings.append({"rating": r, "timestamp": s.get("start_time", "")})
+
+    # 来源2: session_logger JSON 日志文件
+    LOG_DIR = Path(__file__).parent.parent / "conversation_logs"
+    if LOG_DIR.exists():
+        for fpath in glob.glob(str(LOG_DIR / "sess_*.json")):
+            try:
+                with open(fpath, 'r', encoding='utf-8') as f:
+                    log = json.load(f)
+                ts = log.get("end_time", "")
+                if ts:
+                    try:
+                        t = datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=None)
+                        if t < cutoff:
+                            continue
+                    except:
+                        pass
+                r = log.get("rating")
+                if r and isinstance(r, (int, float)) and 1 <= r <= 5:
+                    ratings.append({"rating": r, "timestamp": ts})
+            except:
+                continue
+
+    # 来源3: Redis feedback:*
+    try:
+        fb_r = _get_redis()
+        fb_keys = fb_r.keys("feedback:*")
+        for k in fb_keys:
+            for item in fb_r.lrange(k, 0, -1):
+                try:
+                    d = json.loads(item)
+                    ts = d.get("timestamp", "")
+                    if ts:
+                        try:
+                            t = datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=None)
+                            if t < cutoff:
+                                continue
+                        except:
+                            pass
+                    fb_rating = d.get("rating")
+                    if fb_rating in [1, 5]:
+                        ratings.append({"rating": fb_rating, "timestamp": ts})
+                except:
+                    continue
+    except:
+        pass
+
+    return ratings
+
+
 def _load_evaluation_records(days: int = 30) -> List[Dict]:
     cutoff = datetime.now() - timedelta(days=days)
     records = []
@@ -183,7 +253,9 @@ def get_dashboard_stats(days: int = 7, limit: int = 500) -> Dict[str, Any]:
             active_users.add(parts[1])
 
     total_turns = sum(s.get("turn_count", 0) for s in sessions)
-    ratings = [s.get("rating") for s in sessions if s.get("rating")]
+    # 汇总三个来源的用户评分
+    all_user_ratings = _get_user_ratings(days=days)
+    ratings = [r["rating"] for r in all_user_ratings]
     outcomes = {}
     for s in sessions:
         o = s.get("outcome", "unknown")
