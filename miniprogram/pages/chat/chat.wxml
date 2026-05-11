@@ -35,42 +35,17 @@
       </view>
     </view>
 
-    <!-- 居中月亮 + 状态文字 -->
+    <!-- 居中月亮 + 动态阶段文字 -->
     <view class="sleep-center-zone">
       <view class="sleep-moon {{isListening ? 'listening' : ''}}"><view class="moon-body"></view></view>
-      <text class="sleep-status">{{statusText}}</text>
-      <text class="sleep-hint">用正确的认识改善睡眠 - "知眠"</text>
-    </view>
-
-    <!-- CBT 阶段进度指示器 -->
-    <view wx:if="{{showCbtPhase}}" class="cbt-phase-area">
-      <view class="cbt-phase-steps">
-        <view class="cbt-step {{cbtPhase === 'assessment' ? 'active' : cbtPhaseLabel !== '了解' && cbtPhaseLabel !== '说出' && cbtPhaseLabel !== '重构' && cbtPhaseLabel !== '放松' && cbtPhaseLabel !== '入睡' ? '' : ''}}">
-          <view class="cbt-dot"></view>
-          <text class="cbt-label">了解</text>
-        </view>
-        <view class="cbt-line {{cbtPhase !== 'assessment' ? 'done' : ''}}"></view>
-        <view class="cbt-step">
-          <view class="cbt-dot"></view>
-          <text class="cbt-label">说出</text>
-        </view>
-        <view class="cbt-line"></view>
-        <view class="cbt-step">
-          <view class="cbt-dot"></view>
-          <text class="cbt-label">重构</text>
-        </view>
-        <view class="cbt-line"></view>
-        <view class="cbt-step">
-          <view class="cbt-dot"></view>
-          <text class="cbt-label">放松</text>
-        </view>
-        <view class="cbt-line"></view>
-        <view class="cbt-step">
-          <view class="cbt-dot"></view>
-          <text class="cbt-label">入睡</text>
-        </view>
-      </view>
-      <view wx:if="{{cbtPhaseHint}}" class="cbt-phase-hint">{{cbtPhaseHint}}</view>
+      <!-- 默认模式 -->
+      <text wx:if="{{!showCbtPhase}}" class="sleep-status">{{statusText || '准备睡觉'}}</text>
+      <!-- CBT模式：显示真实阶段名称 -->
+      <text wx:if="{{showCbtPhase}}" class="sleep-status cbt-phase-name">{{cbtPhaseLabel || '准备睡觉'}}</text>
+      <!-- 默认hint -->
+      <text wx:if="{{!showCbtPhase}}" class="sleep-hint">用正确的认识改善睡眠 · 知眠</text>
+      <!-- CBT hint -->
+      <text wx:if="{{showCbtPhase && cbtPhaseHint}}" class="sleep-hint cbt-phase-hint">{{cbtPhaseHint}}</text>
     </view>
 
     <!-- 白噪音 -->

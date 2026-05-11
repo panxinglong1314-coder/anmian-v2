@@ -94,6 +94,7 @@ Page({
     cbtPhase: '',
     cbtPhaseLabel: '',
     cbtPhaseHint: '',
+    cbtStepIndex: -1,
     showCbtPhase: false,
     statusText: '准备入睡',
     statusHint: '点击下方按钮，将手机放在枕边',
@@ -1127,14 +1128,16 @@ Page({
             const phase = data.data
             const label = phase.phase_label || ''
             const hint = phase.phase_hint || ''
+            const stepIndex = phase.step_index !== undefined ? phase.step_index : -1
             if (label && phase.phase !== 'normal_chat' && phase.phase !== 'safety') {
               this.setData({
                 cbtPhase: phase.phase,
                 cbtPhaseLabel: label,
                 cbtPhaseHint: hint,
+                cbtStepIndex: stepIndex,
                 showCbtPhase: true,
               })
-              console.log("[CBT-UI] phase=", phase.phase, "label=", label, "hint=", hint)
+              console.log("[CBT-UI] phase=", phase.phase, "label=", label, "hint=", hint, "step=", stepIndex)
             } else {
               this.setData({ showCbtPhase: false })
             }

@@ -2328,18 +2328,44 @@ async def _chat_events(req: ChatRequest, user_id: str):
 
 # CBT 阶段中文标签和提示语
     phase_value = cbt_result.get("next_phase", "")
-    phase_map = {
-        "assessment": ("了解", "先了解一下你今晚的状态，不用急着回答"),
-        "worry_capture": ("说出", "慢慢说就好，我帮你记着"),
-        "cognitive": ("重构", "换个角度看，也许没那么严重"),
-        "relaxation": ("放松", "跟着呼吸，慢慢来"),
-        "closure": ("入睡", "准备好了，我们结束今晚的对话"),
-        "safety": ("", ""),
-        "normal_chat": ("", ""),
+    step_map = {
+        "assessment": 0, "worry_capture": 0,
+        "cognitive": 1,
+        "relaxation": 2, "closure": 2,
     }
-    label, hint = phase_map.get(phase_value, ("", ""))
+    activity_map = {
+        "pmr_tiny": "PMR极速版",
+        "pmr_short": "PMR快速版",
+        "pmr": "身体放松",
+        "breathing": "做深呼吸",
+        "mindfulness": "静心一下",
+        "paradoxical_intention": "矛盾意向法",
+    }
+    relaxation_hint_map = {
+        "pmr_tiny": "收紧...保持...松开，感受对比",
+        "pmr_short": "每部位两轮，感受放松蔓延",
+        "pmr": "从头到脚，逐部位放松",
+        "breathing": "吸气4秒，屏息7秒，呼气8秒",
+        "mindfulness": "只是观察，不评判，不控制",
+        "paradoxical_intention": "睡不着就别努力，反而容易入睡",
+    }
+    phase_map = {
+        "assessment": ("说说你今晚怎么样", "今晚感觉怎么样？慢慢说，我帮你听着"),
+        "worry_capture": ("说说你今晚怎么样", "慢慢说就好，我帮你记着"),
+        "cognitive": ("换个角度想想", "换个角度看，也许没那么严重"),
+        "relaxation": ("", ""),
+        "closure": ("准备睡觉", "今晚就到这里，晚安"),
+        "safety": ("", ""),
+        "normal_chat": ("准备睡觉", "用正确的认识改善睡眠"),
+    }
+    label, hint = phase_map.get(phase_value, ("准备睡觉", "用正确的认识改善睡眠"))
+    response_type = cbt_result.get("response_type", "")
+    if phase_value == "relaxation" and response_type:
+        label = activity_map.get(response_type, "身体放松")
+        hint = relaxation_hint_map.get(response_type, "跟着感觉，慢慢来")
     cbt_result["phase_label"] = label
     cbt_result["phase_hint"] = hint
+    cbt_result["step_index"] = step_map.get(phase_value, -1)
     yield {"event": "cbt_state", "data": cbt_result}
 
     # 获取 TTS 参数（语速由 CBT 状态决定，不从 LLM 输出解析）
