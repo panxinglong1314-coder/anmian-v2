@@ -538,6 +538,26 @@ def get_user_list(days: int = 30, limit: int = 500) -> List[Dict]:
                 users[uid]["avg_rating"] = round(sum(valid_ratings) / len(valid_ratings), 1)
                 users[uid]["latest_rating"] = valid_ratings[-1]
 
+
+    # Collect subscription info
+    for uid in users:
+        try:
+            import json as _js
+            sub_key = f"subscription:{uid}"
+            sub_data = _get_redis().get(sub_key)
+            if sub_data:
+                sd = _js.loads(sub_data)
+                users[uid]["subscription_plan"] = sd.get("plan", "basic")
+                users[uid]["subscription_active"] = sd.get("is_active", False)
+                users[uid]["subscription_expire"] = sd.get("expire_date", "")[:10]
+            else:
+                users[uid]["subscription_plan"] = "free"
+                users[uid]["subscription_active"] = None
+                users[uid]["subscription_expire"] = ""
+        except Exception:
+            users[uid]["subscription_plan"] = "free"
+            users[uid]["subscription_active"] = None
+            users[uid]["subscription_expire"] = ""
     return list(users.values())[:limit]
 
 def toggle_user_status(user_id: str, action: str = "disable") -> Dict[str, Any]:

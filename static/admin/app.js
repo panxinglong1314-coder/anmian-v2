@@ -478,6 +478,7 @@ function renderUsersPage() {
       <td class="font-medium text-sm">${u.session_count || 0}</td>
       <td>${u.total_turns ? `<span class="text-xs text-gray-500">${u.total_turns}轮</span>` : '--'}</td>
       <td>${u.avg_rating ? '<span class="text-yellow-500 text-xs">★ ' + u.avg_rating + '</span>' : '<span class="text-gray-300 text-xs">--</span>'}</td>
+      <td>${u.subscription_plan ? (u.subscription_plan === "free" ? '<span class="text-gray-400 text-xs">免费</span>' : '<span class="text-blue-500 text-xs">' + u.subscription_plan + '</span>') : '<span class="text-gray-300 text-xs">--</span>'}</td>
       <td>
         <button class="text-red-500 text-xs hover:underline mr-1" onclick="deleteUser('${(u.user_id || '').replace(/'/g, "\'")}')">删除</button>
         <button class="text-orange-500 text-xs hover:underline mr-1" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\'")}', 'disable')">禁用</button>
