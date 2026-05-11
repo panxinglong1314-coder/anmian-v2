@@ -409,7 +409,7 @@ async function loadQuality() {
 async function deleteUser(userId) {
   if (!confirm('确定删除用户 ' + userId + '？此操作不可恢复！')) return;
   try {
-    const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/delete`, {
+    const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}`, {
       method: 'DELETE',
       headers: { 'X-Admin-Token': adminToken }
     });
