@@ -474,6 +474,40 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 app.add_middleware(AdminAuthMiddleware)
+class ApiStatsMiddleware(BaseHTTPMiddleware):
+    """Track LLM/ASR/TTS API response times"""
+    async def dispatch(self, request, call_next):
+        path = request.url.path
+        cat = None
+        if path.startswith("/api/v1/chat"):
+            cat = "LLM"
+        elif path.startswith("/api/v1/asr"):
+            cat = "ASR"
+        elif path.startswith("/api/v1/tts") or path.startswith("/api/v1/voice"):
+            cat = "TTS"
+        if cat:
+            import time
+            start = time.time()
+            is_err = False
+            try:
+                response = await call_next(request)
+                if response.status_code >= 400:
+                    is_err = True
+                return response
+            except Exception:
+                is_err = True
+                raise
+            finally:
+                elapsed_ms = (time.time() - start) * 1000
+                try:
+                    from admin_routes import _record_api_call
+                    _record_api_call(elapsed_ms, is_err, cat)
+                except Exception:
+                    pass
+        else:
+            return await call_next(request)
+
+app.add_middleware(ApiStatsMiddleware)
 app.add_middleware(UserRateLimitMiddleware)
 
 

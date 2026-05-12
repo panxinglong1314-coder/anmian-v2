@@ -29,8 +29,14 @@ EVAL_TRACK_DIR = Path(__file__).parent.parent / "evaluation_tracking"
 _api_stats = {
     "total_requests": 0,
     "total_errors": 0,
-    "response_times_ms": [],  # 最近100次响应时间
+    "response_times_ms": [],  # 最近200次响应时间
     "last_reset": time.time(),
+    "categories": {
+        "LLM": {"requests": 0, "errors": 0, "times_ms": []},
+        "ASR": {"requests": 0, "errors": 0, "times_ms": []},
+        "TTS": {"requests": 0, "errors": 0, "times_ms": []},
+        "other": {"requests": 0, "errors": 0, "times_ms": []},
+    }
 }
 
 def _get_redis():
@@ -52,7 +58,16 @@ def _parse_session_id_timestamp(session_id: str):
             pass
     return None, None
 
-def _record_api_call(response_time_ms: float, is_error: bool = False):
+def _build_cat_stats(cat: str) -> dict:
+    """构建单个类别的统计"""
+    times = _api_stats["categories"].get(cat, {}).get("times_ms", [])
+    return {
+        "requests": _api_stats["categories"].get(cat, {}).get("requests", 0),
+        "avg_ms": round(sum(times) / max(len(times), 1), 1) if times else 0,
+        "p95_ms": int(sorted(times)[int(len(times) * 0.95)]) if len(times) >= 20 else (max(times) if times else 0),
+    }
+
+def _record_api_call(response_time_ms: float, is_error: bool = False, category: str = "other"):
     """记录API调用统计"""
     _api_stats["total_requests"] += 1
     if is_error:
@@ -60,6 +75,13 @@ def _record_api_call(response_time_ms: float, is_error: bool = False):
     _api_stats["response_times_ms"].append(response_time_ms)
     if len(_api_stats["response_times_ms"]) > 200:
         _api_stats["response_times_ms"] = _api_stats["response_times_ms"][-200:]
+    cat_data = _api_stats["categories"].get(category, _api_stats["categories"]["other"])
+    cat_data["requests"] += 1
+    if is_error:
+        cat_data["errors"] += 1
+    cat_data["times_ms"].append(response_time_ms)
+    if len(cat_data["times_ms"]) > 200:
+        cat_data["times_ms"] = cat_data["times_ms"][-200:]
 
 def _get_all_sessions(days: int = 30) -> List[Dict]:
     r = _get_redis()
@@ -731,6 +753,11 @@ def get_system_health() -> Dict[str, Any]:
                 "avg_response_ms": avg_rt,
                 "p95_response_ms": p95_rt,
                 "uptime_since": datetime.fromtimestamp(_api_stats["last_reset"]).isoformat(),
+                "breakdown": {
+                    "LLM": _build_cat_stats("LLM"),
+                    "ASR": _build_cat_stats("ASR"),
+                    "TTS": _build_cat_stats("TTS"),
+                },
             },
             "timestamp": datetime.now().isoformat(),
         }
