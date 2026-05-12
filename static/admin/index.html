@@ -231,12 +231,7 @@
             <div class="card-header"><span class="card-title">评估评级分布</span></div>
             <div class="card-body"><div id="chart-rating-dist" style="height:260px"></div></div>
           </div>
-          <div class="card">
-            <div class="card-header"><span class="card-title">会话结局分布</span></div>
-            <div class="card-body"><div id="chart-outcome" style="height:260px"></div></div>
-          </div>
-          <div class="card">
-            <div class="card-header"><span class="card-title">每日会话趋势</span></div>
+          
             <div class="card-body"><div id="chart-daily-trend" style="height:200px"></div></div>
           </div>
           <div class="card">
@@ -348,10 +343,7 @@
         </div>
       </div>
 
-    </div>
-  </main>
-</div>
-
+    
 <!-- 建议 Modal -->
 
       <!-- 服务器监控 -->
@@ -382,8 +374,28 @@
               <div class="flex justify-between"><span class="text-gray-500">更新时间</span><span id="h-timestamp" class="font-mono text-xs text-gray-600">--</span></div>
               <div class="flex justify-between"><span class="text-gray-500">Redis Key数</span><span id="h-redis-keys" class="font-medium">--</span></div>
           <div class="flex justify-between"><span class="text-gray-500">API总请求</span><span id="h-total-req" class="font-medium">--</span></div>
-          <div class="flex justify-between"><span class="text-gray-500">API平均响应</span><span id="h-avg-rt" class="font-medium">--</span></div>
-          <div class="flex justify-between"><span class="text-gray-500">API P95响应</span><span id="h-p95-rt" class="font-medium">--</span></div>
+          <div class="grid grid-cols-3 gap-2 text-center mb-1">
+            <div class="bg-blue-50 rounded p-1">
+              <div id="h-llm-req" class="font-medium text-blue-600">--</div>
+              <div class="text-xs text-gray-500">LLM</div>
+            </div>
+            <div class="bg-green-50 rounded p-1">
+              <div id="h-asr-req" class="font-medium text-green-600">--</div>
+              <div class="text-xs text-gray-500">ASR</div>
+            </div>
+            <div class="bg-purple-50 rounded p-1">
+              <div id="h-tts-req" class="font-medium text-purple-600">--</div>
+              <div class="text-xs text-gray-500">TTS</div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs mt-1">
+            <div class="flex justify-between"><span class="text-gray-400">LLM响应</span><span id="h-llm-rt" class="text-blue-500">--</span></div>
+            <div class="flex justify-between"><span class="text-gray-400">LLM P95</span><span id="h-llm-p95" class="text-blue-500">--</span></div>
+            <div class="flex justify-between"><span class="text-gray-400">ASR响应</span><span id="h-asr-rt" class="text-green-500">--</span></div>
+            <div class="flex justify-between"><span class="text-gray-400">ASR P95</span><span id="h-asr-p95" class="text-green-500">--</span></div>
+            <div class="flex justify-between"><span class="text-gray-400">TTS响应</span><span id="h-tts-rt" class="text-purple-500">--</span></div>
+            <div class="flex justify-between"><span class="text-gray-400">TTS P95</span><span id="h-tts-p95" class="text-purple-500">--</span></div>
+          </div>
           <div class="flex justify-between"><span class="text-gray-500">错误信息</span><span id="h-error" class="font-medium text-red-500">无</span></div>
             </div>
           </div>
@@ -438,6 +450,10 @@
           <div class="card-body"><div id="retention-chart" style="height:300px"></div></div>
         </div>
       </div>
+</div>
+  </main>
+</div>
+
 <div id="suggestion-modal" class="hidden">
   <div class="modal-overlay" onclick="closeModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
@@ -453,6 +469,6 @@
   </div>
 </div>
 
-<script src="app.js?v=8"></script>
+<script src="app.js?v=36"></script>
 </body>
 </html>

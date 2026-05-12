@@ -24,7 +24,17 @@ function showModal(content, title = '详情') {
   document.querySelector('.modal-title').textContent = title;
   modal.classList.remove('hidden');
 }
-function hideModal() { document.getElementById('suggestion-modal').classList新增('hidden'); }
+function hideModal() { document.getElementById('suggestion-modal').classList.add('hidden'); }
+async function deleteSafetyEvent(sessionId, btnEl) {
+  if (!confirm('确定要删除这条安全事件记录吗？')) return;
+  btnEl.disabled = true; btnEl.textContent = '删除中...';
+  try {
+    const r = await fetch(`${API_BASE}/safety/${encodeURIComponent(sessionId)}`, { method: 'DELETE', headers: { 'X-Admin-Token': adminToken } });
+    const data = await r.json();
+    if (data.success) { toast('删除成功', 'success'); loadSafety(); }
+    else { toast('删除失败: ' + (data.error || '未知错误'), 'error'); btnEl.disabled = false; btnEl.textContent = '删除'; }
+  } catch(e) { toast('删除失败: ' + e.message, 'error'); btnEl.disabled = false; btnEl.textContent = '删除'; }
+}
 function closeModal(e) { if (e.target === e.currentTarget) hideModal(); }
 
 // ========== Auth ==========
@@ -321,6 +331,7 @@ async function loadSafety() {
     const crisisCls = e.crisis_status === '已识别' ? 'badge-yellow' : 'badge-green';
     const suggestion = (e.top_suggestion || '暂无').replace(/"/g, '&quot;').replace(/'/g, "\\'");
     const row = document.createElement('tr');
+    const sessionId = e.session_id || '';
     row.innerHTML = `
       <td class="text-gray-500 text-xs">${(e.timestamp || '').slice(0, 16)}</td>
       <td><span class="truncate-id font-mono text-xs text-gray-500">${e.user_id || '--'}</span></td>
@@ -328,7 +339,7 @@ async function loadSafety() {
       <td><span class="badge ${crisisCls}">${e.crisis_status || '正常'}</span></td>
       <td>${e.bad_advice_found ? '<span class="badge badge-red">是</span>' : '<span class="badge badge-green">否</span>'}</td>
       <td class="text-xs">${e.empathy !== undefined ? `共${e.empathy}/5` : '--'} / ${e.tech !== undefined ? `技${e.tech}/9` : ''}</td>
-      <td><button class="text-blue-600 text-xs hover:underline" onclick="showModal('${suggestion}', '处理建议')">查看建议</button></td>
+      <td><button class="text-blue-600 text-xs hover:underline" onclick="showModal('${suggestion}', '处理建议')">查看建议</button> <button class="text-red-500 text-xs hover:underline ml-2" onclick="deleteSafetyEvent('${sessionId}', this)">删除</button></td>
     `;
     tbody.appendChild(row);
   });
@@ -554,14 +565,23 @@ async function loadHealth() {
   const ok = data.status === 'healthy';
   document.getElementById('h-status').textContent = ok ? '运行正常' : '异常';
   document.getElementById('h-status').className = ok ? 'metric-value text-green-600' : 'metric-value text-red-600';
-  document.getElementById('h-redis-clients').textContent = data.redis?.clients ?? '--';
-  document.getElementById('h-redis-memory').textContent = data.redis?.used_memory_mb ? data.redis.used_memory_mb + ' MB' : '--';
-  document.getElementById('h-redis-uptime').textContent = data.redis?.uptime_days ? data.redis.uptime_days + ' 天' : '--';
-  document.getElementById('h-redis-keys').textContent = data.redis?.total_keys ?? '--';
-  document.getElementById('h-eval-records').textContent = data.evaluation?.records_30d ?? '--';
-  document.getElementById('h-total-req').textContent = data.api_stats?.total_requests ?? '--';
-  document.getElementById('h-avg-rt').textContent = data.api_stats?.avg_response_ms ? data.api_stats.avg_response_ms + ' ms' : '--';
-  document.getElementById('h-p95-rt').textContent = data.api_stats?.p95_response_ms ? data.api_stats.p95_response_ms + ' ms' : '--';
+  document.getElementById('h-redis-clients').textContent = data.redis?.clients != null ?? '--';
+  document.getElementById('h-redis-memory').textContent = data.redis?.used_memory_mb != null ? data.redis.used_memory_mb + ' MB' : '--';
+  document.getElementById('h-redis-uptime').textContent = data.redis?.uptime_days != null ? data.redis.uptime_days + ' 天' : '--';
+  document.getElementById('h-redis-keys').textContent = data.redis?.total_keys != null ?? '--';
+  document.getElementById('h-eval-records').textContent = data.evaluation?.records_30d != null ?? '--';
+  const apiStats = data.api_stats || {};
+  const bd = apiStats.breakdown || {};
+  document.getElementById('h-total-req').textContent = apiStats.total_requests ?? '--';
+  document.getElementById('h-llm-req').textContent = (bd.LLM?.requests != null) ? bd.LLM.requests : '0';
+  document.getElementById('h-asr-req').textContent = (bd.ASR?.requests != null) ? bd.ASR.requests : '0';
+  document.getElementById('h-tts-req').textContent = (bd.TTS?.requests != null) ? bd.TTS.requests : '0';
+  document.getElementById('h-llm-rt').textContent = (bd.LLM?.avg_ms > 0) ? bd.LLM.avg_ms + 'ms' : '--';
+  document.getElementById('h-llm-p95').textContent = (bd.LLM?.p95_ms > 0) ? bd.LLM.p95_ms + 'ms' : '--';
+  document.getElementById('h-asr-rt').textContent = (bd.ASR?.avg_ms > 0) ? bd.ASR.avg_ms + 'ms' : '--';
+  document.getElementById('h-asr-p95').textContent = (bd.ASR?.p95_ms > 0) ? bd.ASR.p95_ms + 'ms' : '--';
+  document.getElementById('h-tts-rt').textContent = (bd.TTS?.avg_ms > 0) ? bd.TTS.avg_ms + 'ms' : '--';
+  document.getElementById('h-tts-p95').textContent = (bd.TTS?.p95_ms > 0) ? bd.TTS.p95_ms + 'ms' : '--';
   // Issues list
   const issuesEl = document.getElementById('h-issues-list');
   if (issuesEl) {
