@@ -360,7 +360,6 @@ Page({
 
     // 更新最新睡眠数据
     const latest = trend[0] || {}
-    this.setData({
     // SRT数据处理
     let srtPhaseColor = "#8BA3B9"
     if (data.srt) {
@@ -370,6 +369,7 @@ Page({
       else if (phase === "optimizing") srtPhaseColor = "#F5C869"
       else if (phase === "maintenance") srtPhaseColor = "#6B9FD4"
     }
+    this.setData({
       'sleepDashboard.hasData': true,
       'sleepDashboard.stats': data.stats,
       'sleepDashboard.trend': trend,
