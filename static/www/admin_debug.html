@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>服务器监控 - 诊断</title>
+<script src="https://cdn.tailwindcss.com/"></script>
+</head>
+<body class="bg-gray-100 p-8">
+<h1 class="text-2xl font-bold mb-6">服务器监控诊断</h1>
+
+<div id="results" class="space-y-4 max-w-2xl">
+  <div class="bg-white rounded p-4 shadow">
+    <h2 class="font-bold text-lg mb-2">1. HTML页面加载</h2>
+    <p id="js-status" class="text-red-500">检测中...</p>
+  </div>
+
+  <div class="bg-white rounded p-4 shadow">
+    <h2 class="font-bold text-lg mb-2">2. Auth Token</h2>
+    <p id="auth-status" class="text-red-500">检测中...</p>
+  </div>
+
+  <div class="bg-white rounded p-4 shadow">
+    <h2 class="font-bold text-lg mb-2">3. Health API (无需认证)</h2>
+    <pre id="health-api" class="bg-gray-50 p-2 text-xs overflow-auto max-h-40">检测中...</pre>
+  </div>
+
+  <div class="bg-white rounded p-4 shadow">
+    <h2 class="font-bold text-lg mb-2">4. Health API (带认证)</h2>
+    <pre id="health-auth" class="bg-gray-50 p-2 text-xs overflow-auto max-h-40">检测中...</pre>
+  </div>
+
+  <div class="bg-white rounded p-4 shadow">
+    <h2 class="font-bold text-lg mb-2">5. Health History API</h2>
+    <pre id="health-history" class="bg-gray-50 p-2 text-xs overflow-auto max-h-40">检测中...</pre>
+  </div>
+
+  <div class="bg-white rounded p-4 shadow">
+    <h2 class="font-bold text-lg mb-2">6. Retention API</h2>
+    <pre id="retention-api" class="bg-gray-50 p-2 text-xs overflow-auto max-h-40">检测中...</pre>
+  </div>
+
+  <div class="bg-white rounded p-4 shadow">
+    <h2 class="font-bold text-lg mb-2">7. ECharts 库加载</h2>
+    <p id="echarts-status" class="text-red-500">检测中...</p>
+  </div>
+</div>
+
+<script>
+const ADMIN_TOKEN = localStorage.getItem('admin_token') || '';
+const API = '/api/v1/admin';
+
+// 1. JS加载
+document.getElementById('js-status').textContent = '✅ JavaScript 已执行';
+document.getElementById('js-status').className = 'text-green-500';
+
+// 2. Auth
+if (ADMIN_TOKEN) {
+  document.getElementById('auth-status').textContent = '✅ Token: ' + ADMIN_TOKEN.substring(0,5) + '...';
+  document.getElementById('auth-status').className = 'text-green-500';
+} else {
+  document.getElementById('auth-status').textContent = '⚠️ 无Token (localStorage.admin_token)';
+  document.getElementById('auth-status').className = 'text-yellow-500';
+}
+
+// 3. Health no-auth
+fetch(API + '/health').then(r => r.json()).then(d => {
+  document.getElementById('health-api').textContent = JSON.stringify(d, null, 2);
+}).catch(e => {
+  document.getElementById('health-api').textContent = '❌ 错误: ' + e.message;
+});
+
+// 4. Health with-auth
+fetch(API + '/health', { headers: { 'X-Admin-Token': ADMIN_TOKEN } }).then(r => r.json()).then(d => {
+  document.getElementById('health-auth').textContent = JSON.stringify(d, null, 2);
+}).catch(e => {
+  document.getElementById('health-auth').textContent = '❌ 错误: ' + e.message;
+});
+
+// 5. Health history
+fetch(API + '/health/history?hours=24', { headers: { 'X-Admin-Token': ADMIN_TOKEN } }).then(r => r.json()).then(d => {
+  document.getElementById('health-history').textContent = '✅ ' + d.length + ' 条数据\n' + JSON.stringify(d.slice(0,3), null, 2);
+}).catch(e => {
+  document.getElementById('health-history').textContent = '❌ 错误: ' + e.message;
+});
+
+// 6. Retention
+fetch(API + '/retention?days=30', { headers: { 'X-Admin-Token': ADMIN_TOKEN } }).then(r => r.json()).then(d => {
+  const stats = d.daily_stats || [];
+  document.getElementById('retention-api').textContent = '✅ ' + stats.length + ' 天数据\n日均活跃: ' + (stats.reduce((a,s)=>a+s.active_users,0)/stats.length||0).toFixed(1) + '\n' + JSON.stringify(stats.slice(0,3), null, 2);
+}).catch(e => {
+  document.getElementById('retention-api').textContent = '❌ 错误: ' + e.message;
+});
+
+// 7. ECharts
+if (typeof echarts !== 'undefined') {
+  document.getElementById('echarts-status').textContent = '✅ ECharts ' + echarts.version + ' 已加载';
+  document.getElementById('echarts-status').className = 'text-green-500';
+} else {
+  document.getElementById('echarts-status').textContent = '❌ ECharts 未加载 (CDN问题)';
+  document.getElementById('echarts-status').className = 'text-red-500';
+}
+</script>
+</body>
+</html>

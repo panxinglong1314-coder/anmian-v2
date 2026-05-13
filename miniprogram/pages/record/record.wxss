@@ -667,3 +667,105 @@
   border-radius: 44rpx;
   text-align: center;
 }
+
+/* SRT 睡眠限制疗法样式 */
+.srt-section {
+  background: #f8f9fa;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.srt-phase-badge {
+  display: inline-block;
+  padding: 8rpx 20rpx;
+  border-radius: 20rpx;
+  color: #fff;
+  font-size: 24rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+
+.srt-window-info {
+  margin: 16rpx 0;
+}
+
+.srt-window-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12rpx 0;
+  border-bottom: 1rpx solid #eee;
+}
+
+.srt-window-row:last-child {
+  border-bottom: none;
+}
+
+.srt-window-row.highlight {
+  background: #e8f5e9;
+  border-radius: 8rpx;
+  padding: 12rpx 16rpx;
+  margin-top: 8rpx;
+}
+
+.srt-window-label {
+  color: #8BA3B9;
+  font-size: 26rpx;
+}
+
+.srt-window-value {
+  color: #0D1B2A;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.srt-tip {
+  font-size: 24rpx;
+  color: #666;
+  margin-top: 12rpx;
+  line-height: 1.5;
+}
+
+.srt-apply-btn {
+  width: 100%;
+  height: 80rpx;
+  line-height: 80rpx;
+  background: linear-gradient(135deg, #7EC8A3, #6B9FD4);
+  color: #fff;
+  font-size: 28rpx;
+  font-weight: 600;
+  border-radius: 40rpx;
+  margin-top: 16rpx;
+  text-align: center;
+}
+
+.srt-metrics-row {
+  display: flex;
+  justify-content: space-around;
+  padding: 16rpx 0;
+}
+
+.srt-metric {
+  text-align: center;
+}
+
+.srt-metric-val {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #0D1B2A;
+}
+
+.srt-metric-lbl {
+  display: block;
+  font-size: 22rpx;
+  color: #8BA3B9;
+  margin-top: 4rpx;
+}
+
+.srt-tip-item {
+  padding: 8rpx 0;
+  font-size: 26rpx;
+  color: #555;
+  line-height: 1.5;
+}

@@ -31,12 +31,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 import httpx
 import redis
 
-from infra.settings import settings, ADMIN_TOKEN, BACKEND_VERSION
-from infra.redis_client import redis_client, async_redis_client
-from services.auth import create_jwt_token, verify_jwt_token, AuthUser
-from services.sleep_stats import update_streak
-from srt_engine import srt_engine, get_streak_days, get_user_sleep_stats, get_sleep_diary, save_sleep_diary
-
 # ==================== 安全验证工具 ====================
 
 # 常见音频格式的魔数（文件头）
@@ -127,7 +121,7 @@ try:
     import sys
     sys.path.insert(0, str(__file__).rsplit('/', 1)[0])
     from rag_engine import init_rag, build_rag_index, build_rag_system_prompt, log_cbt_turn_with_rag, finalize_session, rag_index
-    from admin_routes import get_dashboard_stats, get_safety_events, get_quality_stats, get_user_list, get_user_detail, export_users_csv, export_safety_csv, export_evaluations_csv
+    from admin_routes import get_dashboard_stats, get_safety_events, get_quality_stats, get_user_list, get_user_detail, export_users_csv, export_safety_csv, export_evaluations_csv, get_system_health, get_retention_stats
     from session_logger import session_logger, LOG_DIR
     from dialogue_evaluator import dialogue_evaluator
     RAG_AVAILABLE = True
@@ -141,6 +135,78 @@ except ImportError as e:
     rag_index = None
     session_logger = None
     LOG_DIR = None
+
+# ==================== 配置 ============================
+
+class Settings(BaseSettings):
+    # 千问 / DashScope 凭证
+    qwen_api_key: str = ""
+    qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
+    # 腾讯云（流式 TTS + 实时 ASR）
+    # 环境变量名: TENCENTCLOUD_APP_ID / TENCENTCLOUD_SECRET_ID 等
+    tencentcloud_app_id: str = ""
+    tencentcloud_secret_id: str = ""
+    tencentcloud_secret_key: str = ""
+    tencentcloud_region: str = "ap-guangzhou"
+    # ✅ 多账号负载均衡（备用账号，格式：TENCENTCLOUD_APP_ID_2, TENCENTCLOUD_SECRET_ID_2, TENCENTCLOUD_SECRET_KEY_2）
+    tencentcloud_app_id_2: str = ""
+    tencentcloud_secret_id_2: str = ""
+    tencentcloud_secret_key_2: str = ""
+    tencentcloud_app_id_3: str = ""
+    tencentcloud_secret_id_3: str = ""
+    tencentcloud_secret_key_3: str = ""
+
+    # MiniMax 对话 API
+    minimax_api_key: str = ""
+    minimax_base_url: str = "https://api.minimaxi.com/v1"
+
+    # MiniMax GroupID（TTS 专用，留作备用）
+    minimax_group_id: str = ""
+    minimax_secret_id: str = ""
+
+    # Redis
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_password: str = ""
+    redis_db: int = 0
+
+    # Redis 异步客户端（高并发优化，替代同步 redis_client）
+    # 环境变量: REDIS_ASYNC_URL，格式: redis://:password@host:port/db
+    redis_async_url: str = ""
+
+    # TTS 高频短句预热（启动时用 Edge TTS 预合成，免费不占并发）
+    # 环境变量: TTS_WARMUP_PHRASES，逗号分隔，如："嗯,我在,好的,嗯嗯,稍等,我在这儿"
+    tts_warmup_phrases: str = "嗯,我在,好的,稍等,嗯嗯,我在听,好,嗯嗯嗯",
+
+    # ASR 预热连接数（启动时预先建立 ASR WS 连接，减少首次延迟）
+    asr_warmup_connections: int = 2
+
+    # JWT
+    jwt_secret: str = "dev-secret-change-in-prod"
+
+    # 微信小程序
+    wx_app_id: str = ""
+    wx_app_secret: str = ""
+
+    # 运营后台
+    admin_token: str = ""
+
+    @field_validator("tts_warmup_phrases", mode="before")
+    @classmethod
+    def _strip_tts_phrases(cls, v):
+        if v is None:
+            return ""
+        if isinstance(v, (list, tuple)):
+            return ",".join(str(x) for x in v)
+        return str(v).strip().rstrip(",")
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+BACKEND_VERSION = "2.1.0"
+
+settings = Settings()
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", settings.admin_token)  # 运营后台认证 Token
 
 # ── 启动时关键配置校验 ─────────────────────────────────────────
 def validate_startup():
@@ -249,7 +315,7 @@ VOICE_LIMIT_CORE  = 108000  # 核心 Pro：30小时/月
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    import infra.redis_client as _redis_mod
+    global async_redis_client
     print("🚀 知眠 API v2 启动...")
     print(f"   千问 Chat:      {'✅ 已配置' if settings.minimax_api_key else '⚠️ 未配置'}")
     print(f"   腾讯云 TTS:     {'✅ 已配置' if (settings.tencentcloud_app_id and settings.tencentcloud_secret_id) else '⚠️ 未配置'}")
@@ -258,10 +324,8 @@ async def lifespan(app: FastAPI):
     try:
         redis_client.ping()
         print("   Redis: ✅ 已连接")
-        from cbt_manager import user_profile_manager, cbt_manager
+        from cbt_manager import user_profile_manager
         user_profile_manager.set_redis(redis_client)
-        cbt_manager.set_redis(redis_client)
-        print("   CBTManager: ✅ 状态机已接入 Redis 持久化")
     except Exception as e:
         print(f"   Redis: ⚠️ 连接失败 - {e}")
 
@@ -269,22 +333,22 @@ async def lifespan(app: FastAPI):
     try:
         import redis.asyncio
         if settings.redis_async_url:
-            _redis_mod.async_redis_client = await redis.asyncio.from_url(
+            async_redis_client = await redis.asyncio.from_url(
                 settings.redis_async_url, encoding="utf-8", decode_responses=True
             )
         else:
-            _redis_mod.async_redis_client = redis.asyncio.Redis(
+            async_redis_client = redis.asyncio.Redis(
                 host=settings.redis_host,
                 port=settings.redis_port,
                 db=settings.redis_db,
                 password=settings.redis_password or None,
                 decode_responses=True,
             )
-        await _redis_mod.async_redis_client.ping()
+        await async_redis_client.ping()
         print("   Redis (async): ✅ 已连接")
     except Exception as e:
         print(f"   Redis (async): ⚠️ 连接失败 - {e}（高并发时可能阻塞事件循环）")
-        _redis_mod.async_redis_client = None
+        async_redis_client = None
 
     # ✅ TTS 高频短句预热（Edge TTS 预合成，存 Redis，免费不占腾讯云并发）
     if settings.tts_warmup_phrases:
@@ -297,21 +361,19 @@ async def lifespan(app: FastAPI):
     if settings.asr_warmup_connections > 0 and all([settings.tencentcloud_app_id, settings.tencentcloud_secret_id, settings.tencentcloud_secret_key]):
         asyncio.create_task(_warmup_asr_pool())
 
-    # ✅ RAG 索引初始化（后台异步加载，不阻塞启动）
+    # ✅ RAG 索引初始化（启动时自动加载或构建）
     if RAG_AVAILABLE:
-        def _init_rag_bg():
-            try:
-                init_rag()
-                print("   RAG 索引: ✅ 已初始化")
-            except Exception as e:
-                print(f"   RAG 索引: ⚠️ 初始化失败 - {e}")
-        asyncio.get_event_loop().call_later(0.5, lambda: asyncio.create_task(asyncio.to_thread(_init_rag_bg)))
+        try:
+            init_rag()
+            print("   RAG 索引: ✅ 已初始化")
+        except Exception as e:
+            print(f"   RAG 索引: ⚠️ 初始化失败 - {e}")
 
     yield
     print("👋 后端关闭...")
-    if _redis_mod.async_redis_client:
+    if async_redis_client:
         try:
-            await _redis_mod.async_redis_client.aclose()
+            await async_redis_client.aclose()
         except Exception:
             pass
 
@@ -325,10 +387,29 @@ class WxLoginResponse(BaseModel):
     user_id: str
     is_new_user: bool
 
+class AuthUser(BaseModel):
+    openid: str
+    user_id: str
+
 class UserProfileRequest(BaseModel):
     """用户资料更新"""
     nickname: Optional[str] = None
     avatar_url: Optional[str] = None
+
+def create_jwt_token(openid: str) -> str:
+    payload = {
+        "openid": openid,
+        "user_id": f"wx_{openid[:16]}",
+        "exp": datetime.utcnow() + timedelta(days=30)
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+
+def verify_jwt_token(token: str) -> Optional[AuthUser]:
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+        return AuthUser(openid=payload["openid"], user_id=payload["user_id"])
+    except jwt.PyJWTError:
+        return None
 
 async def get_current_user(authorization: str = Header(None)) -> AuthUser:
     if not authorization:
@@ -393,6 +474,40 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 app.add_middleware(AdminAuthMiddleware)
+class ApiStatsMiddleware(BaseHTTPMiddleware):
+    """Track LLM/ASR/TTS API response times"""
+    async def dispatch(self, request, call_next):
+        path = request.url.path
+        cat = None
+        if path.startswith("/api/v1/chat"):
+            cat = "LLM"
+        elif path.startswith("/api/v1/asr"):
+            cat = "ASR"
+        elif path.startswith("/api/v1/tts") or path.startswith("/api/v1/voice"):
+            cat = "TTS"
+        if cat:
+            import time
+            start = time.time()
+            is_err = False
+            try:
+                response = await call_next(request)
+                if response.status_code >= 400:
+                    is_err = True
+                return response
+            except Exception:
+                is_err = True
+                raise
+            finally:
+                elapsed_ms = (time.time() - start) * 1000
+                try:
+                    from admin_routes import _record_api_call
+                    _record_api_call(elapsed_ms, is_err, cat)
+                except Exception:
+                    pass
+        else:
+            return await call_next(request)
+
+app.add_middleware(ApiStatsMiddleware)
 app.add_middleware(UserRateLimitMiddleware)
 
 
@@ -519,8 +634,20 @@ def _migrate_user_data(temp_id: str, real_id: str) -> int:
         print(f"[migrate] 数据迁移失败: {e}")
     return migrated
 
+# ==================== Redis ====================
+
+redis_client = redis.Redis(
+    host=settings.redis_host,
+    port=settings.redis_port,
+    db=settings.redis_db,
+    password=settings.redis_password or None,
+    decode_responses=True
+)
+
 # ✅ 异步 Redis 客户端（高并发优化，避免阻塞事件循环）
 # 用 redis.asyncio（redis-py 4.2+ 内置），fallback 到同步客户端
+async_redis_client: Optional[redis.asyncio.Redis] = None
+
 # ✅ TTS 优先级等待队列（Semaphore 满时，VIP 用户优先出队）
 # (priority: 0=VIP, 1=普通, asyncio.Event, text, voice, speed)
 _tts_wait_queue: asyncio.Queue = asyncio.Queue()
@@ -748,6 +875,79 @@ def get_user_memory(user_id: str) -> dict:
     except Exception as e:
         print(f"[Redis get memory error] {e}")
     return {"concerns": [], "triggers": {}, "last_topic": "", "streak_days": 0}
+
+
+def update_streak(user_id: str) -> int:
+    """更新用户连续使用天数，返回当前连续天数"""
+    key = f"user:streak:{user_id}"
+    today = datetime.now().strftime("%Y-%m-%d")
+    try:
+        raw = redis_client.get(key)
+        if raw:
+            data = json.loads(raw)
+            last_date = data.get("last_date", "")
+            current = data.get("current_streak", 0)
+            if last_date == today:
+                return current
+            yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            if last_date == yesterday:
+                current += 1
+            else:
+                current = 1
+        else:
+            current = 1
+        redis_client.set(key, json.dumps({"current_streak": current, "last_date": today}, ensure_ascii=False))
+        return current
+    except Exception as e:
+        print(f"[update_streak error] {e}")
+        return 0
+
+
+def get_streak_days(user_id: str) -> int:
+    """获取用户当前连续使用天数"""
+    key = f"user:streak:{user_id}"
+    try:
+        raw = redis_client.get(key)
+        if raw:
+            return json.loads(raw).get("current_streak", 0)
+    except Exception:
+        pass
+    return 0
+
+
+def get_user_sleep_stats(user_id: str) -> dict:
+    """获取用户睡眠统计：总时长(分钟)、记录数、最新综合评分"""
+    total_minutes = 0
+    total_records = 0
+    latest_score = 0
+    latest_score_date = ""
+    try:
+        # 遍历最近 90 天的睡眠日记
+        for i in range(90):
+            date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+            diary = get_sleep_diary(user_id, date)
+            if diary and diary.get("tst_minutes", 0) > 0:
+                total_minutes += diary.get("tst_minutes", 0)
+                total_records += 1
+                # 优先使用保存的 sleep_score，无数据时回退计算
+                score = diary.get("sleep_score", 0)
+                if score <= 0 and diary.get("se", 0) > 0:
+                    # 回退计算：SE(百分比) * 0.6 + sleep_quality * 4 (≈ 0-100分)
+                    # 注意：diary 中 se 是 0-1 小数，需先转百分比
+                    se_percent = diary.get("se", 0) * 100
+                    quality = diary.get("sleep_quality", 3)
+                    score = min(100, max(0, round(se_percent * 0.6 + quality * 4)))
+                if score > 0 and date > latest_score_date:
+                    latest_score = score
+                    latest_score_date = date
+    except Exception as e:
+        print(f"[get_user_sleep_stats error] {e}")
+    return {
+        "total_minutes": total_minutes,
+        "total_records": total_records,
+        "latest_score": latest_score,
+        "latest_score_date": latest_score_date,
+    }
 
 
 def update_user_memory(user_id: str, message: str, response: str):
@@ -2160,6 +2360,46 @@ async def _chat_events(req: ChatRequest, user_id: str):
     except Exception:
         pass
 
+# CBT 阶段中文标签和提示语
+    phase_value = cbt_result.get("next_phase", "")
+    step_map = {
+        "assessment": 0, "worry_capture": 0,
+        "cognitive": 1,
+        "relaxation": 2, "closure": 2,
+    }
+    activity_map = {
+        "pmr_tiny": "PMR极速版",
+        "pmr_short": "PMR快速版",
+        "pmr": "身体放松",
+        "breathing": "做深呼吸",
+        "mindfulness": "静心一下",
+        "paradoxical_intention": "矛盾意向法",
+    }
+    relaxation_hint_map = {
+        "pmr_tiny": "收紧...保持...松开，感受对比",
+        "pmr_short": "每部位两轮，感受放松蔓延",
+        "pmr": "从头到脚，逐部位放松",
+        "breathing": "吸气4秒，屏息7秒，呼气8秒",
+        "mindfulness": "只是观察，不评判，不控制",
+        "paradoxical_intention": "睡不着就别努力，反而容易入睡",
+    }
+    phase_map = {
+        "assessment": ("说说你今晚怎么样", "今晚感觉怎么样？慢慢说，我帮你听着"),
+        "worry_capture": ("说说你今晚怎么样", "慢慢说就好，我帮你记着"),
+        "cognitive": ("换个角度想想", "换个角度看，也许没那么严重"),
+        "relaxation": ("", ""),
+        "closure": ("准备睡觉", "今晚就到这里，晚安"),
+        "safety": ("", ""),
+        "normal_chat": ("准备睡觉", "用正确的认识改善睡眠"),
+    }
+    label, hint = phase_map.get(phase_value, ("准备睡觉", "用正确的认识改善睡眠"))
+    response_type = cbt_result.get("response_type", "")
+    if phase_value == "relaxation" and response_type:
+        label = activity_map.get(response_type, "身体放松")
+        hint = relaxation_hint_map.get(response_type, "跟着感觉，慢慢来")
+    cbt_result["phase_label"] = label
+    cbt_result["phase_hint"] = hint
+    cbt_result["step_index"] = step_map.get(phase_value, -1)
     yield {"event": "cbt_state", "data": cbt_result}
 
     # 获取 TTS 参数（语速由 CBT 状态决定，不从 LLM 输出解析）
@@ -3397,6 +3637,36 @@ async def morning_submit(req: MorningSubmitRequest, user: AuthUser = Depends(get
 
         save_morning_record(user_id, today, record)
 
+        # P1: 晨间打卡 → 更新用户SleepProfile
+        try:
+            from cbt_manager import user_profile_manager
+            user_profile_manager.set_redis(redis_client)
+            profile = await user_profile_manager.load_profile(user_id)
+            # 更新睡眠效率（SE）趋势
+            se_trend = profile.get("sleep_quality_trend", [])
+            se_trend.append(final_se)
+            profile["sleep_quality_trend"] = se_trend[-14:]  # 保留最近14天
+            profile["avg_se"] = round(sum(se_trend) / len(se_trend), 3) if se_trend else 0.0
+            profile["last_sleep_quality"] = req.sleep_quality  # 1-4
+            # 从睡眠数据推断失眠亚型
+            sol_est = metrics.get("sol_estimate", 0)
+            waso_est = req.waso_minutes or metrics.get("waso", 0)
+            if sol_est > 30 and waso_est < 15:
+                profile["insomnia_type"] = "sleep_onset"
+            elif waso_est >= 30:
+                profile["insomnia_type"] = "sleep_maintenance"
+            else:
+                profile["insomnia_type"] = profile.get("insomnia_type", "mixed")
+            # 从疲劳度推断敏感度
+            if req.fatigue_level and req.fatigue_level >= 4:
+                profile["sensitivity"] = "highly_sensitive"
+            # 更新睡眠时间窗口（用于睡前仪式推荐）
+            profile["sleep_window_bed"] = req.bed_time_estimate or ""
+            profile["sleep_window_wake"] = req.wake_time_estimate or ""
+            await user_profile_manager.save_profile(user_id, profile)
+        except Exception as e:
+            print(f"[MorningSubmit] SleepProfile update failed: {e}")
+
         # L2: 晨间打卡 → 标记昨晚会话为"sleep_reported"（最高质量数据）
         if RAG_AVAILABLE and session_logger:
             finalize_session(outcome="sleep_reported", sleep_quality=req.sleep_quality)
@@ -3860,46 +4130,6 @@ async def get_diary_history(user: AuthUser = Depends(get_current_user), days: in
         return {"status": "error", "message": str(e)}
 
 
-def _get_srt_data(records, user_id):
-    try:
-        if records:
-            latest = records[0]
-            bed = latest.get('planned_bed_time', latest.get('sleep_window_start', '23:00'))
-            wake = latest.get('planned_wake_time', latest.get('sleep_window_end', '07:00'))
-        else:
-            window = get_sleep_window(user_id)
-            bed = f"{window['bed_hour']:02d}:{window['bed_min']:02d}"
-            wake = f"{window['wake_hour']:02d}:{window['wake_min']:02d}"
-        window_dict = {'bed': bed, 'wake': wake}
-        result = srt_engine.analyze(records, window_dict)
-        phase_labels = {'learning': '📝 学习期', 'restricting': '📉 限制期', 'stabilizing': '👍 稳定期', 'optimizing': '🌟 优化期', 'maintenance': '✨ 维持期'}
-        return {
-            'phase': result.phase.value,
-            'phase_label': phase_labels.get(result.phase.value, '未知'),
-            'current_tib_hours': result.current_tib_hours,
-            'recommended_tib_hours': result.recommended_tib_hours,
-            'recommended_bed_time': result.recommended_bed_time,
-            'recommended_wake_time': result.recommended_wake_time,
-            'adjustment_needed': result.adjustment_minutes > 0,
-            'adjustment_minutes': result.adjustment_minutes,
-            'avg_se': result.avg_se,
-            'avg_tst_minutes': result.avg_tst_minutes,
-            'avg_sol_minutes': result.avg_sol_minutes,
-            'avg_waso_minutes': result.avg_waso_minutes,
-            'avg_fatigue': result.avg_fatigue,
-            'se_trend': result.se_trend,
-            'tst_trend': result.tst_trend,
-            'poor_nights_count': result.poor_nights_count,
-            'consecutive_poor_nights': result.consecutive_poor_nights,
-            'record_count': result.record_count,
-            'week_tip': result.week_tip,
-            'daily_tips': result.daily_tips,
-        }
-    except Exception as e:
-        print(f'[SRT data error] {e}')
-        return None
-
-
 @app.get("/api/v1/sleep/dashboard")
 async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int = 7):
     user_id = user.user_id
@@ -4011,8 +4241,7 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
             "trend_emoji": trend_emoji,
             "recommendation": {
                 "tib_suggestion": tib_suggestion,
-                "general_advice": get_sleep_advice(avg_se, avg_tst),
-            "srt": _get_srt_data(records, user_id)
+                "general_advice": get_sleep_advice(avg_se, avg_tst)
             }
         }
     except Exception as e:
@@ -4330,6 +4559,25 @@ def get_last_n_morning_records(user_id: str, n: int = 7) -> list:
     return records
 
 
+# ==================== Redis Helpers for Sleep Diary ====================
+
+def get_sleep_diary(user_id: str, date: str) -> Optional[dict]:
+    """获取指定日期的睡眠日记"""
+    key = f"sleep_diary:{user_id}:{date}"
+    raw = redis_client.get(key)
+    if raw:
+        return json.loads(raw)
+    return None
+
+
+def save_sleep_diary(user_id: str, date: str, diary: dict):
+    """保存睡眠日记，TTL 365 天"""
+    key = f"sleep_diary:{user_id}:{date}"
+    redis_client.set(key, json.dumps(diary, ensure_ascii=False), ex=365*24*3600)
+
+
+
+
 @app.post("/api/v1/evaluate/session")
 async def evaluate_session(session_data: dict):
     """评估单个会话的对话质量"""
@@ -4578,127 +4826,24 @@ async def admin_users(days: int = Query(30, le=90), limit: int = Query(500, le=2
     return get_user_list(days=days, limit=limit)
 
 
+@app.post("/api/v1/admin/users/{user_id}/toggle")
+async def admin_toggle_user(user_id: str, action: str = Query("disable")):
+    """禁用/启用用户"""
+    from admin_routes import toggle_user_status
+    return toggle_user_status(user_id, action)
+
+@app.delete("/api/v1/admin/users/{user_id}")
+async def admin_delete_user(user_id: str):
+    """删除用户所有数据"""
+    from admin_routes import delete_user_data
+    return delete_user_data(user_id)
+
 @app.get("/api/v1/admin/users/{user_id}")
 async def admin_user_detail(user_id: str, limit: int = Query(20, le=100)):
     """用户详情"""
+    from admin_routes import get_user_detail
     return get_user_detail(user_id, limit=limit)
 
-
-
-# ==================== 用户数据合规（GDPR/PIPL）====================
-
-@app.get("/api/v1/user/export")
-async def export_user_data(user: AuthUser = Depends(get_current_user)):
-    """
-    导出用户全部数据（GDPR/PIPL 数据可携带权）
-    返回 JSON 格式，包含：profile、记忆、睡眠记录、担忧、反馈等
-    """
-    user_id = user.user_id
-    try:
-        data = {"user_id": user_id, "exported_at": datetime.now().isoformat(), "data": {}}
-
-        # 1. 用户资料
-        profile_raw = redis_client.get(f"user_profile:{user_id}")
-        if profile_raw:
-            data["data"]["profile"] = json.loads(profile_raw)
-
-        # 2. 用户记忆
-        memory_raw = redis_client.get(f"user:memory:{user_id}")
-        if memory_raw:
-            data["data"]["memory"] = json.loads(memory_raw)
-
-        # 3. 连续使用天数
-        streak_raw = redis_client.get(f"user:streak:{user_id}")
-        if streak_raw:
-            data["data"]["streak"] = json.loads(streak_raw)
-
-        # 4. 睡眠统计
-        stats_raw = redis_client.get(f"user:sleep_stats:{user_id}")
-        if stats_raw:
-            data["data"]["sleep_stats"] = json.loads(stats_raw)
-
-        # 5. 睡眠日记（最近 90 天）
-        diaries = []
-        for i in range(90):
-            date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
-            diary = get_sleep_diary(user_id, date)
-            if diary:
-                diaries.append(diary)
-        data["data"]["sleep_diaries"] = diaries
-
-        # 6. 主观评分记录
-        list_key = f"sleep_list:{user_id}"
-        raw_records = redis_client.lrange(list_key, 0, -1)
-        data["data"]["sleep_records"] = [json.loads(r) for r in raw_records]
-
-        # 7. 担忧记录
-        worry_list_key = f"worry_list:{user_id}"
-        raw_worries = redis_client.lrange(worry_list_key, 0, -1)
-        data["data"]["worries"] = [json.loads(w) for w in raw_worries]
-
-        # 8. 反馈记录（最近 30 天）
-        feedbacks = []
-        for i in range(30):
-            date = (datetime.now() - timedelta(days=i)).strftime("%Y%m%d")
-            fb_key = f"feedback:{user_id}:{date}"
-            items = redis_client.lrange(fb_key, 0, -1)
-            for item in items:
-                feedbacks.append(json.loads(item))
-        data["data"]["feedbacks"] = feedbacks
-
-        return {"status": "ok", "data": data}
-    except Exception as e:
-        print(f"[export_user_data error] {e}")
-        raise HTTPException(status_code=500, detail="数据导出失败")
-
-
-@app.delete("/api/v1/user")
-async def delete_user_data(user: AuthUser = Depends(get_current_user)):
-    """
-    删除用户全部数据（GDPR/PIPL 数据删除权）
-    硬删除 Redis 中所有与该用户相关的 key
-    """
-    user_id = user.user_id
-    try:
-        deleted_keys = []
-
-        # 1. 删除用户资料
-        for key in [f"user_profile:{user_id}", f"user:memory:{user_id}",
-                    f"user:streak:{user_id}", f"user:sleep_stats:{user_id}"]:
-            if redis_client.delete(key):
-                deleted_keys.append(key)
-
-        # 2. 删除睡眠日记
-        for i in range(90):
-            date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
-            key = f"sleep_diary:{user_id}:{date}"
-            if redis_client.delete(key):
-                deleted_keys.append(key)
-
-        # 3. 删除主观评分记录
-        list_key = f"sleep_list:{user_id}"
-        redis_client.delete(list_key)
-        deleted_keys.append(list_key)
-
-        # 4. 删除担忧记录
-        worry_key = f"worry_list:{user_id}"
-        redis_client.delete(worry_key)
-        deleted_keys.append(worry_key)
-
-        # 5. 删除反馈记录
-        for i in range(30):
-            date = (datetime.now() - timedelta(days=i)).strftime("%Y%m%d")
-            key = f"feedback:{user_id}:{date}"
-            if redis_client.delete(key):
-                deleted_keys.append(key)
-
-        # 6. 清除本地 token（让用户重新登录）
-        # 注意：这里只删除数据，不删除微信登录绑定关系
-
-        return {"status": "ok", "deleted_keys_count": len(deleted_keys), "message": "您的数据已删除"}
-    except Exception as e:
-        print(f"[delete_user_data error] {e}")
-        raise HTTPException(status_code=500, detail="数据删除失败")
 
 
 @app.get("/api/v1/admin/export/users")
@@ -4864,4 +5009,49 @@ async def emotion_analyze(req: EmotionAnalyzeRequest):
         return analyzer.to_dict(result)
     except Exception as e:
         print(f"[EmotionAPI] 分析失败: {e}")
+
+# ==================== 服务器健康 & 留存分析 API ====================
+
+@app.get("/api/v1/admin/health")
+async def admin_health():
+    """服务器健康状态"""
+    from admin_routes import get_system_health
+    result = get_system_health()
+    # Store health snapshot in Redis for time-series chart
+    try:
+        import json as _hj
+        import datetime as _hd
+        import os as _hos
+        r = _hos.popen("free -m 2>/dev/null | grep Mem:").read()
+        mem_m = int(r.split()[1]) if r else 0
+        r2 = _hos.popen("cat /proc/loadavg 2>/dev/null").read()
+        load = float(r2.split()[0]) if r2 else 0
+        from admin_routes import _get_redis
+        redis_cli = _get_redis()
+        snap = _hj.dumps({
+            "ts": _hd.datetime.now().isoformat(),
+            "status": result["status"],
+            "clients": result["redis"]["clients"],
+            "mem_mb": result["redis"]["used_memory_mb"],
+            "load": round(load / (_hos.cpu_count() or 1), 2),
+            "sys_mem_mb": mem_m,
+        }, ensure_ascii=False)
+        redis_cli.lpush("health:history", snap)
+        redis_cli.ltrim("health:history", 0, 1440)
+    except Exception:
+        pass
+    return result
+
+@app.get("/api/v1/admin/health/history")
+async def admin_health_history(hours: int = Query(24, le=168)):
+    """健康历史时间序列"""
+    from admin_routes import get_health_history
+    return get_health_history(hours=hours)
+
+@app.get("/api/v1/admin/retention")
+async def admin_retention(days: int = Query(30, le=90)):
+    """用户留存分析"""
+    return get_retention_stats(days=days)
+
+if __name__ == "__main__":
         raise HTTPException(status_code=500, detail=f"情感分析失败: {str(e)}")

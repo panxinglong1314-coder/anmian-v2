@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知眠运营后台</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌙%3C/text%3E%3C/svg%3E">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+  .sidebar { background: #1a1d24; }
+  .nav-group-label { color: #6b7280; font-size: 11px; padding: 16px 16px 4px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:9px 16px; margin:2px 8px; border-radius:6px; cursor:pointer; color:#d1d5db; font-size:13px; transition:all .15s; }
+  .nav-item:hover { background:#252a33; color:#fff; }
+  .nav-item.active { background:#252a33; color:#fff; border-left:3px solid #3b82f6; margin-left:8px; padding-left:13px; }
+  .nav-item .icon { width:18px; text-align:center; font-size:14px; }
+
+  .card { background:#fff; border-radius:8px; border:1px solid #e5e7eb; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  .card-header { padding:14px 20px; border-bottom:1px solid #f3f4f6; display:flex; align-items:center; justify-content:space-between; }
+  .card-title { font-size:14px; font-weight:600; color:#111827; }
+  .card-body { padding:16px 20px; }
+
+  .metric-card { padding:20px; position:relative; overflow:hidden; }
+  .metric-value { font-size:26px; font-weight:700; color:#111827; line-height:1; }
+  .metric-label { font-size:12px; color:#6b7280; margin-top:6px; }
+  .metric-sub { font-size:11px; color:#9ca3af; margin-top:4px; }
+  .metric-bar-bg { height:4px; background:#e5e7eb; border-radius:2px; margin-top:10px; overflow:hidden; }
+  .metric-bar-fill { height:100%; border-radius:2px; transition:width .5s ease; }
+
+  .data-table { width:100%; font-size:13px; border-collapse:collapse; }
+  .data-table thead th { text-align:left; padding:10px 12px; color:#6b7280; font-weight:500; border-bottom:1px solid #e5e7eb; background:#f9fafb; }
+  .data-table tbody td { padding:12px; border-bottom:1px solid #f3f4f6; color:#374151; }
+  .data-table tbody tr:hover { background:#f9fafb; }
+
+  .badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:500; }
+  .badge-green { background:#dcfce7; color:#166534; }
+  .badge-red { background:#fee2e2; color:#991b1b; }
+  .badge-yellow { background:#fef3c7; color:#92400e; }
+  .badge-orange { background:#ffedd5; color:#9a3412; }
+  .badge-blue { background:#dbeafe; color:#1e40af; }
+  .badge-gray { background:#f3f4f6; color:#4b5563; }
+  .dot { width:6px; height:6px; border-radius:50%; display:inline-block; }
+  .dot-green { background:#22c55e; }
+  .dot-red { background:#ef4444; }
+  .dot-yellow { background:#eab308; }
+
+  .btn { display:inline-flex; align-items:center; gap:4px; padding:5px 12px; border-radius:4px; font-size:13px; cursor:pointer; transition:all .15s; border:1px solid transparent; }
+  .btn-primary { background:#3b82f6; color:#fff; border-color:#3b82f6; }
+  .btn-primary:hover { background:#2563eb; }
+  .btn-primary:disabled { opacity:.6; cursor:not-allowed; }
+  .btn-default { background:#fff; color:#374151; border-color:#d1d5db; }
+  .btn-default:hover { background:#f9fafb; }
+  .btn-default:disabled { opacity:.6; cursor:not-allowed; }
+  .btn-sm { padding:3px 10px; font-size:12px; }
+
+  .login-bg { background:linear-gradient(135deg, #1a1d24 0%, #252a33 100%); }
+  .topbar { height:48px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; padding:0 20px; }
+
+  .tab-btn { padding:4px 12px; border-radius:4px; font-size:13px; cursor:pointer; color:#6b7280; border:none; background:transparent; }
+  .tab-btn:hover { color:#111827; background:#f3f4f6; }
+  .tab-btn.active { color:#3b82f6; background:#eff6ff; font-weight:500; }
+
+  /* Empty state */
+  .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; color:#9ca3af; }
+  .empty-state-icon { font-size:40px; margin-bottom:8px; opacity:.5; }
+  .empty-state-title { font-size:14px; font-weight:500; color:#6b7280; margin-bottom:4px; }
+  .empty-state-desc { font-size:12px; color:#9ca3af; }
+
+  /* Toast */
+  .toast-container { position:fixed; top:16px; right:16px; z-index:100; display:flex; flex-direction:column; gap:8px; }
+  .toast { padding:10px 16px; border-radius:6px; font-size:13px; color:#fff; box-shadow:0 4px 12px rgba(0,0,0,.15); animation:toastIn .3s ease; display:flex; align-items:center; gap:8px; max-width:320px; }
+  .toast.success { background:#10b981; }
+  .toast.error { background:#ef4444; }
+  .toast.info { background:#3b82f6; }
+  @keyframes toastIn { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
+  @keyframes toastOut { from { transform:translateX(0); opacity:1; } to { transform:translateX(100%); opacity:0; } }
+
+  /* Modal */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:60; display:flex; align-items:center; justify-content:center; animation:fadeIn .2s ease; }
+  .modal-box { background:#fff; border-radius:8px; box-shadow:0 20px 40px rgba(0,0,0,.2); max-width:480px; width:calc(100% - 32px); max-height:80vh; overflow:auto; animation:scaleIn .2s ease; }
+  .modal-header { padding:16px 20px; border-bottom:1px solid #f3f4f6; display:flex; align-items:center; justify-content:space-between; }
+  .modal-body { padding:16px 20px; font-size:13px; line-height:1.7; color:#374151; }
+  .modal-footer { padding:12px 20px; border-top:1px solid #f3f4f6; display:flex; justify-content:flex-end; }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  @keyframes scaleIn { from { transform:scale(.95); opacity:0; } to { transform:scale(1); opacity:1; } }
+
+  /* Search */
+  .search-input { padding:6px 10px 6px 32px; border:1px solid #d1d5db; border-radius:4px; font-size:13px; width:240px; background:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2214%22 height=%2214%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%229ca3af%22 stroke-width=%222%22%3E%3Ccircle cx=%2211%22 cy=%2211%22 r=%228%22/%3E%3Cpath d=%22m21 21-4.35-4.35%22/%3E%3C/svg%3E') no-repeat 10px center; }
+  .search-input:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,.15); }
+
+  /* Pagination */
+  .pagination { display:flex; align-items:center; gap:4px; }
+  .pagination button { padding:4px 10px; border:1px solid #d1d5db; background:#fff; border-radius:4px; font-size:12px; cursor:pointer; color:#374151; }
+  .pagination button:hover:not(:disabled) { background:#f3f4f6; }
+  .pagination button:disabled { opacity:.4; cursor:not-allowed; }
+  .pagination button.active { background:#3b82f6; color:#fff; border-color:#3b82f6; }
+  .pagination-info { font-size:12px; color:#6b7280; margin-left:8px; }
+
+  /* Tooltip via title */
+  .truncate-id { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; cursor:help; }
+
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:3px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Toast 容器 -->
+<div id="toast-container" class="toast-container"></div>
+
+<!-- 登录页 -->
+<div id="login-page" class="fixed inset-0 login-bg flex items-center justify-center z-50">
+  <form onsubmit="event.preventDefault();doLogin();" class="bg-white rounded-lg shadow-2xl p-8 w-full max-w-sm mx-4">
+    <div class="text-center mb-6">
+      <div class="w-12 h-12 bg-blue-600 rounded-lg mx-auto mb-3 flex items-center justify-center text-white text-xl font-bold">🌙</div>
+      <h1 class="text-lg font-bold text-gray-900">知眠运营后台</h1>
+      <p class="text-xs text-gray-400 mt-1">AI 陪伴质量监控中心</p>
+    </div>
+    <div class="space-y-3">
+      <input id="login-input" type="password" placeholder="请输入访问密码" autocomplete="current-password" class="w-full px-3 py-2.5 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+      <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded text-sm transition">进入后台</button>
+    </div>
+    <p id="login-error" class="text-red-500 text-xs text-center mt-3 hidden">密码错误</p>
+  </form>
+</div>
+
+<!-- 主应用 -->
+<div id="main-app" class="hidden h-screen flex">
+  <aside class="sidebar w-56 flex flex-col flex-shrink-0">
+    <div class="h-12 flex items-center px-4 border-b border-gray-700/50">
+      <span class="text-white font-bold text-sm">🌙 知眠运营</span>
+    </div>
+    <nav class="flex-1 overflow-auto py-2">
+      <div class="nav-group-label">数据概览</div>
+      <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+        <span class="icon">📊</span>仪表盘
+      </div>
+      <div class="nav-item" data-page="safety" onclick="showPage('safety')">
+        <span class="icon">🛡️</span>安全中心
+      </div>
+      <div class="nav-item" data-page="quality" onclick="showPage('quality')">
+        <span class="icon">🔧</span>AI 质量监控
+      </div>
+      <div class="nav-group-label">用户管理</div>
+      <div class="nav-item" data-page="users" onclick="showPage('users')">
+        <span class="icon">👥</span>用户列表
+      </div>
+      <div class="nav-item" data-page="retention" onclick="showPage('retention')">
+        <span class="icon">📈</span>留存分析
+      </div>
+      <div class="nav-group-label">系统</div>
+      <div class="nav-item" data-page="health" onclick="showPage('health')">
+        <span class="icon">🖥️</span>服务器监控
+      </div>
+    </nav>
+    <div class="border-t border-gray-700/50 p-3">
+      <div class="flex items-center justify-between text-xs text-gray-500">
+        <span>更新 <span id="last-update">--:--</span></span>
+        <span class="flex items-center gap-1"><span id="health-dot" class="dot dot-green"></span><span id="health-label" class="text-xs">正常</span></span>
+        <span class="text-gray-300">|</span>
+        <span class="flex items-center gap-1 text-xs text-gray-500">自动刷新</span>
+      </div>
+      <button onclick="logout()" class="mt-2 w-full text-left text-xs text-gray-500 hover:text-gray-300 py-1.5 px-2 rounded hover:bg-gray-700/50 transition">
+        ⎋ 退出登录
+      </button>
+    </div>
+  </aside>
+
+  <main class="flex-1 flex flex-col min-w-0">
+    <header class="topbar flex-shrink-0">
+      <div class="flex items-center gap-2">
+        <span class="text-gray-400 text-sm">/</span>
+        <span id="page-title" class="text-sm font-medium text-gray-800">仪表盘</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-gray-400">知眠AI · sleepai.chat</span>
+      </div>
+    </header>
+
+    <div class="flex-1 overflow-auto p-5">
+
+      <!-- 仪表盘 -->
+      <div id="page-dashboard" class="page space-y-5">
+        <div class="flex items-center gap-2">
+          <button onclick="loadDashboard(1)" class="tab-btn" id="tab-d-1">今日</button>
+          <button onclick="loadDashboard(7)" class="tab-btn active" id="tab-d-7">近7天</button>
+          <button onclick="loadDashboard(30)" class="tab-btn" id="tab-d-30">近30天</button>
+        </div>
+        <div class="grid grid-cols-5 gap-4">
+          <div class="card metric-card">
+            <div class="metric-value" id="d-active-users">--</div>
+            <div class="metric-label">活跃用户</div>
+            <div class="metric-sub" id="d-active-users-sub">暂无数据</div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="d-active-users-bar" style="width:0%;background:#3b82f6"></div></div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="d-sessions">--</div>
+            <div class="metric-label">会话数</div>
+            <div class="metric-sub" id="d-sessions-sub">暂无数据</div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="d-sessions-bar" style="width:0%;background:#8b5cf6"></div></div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="d-avg-turns">--</div>
+            <div class="metric-label">平均轮次</div>
+            <div class="metric-sub" id="d-avg-turns-sub">暂无数据</div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="d-avg-turns-bar" style="width:0%;background:#10b981"></div></div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="d-avg-duration">--</div>
+            <div class="metric-label">平均时长</div>
+            <div class="metric-sub" id="d-avg-duration-sub">分钟/会话</div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="d-avg-duration-bar" style="width:0%;background:#6366f1"></div></div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="d-night-ratio">--</div>
+            <div class="metric-label">夜间对话占比</div>
+            <div class="metric-sub" id="d-night-ratio-sub">暂无数据</div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="d-night-ratio-bar" style="width:0%;background:#f59e0b"></div></div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="d-avg-rating">--</div>
+            <div class="metric-label">用户评分均值</div>
+            <div class="metric-sub" id="d-avg-rating-sub">暂无数据</div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="d-avg-rating-bar" style="width:0%;background:#ef4444"></div></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="card">
+            <div class="card-header"><span class="card-title">评估评级分布</span></div>
+            <div class="card-body"><div id="chart-rating-dist" style="height:260px"></div></div>
+          </div>
+          
+            <div class="card-body"><div id="chart-daily-trend" style="height:200px"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">24小时时段分布 <span class="text-xs text-gray-400 font-normal ml-1">（橙色=夜间22-6点）</span></span></div>
+            <div class="card-body"><div id="chart-hourly" style="height:180px"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 安全中心 -->
+      <div id="page-safety" class="page hidden space-y-4">
+        <div class="grid grid-cols-4 gap-4">
+          <div class="card metric-card">
+            <div class="metric-value" id="s-total">--</div>
+            <div class="metric-label">安全事件总数</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-red-600" id="s-missed">--</div>
+            <div class="metric-label">危机漏报</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-orange-600" id="s-bad">--</div>
+            <div class="metric-label">不当建议</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-green-600" id="s-pass">--</div>
+            <div class="metric-label">安全通过</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">危机事件列表</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-400">最近 30 天</span>
+              <button id="btn-export-safety" onclick="downloadCSV('safety')" class="btn btn-default btn-sm">📥 导出 CSV</button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <table class="data-table">
+              <thead><tr><th>时间</th><th>用户ID</th><th>严重程度</th><th>危机状态</th><th>不当建议</th><th>评分详情</th><th>操作</th></tr></thead>
+              <tbody id="safety-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI 质量 -->
+      <div id="page-quality" class="page hidden space-y-4">
+        <div class="grid grid-cols-3 gap-4">
+          <div class="card metric-card">
+            <div class="metric-value" id="q-empathy">--</div>
+            <div class="metric-label">共情质量</div>
+            <div class="metric-sub" id="q-empathy-sub">暂无数据</div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="q-empathy-bar" style="width:0%;background:#8b5cf6"></div></div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="q-tech">--</div>
+            <div class="metric-label">技术有效性</div>
+            <div class="metric-sub" id="q-tech-sub">暂无数据</div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="q-tech-bar" style="width:0%;background:#06b6d4"></div></div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="q-coherence">--</div>
+            <div class="metric-label">连贯性</div>
+            <div class="metric-sub" id="q-coherence-sub">暂无数据</div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="q-coherence-bar" style="width:0%;background:#10b981"></div></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="card">
+            <div class="card-header"><span class="card-title">共情质量分布</span></div>
+            <div class="card-body"><div id="chart-empathy-dist" style="height:240px"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">技术有效性分布</span></div>
+            <div class="card-body"><div id="chart-tech-dist" style="height:240px"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">高频失败模式 TOP10</span>
+            <button id="btn-export-quality" onclick="downloadCSV('evaluations')" class="btn btn-default btn-sm">📥 导出 CSV</button>
+          </div>
+          <div class="card-body" id="quality-failures"></div>
+        </div>
+      </div>
+
+      <!-- 用户管理 -->
+      <div id="page-users" class="page hidden space-y-4">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">用户列表</span>
+            <div class="flex items-center gap-2">
+              <input id="users-search" type="text" placeholder="搜索用户ID..." class="search-input" oninput="filterUsers()">
+              <input id="export-days" type="number" value="30" min="1" max="365" class="border border-gray-300 rounded px-2 py-1 text-xs w-16" placeholder="天数">
+              <button id="btn-export-users" onclick="downloadCSV('users')" class="btn btn-default btn-sm">📥 导出 CSV</button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <table class="data-table">
+              <thead><tr><th>用户ID</th><th>首次使用</th><th>最后活跃</th><th>会话数</th><th>总轮次</th><th>平均评分</th><th>套餐</th><th>操作</th></tr></thead>
+              <tbody id="users-table"></tbody>
+            </table>
+          </div>
+          <div class="card-header" style="border-top:1px solid #f3f4f6;border-bottom:none;">
+            <div></div>
+            <div class="flex items-center" id="users-pagination"></div>
+          </div>
+        </div>
+      </div>
+
+    
+<!-- 建议 Modal -->
+
+      <!-- 服务器监控 -->
+      <div id="page-health" class="page hidden space-y-4">
+        <div class="grid grid-cols-4 gap-4">
+          <div class="card metric-card">
+            <div class="metric-value" id="h-status">--</div>
+            <div class="metric-label">服务状态</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-blue-600" id="h-redis-clients">--</div>
+            <div class="metric-label">Redis 连接数</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-purple-600" id="h-redis-memory">--</div>
+            <div class="metric-label">Redis 内存</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-green-600" id="h-eval-records">--</div>
+            <div class="metric-label">30天评估记录</div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="card">
+            <div class="card-header"><span class="card-title">Redis 详情</span></div>
+            <div class="card-body space-y-2 text-sm">
+              <div class="flex justify-between"><span class="text-gray-500">运行天数</span><span id="h-redis-uptime" class="font-medium">--</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">更新时间</span><span id="h-timestamp" class="font-mono text-xs text-gray-600">--</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">Redis Key数</span><span id="h-redis-keys" class="font-medium">--</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">API总请求</span><span id="h-total-req" class="font-medium">--</span></div>
+          <div class="grid grid-cols-3 gap-2 text-center mb-1">
+            <div class="bg-blue-50 rounded p-1">
+              <div id="h-llm-req" class="font-medium text-blue-600">--</div>
+              <div class="text-xs text-gray-500">LLM</div>
+            </div>
+            <div class="bg-green-50 rounded p-1">
+              <div id="h-asr-req" class="font-medium text-green-600">--</div>
+              <div class="text-xs text-gray-500">ASR</div>
+            </div>
+            <div class="bg-purple-50 rounded p-1">
+              <div id="h-tts-req" class="font-medium text-purple-600">--</div>
+              <div class="text-xs text-gray-500">TTS</div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs mt-1">
+            <div class="flex justify-between"><span class="text-gray-400">LLM响应</span><span id="h-llm-rt" class="text-blue-500">--</span></div>
+            <div class="flex justify-between"><span class="text-gray-400">LLM P95</span><span id="h-llm-p95" class="text-blue-500">--</span></div>
+            <div class="flex justify-between"><span class="text-gray-400">ASR响应</span><span id="h-asr-rt" class="text-green-500">--</span></div>
+            <div class="flex justify-between"><span class="text-gray-400">ASR P95</span><span id="h-asr-p95" class="text-green-500">--</span></div>
+            <div class="flex justify-between"><span class="text-gray-400">TTS响应</span><span id="h-tts-rt" class="text-purple-500">--</span></div>
+            <div class="flex justify-between"><span class="text-gray-400">TTS P95</span><span id="h-tts-p95" class="text-purple-500">--</span></div>
+          </div>
+          <div class="flex justify-between"><span class="text-gray-500">错误信息</span><span id="h-error" class="font-medium text-red-500">无</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">系统状态</span></div>
+            <div class="card-body space-y-2 text-sm">
+              <div class="flex justify-between"><span class="text-gray-500">CPU负载比</span><span id="h-sys-load" class="font-medium">--</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">内存使用</span><span id="h-sys-mem" class="font-medium">--</span></div>
+            </div>
+          </div>
+          <div class="card col-span-2">
+            <div class="card-header"><span class="card-title">资源趋势（近7天）</span></div>
+            <div id="health-chart" style="height:160px"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">检查说明</span></div>
+            <div class="card-body text-sm text-gray-600 space-y-1" id="h-issues-list"><p class="text-green-600">✓ 全部正常</p>
+              <p>• 健康状态：Redis连接 + CPU/内存/磁盘 + API错误率</p>
+              <p>• 每分钟自动检查一次</p>
+              <p>• 发现异常请查看"问题列表"并及时处理</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 留存分析 -->
+      <div id="page-retention" class="page hidden space-y-4">
+        <div class="grid grid-cols-5 gap-4">
+          <div class="card metric-card">
+            <div class="metric-value" id="r-avg-dau">--</div>
+            <div class="metric-label">日均活跃用户</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="r-total-users">--</div>
+            <div class="metric-label">总活跃用户</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-green-600" id="r-new-users">--</div>
+            <div class="metric-label">新用户</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="r-retention-d1">--</div>
+            <div class="metric-label">次日留存率</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value" id="r-retention-d7">--</div>
+            <div class="metric-label">7日留存率</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">每日活跃用户趋势（近30天）</span></div>
+          <div class="card-body"><div id="retention-chart" style="height:300px"></div></div>
+        </div>
+      </div>
+</div>
+  </main>
+</div>
+
+<div id="suggestion-modal" class="hidden">
+  <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="font-semibold text-gray-800 text-sm">处理建议</span>
+        <button onclick="hideModal()" class="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+      </div>
+      <div class="modal-body" id="suggestion-modal-body"></div>
+      <div class="modal-footer">
+        <button onclick="hideModal()" class="btn btn-primary btn-sm">知道了</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js?v=36"></script>
+</body>
+</html>

@@ -220,6 +220,29 @@
           </view>
         </view>
 
+        <!-- SRT阶段信息 -->
+        <view wx:if="{{sleepDashboard.srt}}" class="report-section srt-section">
+          <view class="srt-phase-badge" style="background: {{sleepDashboard.srtPhaseColor}}">
+            <text>{{sleepDashboard.srt.phase_label}}</text>
+          </view>
+          <view class="srt-window-info">
+            <view class="srt-window-row">
+              <text class="srt-window-label">当前窗口</text>
+              <text class="srt-window-value">{{sleepDashboard.srt.current_tib_hours}}h</text>
+            </view>
+            <view wx:if="{{sleepDashboard.srt.adjustment_needed}}" class="srt-window-row highlight">
+              <text class="srt-window-label">推荐窗口</text>
+              <text class="srt-window-value">{{sleepDashboard.srt.recommended_bed_time}}-{{sleepDashboard.srt.recommended_wake_time}}</text>
+            </view>
+            <view wx:if="{{sleepDashboard.srt.adjustment_needed}}" class="srt-tip">
+              <text>{{sleepDashboard.srt.week_tip}}</text>
+            </view>
+          </view>
+          <button wx:if="{{sleepDashboard.srt.adjustment_needed}}" class="srt-apply-btn" bindtap="applySrtRecommendation">
+            应用推荐窗口
+          </button>
+        </view>
+
         <view wx:if="{{sleepDashboard.trend.length > 0}}" class="report-section">
           <text class="report-section-title">趋势</text>
           <view class="se-trend-chart">
@@ -232,7 +255,13 @@
           </view>
         </view>
 
-        <view wx:if="{{sleepDashboard.recommendation}}" class="report-section">
+        <view wx:if="{{sleepDashboard.srt && sleepDashboard.srt.daily_tips.length > 0}}" class="report-section">
+          <text class="report-section-title">每日建议</text>
+          <view wx:for="{{sleepDashboard.srt.daily_tips}}" wx:key="index" class="srt-tip-item">
+            <text>{{item}}</text>
+          </view>
+        </view>
+        <view wx:elif="{{sleepDashboard.recommendation}}" class="report-section">
           <text class="report-section-title">改善建议</text>
           <view class="rec-text">{{sleepDashboard.recommendation.general_advice}}</view>
         </view>

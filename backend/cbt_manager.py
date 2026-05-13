@@ -444,17 +444,68 @@ class CBTManager:
         UserStyle.NORMAL:         {},
     }
 
-    def __init__(self):
+    SESSION_TTL = 3600 * 4  # 会话状态 Redis 过期时间 4 小时
+
+    def __init__(self, redis_client=None):
         self.emotion_detector = EmotionDetector()
-        self._sessions: Dict[str, SessionState] = {}
+        self._sessions: Dict[str, SessionState] = {}  # 本地缓存（fallback）
+        self._redis = redis_client
         self._worry_scenarios = WORRY_SCENARIOS.get("scenarios", [])
         self._scenario_routing = WORRY_SCENARIOS.get("scenario_to_technique_routing", {})
         self._clue_rules = WORRY_SCENARIOS.get("clue_phrase_matching", {}).get("matching_rules", [])
 
+    def set_redis(self, redis_client) -> None:
+        """动态注入 Redis 客户端（用于 lifespan 初始化后绑定）"""
+        self._redis = redis_client
+
+    def _redis_key(self, user_id: str, session_id: str) -> str:
+        return f"session_state:{user_id}:{session_id}"
+
+    def _save_state(self, state: SessionState) -> None:
+        """将会话状态持久化到 Redis（若可用）"""
+        if not self._redis:
+            return
+        try:
+            data = _serialize_state(state)
+            # 补充完整字段（_serialize_state 只序列化部分字段）
+            data.update({
+                "logical_chain": state.logical_chain,
+                "technique_effectiveness": state.technique_effectiveness,
+                "anxiety_scores": state.anxiety_scores,
+                "user_sentence_lengths": state.user_sentence_lengths,
+                "conversation_history": state.conversation_history[-20:],  # 只存最近20轮
+                "session_start_time": state.session_start_time,
+                "triggers": state.triggers,
+            })
+            self._redis.set(
+                self._redis_key(state.user_id, state.session_id),
+                json.dumps(data, ensure_ascii=False),
+                ex=self.SESSION_TTL,
+            )
+        except Exception as e:
+            print(f"[CBTManager._save_state error] {e}")
+
+    def _load_state(self, user_id: str, session_id: str) -> Optional[SessionState]:
+        """从 Redis 加载会话状态"""
+        if not self._redis:
+            return None
+        try:
+            raw = self._redis.get(self._redis_key(user_id, session_id))
+            if raw:
+                return _deserialize_state(json.loads(raw))
+        except Exception as e:
+            print(f"[CBTManager._load_state error] {e}")
+        return None
+
     def get_or_create_session(self, user_id: str, session_id: str) -> SessionState:
         key = f"{user_id}:{session_id}"
         if key not in self._sessions:
-            self._sessions[key] = SessionState(user_id=user_id, session_id=session_id)
+            # 优先从 Redis 加载
+            state = self._load_state(user_id, session_id)
+            if state:
+                self._sessions[key] = state
+            else:
+                self._sessions[key] = SessionState(user_id=user_id, session_id=session_id)
         return self._sessions[key]
 
     def process_message(self, user_id: str, session_id: str, user_message: str, 
@@ -467,149 +518,153 @@ class CBTManager:
             profile: 用户档案（来自 UserProfileManager），用于个性化阈值和语气调整
         """
         state = self.get_or_create_session(user_id, session_id)
-        last_phase = state.phase  # L3: 记录上一个phase，用于心理教育时机判断
-        state.conversation_history = conversation_history
-        state.turns_in_phase += 1
-        state.total_turns += 1
+        try:
+            last_phase = state.phase  # L3: 记录上一个phase，用于心理教育时机判断
+            state.conversation_history = conversation_history
+            state.turns_in_phase += 1
+            state.total_turns += 1
 
-        # ── 1. 情绪检测（关键词 + 语义兜底）─────────────────
-        anxiety_level, domain, action = self.emotion_detector.detect_anxiety(user_message)
-        state.anxiety_level = anxiety_level
-        
-        # ── 2. 焦虑分数序列（用于情绪节奏追踪）──────────────
-        ANXIETY_SCORE_MAP = {AnxietyLevel.NORMAL: 1.0, AnxietyLevel.MILD: 2.5, 
-                             AnxietyLevel.MODERATE: 4.0, AnxietyLevel.SEVERE: 5.0}
-        state.anxiety_scores.append(ANXIETY_SCORE_MAP.get(anxiety_level, 1.0))
-        state.anxiety_scores = state.anxiety_scores[-10:]  # 只保留最近10轮
-        
-        # ── 3. 情绪节奏计算（线性回归斜率）────────────────
-        state.emotional_momentum = self.emotion_detector.calculate_emotional_momentum(state.anxiety_scores)
-        
-        # ── 4. 场景感知（首次进入时）──────────────────────
-        if state.total_turns == 1 and state.phase == SessionPhase.ASSESSMENT:
-            scenario, scenario_opening = self.emotion_detector.detect_scenario(user_message)
-            if scenario:
-                state.detected_scenario = scenario
-        
-        # ── 5. 用户风格识别 ──────────────────────────────
-        state.user_style = self.emotion_detector.detect_user_style(user_message, conversation_history)
-        
-        # ── 6. 担忧统计更新 ─────────────────────────────
-        worry_category = domain if domain != "general" else (state.last_topic or "general")
-        if domain != "general":
-            state.triggers[domain] = state.triggers.get(domain, 0) + 1
-            state.last_topic = domain
+            # ── 1. 情绪检测（关键词 + 语义兜底）─────────────────
+            anxiety_level, domain, action = self.emotion_detector.detect_anxiety(user_message)
+            state.anxiety_level = anxiety_level
+            
+            # ── 2. 焦虑分数序列（用于情绪节奏追踪）──────────────
+            ANXIETY_SCORE_MAP = {AnxietyLevel.NORMAL: 1.0, AnxietyLevel.MILD: 2.5, 
+                                 AnxietyLevel.MODERATE: 4.0, AnxietyLevel.SEVERE: 5.0}
+            state.anxiety_scores.append(ANXIETY_SCORE_MAP.get(anxiety_level, 1.0))
+            state.anxiety_scores = state.anxiety_scores[-10:]  # 只保留最近10轮
+            
+            # ── 3. 情绪节奏计算（线性回归斜率）────────────────
+            state.emotional_momentum = self.emotion_detector.calculate_emotional_momentum(state.anxiety_scores)
+            
+            # ── 4. 场景感知（首次进入时）──────────────────────
+            if state.total_turns == 1 and state.phase == SessionPhase.ASSESSMENT:
+                scenario, scenario_opening = self.emotion_detector.detect_scenario(user_message)
+                if scenario:
+                    state.detected_scenario = scenario
+            
+            # ── 5. 用户风格识别 ──────────────────────────────
+            state.user_style = self.emotion_detector.detect_user_style(user_message, conversation_history)
+            
+            # ── 6. 担忧统计更新 ─────────────────────────────
+            worry_category = domain if domain != "general" else (state.last_topic or "general")
+            if domain != "general":
+                state.triggers[domain] = state.triggers.get(domain, 0) + 1
+                state.last_topic = domain
 
-        state.conversation_history.append({"role": "user", "content": user_message})
+            state.conversation_history.append({"role": "user", "content": user_message})
 
-        # ===== 安全协议 =====
-        if anxiety_level == AnxietyLevel.SEVERE or action == RecommendedAction.IMMEDIATE_SAFETY.value:
-            state.phase = SessionPhase.SAFETY_PROTOCOL
-            return self._safety_response(state)
+            # ===== 安全协议 =====
+            if anxiety_level == AnxietyLevel.SEVERE or action == RecommendedAction.IMMEDIATE_SAFETY.value:
+                state.phase = SessionPhase.SAFETY_PROTOCOL
+                return self._safety_response(state)
 
-        # ===== 情绪节奏自适应：越来越紧张 → 回退到接住 =====
-        if state.emotional_momentum == EmotionalMomentum.DETERIORATING:
-            if state.phase in [SessionPhase.RELAXATION_INDUCTION, SessionPhase.CLOSURE]:
-                # 技术在进行中但情绪恶化 → 回退到接住阶段
-                state.phase = SessionPhase.ASSESSMENT
-                state.turns_in_phase = 0
-                return self._build_response("text", "嗯，我在。继续说。", state)
+            # ===== 情绪节奏自适应：越来越紧张 → 回退到接住 =====
+            if state.emotional_momentum == EmotionalMomentum.DETERIORATING:
+                if state.phase in [SessionPhase.RELAXATION_INDUCTION, SessionPhase.CLOSURE]:
+                    # 技术在进行中但情绪恶化 → 回退到接住阶段
+                    state.phase = SessionPhase.ASSESSMENT
+                    state.turns_in_phase = 0
+                    return self._build_response("text", "嗯，我在。继续说。", state)
 
-        # ===== 反刍检测 =====
-        if self.emotion_detector.detect_rumination(conversation_history, user_message):
-            state.consecutive_rumination += 1
-            if state.consecutive_rumination >= 4:
+            # ===== 反刍检测 =====
+            if self.emotion_detector.detect_rumination(conversation_history, user_message):
+                state.consecutive_rumination += 1
+                if state.consecutive_rumination >= 4:
+                    state.phase = SessionPhase.CLOSURE
+                    return self._closure_response(state, user_message, worry_category)
+            else:
+                state.consecutive_rumination = 0
+
+            # ===== 担忧处理（至少聊2轮后才进入担忧捕获） =====
+            if anxiety_level in [AnxietyLevel.MILD, AnxietyLevel.MODERATE] and state.phase == SessionPhase.ASSESSMENT:
+                if not state.worry_expressed and state.total_turns >= 2:
+                    state.worry_topic = domain
+                    state.phase = SessionPhase.WORRY_CAPTURE
+                    return self._worry_capture_response(state, user_message)
+            
+            # ===== 认知重构触发 =====
+            distortion = self.emotion_detector.detect_distortion(user_message)
+            if distortion and state.phase in [SessionPhase.WORRY_CAPTURE, SessionPhase.COGNITIVE_RESTRUCTURING]:
+                state.detected_distortion_id = distortion["id"]
+                state.phase = SessionPhase.COGNITIVE_RESTRUCTURING
+                # 记录逻辑链（苏格拉底追问用）
+                state.logical_chain.append(user_message)
+                return self._cognitive_restructure_response(state, distortion)
+
+            # ===== 放松诱导（动态阈值：基于用户历史平均焦虑消退轮数）=====
+            # 从用户档案读取个性化阈值，无历史数据则回退到默认4轮
+            personalized_relax_threshold = 4
+            if profile:
+                avg_recovery = profile.get("avg_anxiety_recovery_turns", 0.0)
+                if avg_recovery > 0:
+                    # 允许在平均值的 0.8~1.2 倍范围内波动，最少2轮最多6轮
+                    personalized_relax_threshold = max(2, min(6, round(avg_recovery * 0.9)))
+            
+            if state.phase in [SessionPhase.WORRY_CAPTURE, SessionPhase.COGNITIVE_RESTRUCTURING]:
+                if state.turns_in_phase >= personalized_relax_threshold:
+                    state.phase = SessionPhase.RELAXATION_INDUCTION
+                    state.relaxation_technique = self._select_relaxation_technique(
+                        anxiety_level, worry_category=worry_category, 
+                        user_style=state.user_style, scenario=state.detected_scenario
+                    )
+                    return self._relaxation_response(state)
+
+            # ===== 情绪节奏加速：越来越放松 → 可提前关闭 =====
+            # 关闭阈值也基于用户历史动态调整（历史平均 + 1 轮缓冲）
+            personalized_close_threshold = 5
+            if profile:
+                avg_recovery = profile.get("avg_anxiety_recovery_turns", 0.0)
+                if avg_recovery > 0:
+                    personalized_close_threshold = max(3, min(8, round(avg_recovery + 1)))
+            
+            should_close = (
+                state.total_turns >= 10 or
+                state.turns_in_phase >= personalized_close_threshold or
+                (anxiety_level == AnxietyLevel.NORMAL and state.emotional_momentum == EmotionalMomentum.IMPROVING and state.total_turns >= 8)
+            )
+            
+            if should_close and state.phase != SessionPhase.CLOSURE:
                 state.phase = SessionPhase.CLOSURE
-                return self._closure_response(state, user_message, worry_category)
-        else:
-            state.consecutive_rumination = 0
-
-        # ===== 担忧处理（至少聊2轮后才进入担忧捕获） =====
-        if anxiety_level in [AnxietyLevel.MILD, AnxietyLevel.MODERATE] and state.phase == SessionPhase.ASSESSMENT:
-            if not state.worry_expressed and state.total_turns >= 2:
-                state.worry_topic = domain
-                state.phase = SessionPhase.WORRY_CAPTURE
-                return self._worry_capture_response(state, user_message)
-        
-        # ===== 认知重构触发 =====
-        distortion = self.emotion_detector.detect_distortion(user_message)
-        if distortion and state.phase in [SessionPhase.WORRY_CAPTURE, SessionPhase.COGNITIVE_RESTRUCTURING]:
-            state.detected_distortion_id = distortion["id"]
-            state.phase = SessionPhase.COGNITIVE_RESTRUCTURING
-            # 记录逻辑链（苏格拉底追问用）
-            state.logical_chain.append(user_message)
-            return self._cognitive_restructure_response(state, distortion)
-
-        # ===== 放松诱导（动态阈值：基于用户历史平均焦虑消退轮数）=====
-        # 从用户档案读取个性化阈值，无历史数据则回退到默认4轮
-        personalized_relax_threshold = 4
-        if profile:
-            avg_recovery = profile.get("avg_anxiety_recovery_turns", 0.0)
-            if avg_recovery > 0:
-                # 允许在平均值的 0.8~1.2 倍范围内波动，最少2轮最多6轮
-                personalized_relax_threshold = max(2, min(6, round(avg_recovery * 0.9)))
-        
-        if state.phase in [SessionPhase.WORRY_CAPTURE, SessionPhase.COGNITIVE_RESTRUCTURING]:
-            if state.turns_in_phase >= personalized_relax_threshold:
-                state.phase = SessionPhase.RELAXATION_INDUCTION
-                state.relaxation_technique = self._select_relaxation_technique(
-                    anxiety_level, worry_category=worry_category, 
-                    user_style=state.user_style, scenario=state.detected_scenario
+                # ── L4: 设置档案更新标记（由调用方在会话结束时异步处理）────────
+                response = self._closure_response(state, user_message, worry_category)
+                response["_meta"] = {
+                    "should_update_profile": True,
+                    "session_summary": {
+                        "worry_type": worry_category,
+                        "detected_distortion": state.detected_distortion_id or "",
+                        "technique_used": state.relaxation_technique or "",
+                        "anxiety_recovery_turns": state.turns_in_phase,
+                        "effectiveness_score": self._estimate_technique_effectiveness(state),
+                        "emotional_momentum": state.emotional_momentum.value,
+                        "total_turns": state.total_turns,
+                        "date": time.strftime("%Y-%m-%d"),
+                    }
+                }
+                # ── L3: 心理教育插入（关闭仪式前的最后时机）─────────────
+                psy_insert, psy_key = PsychoeducationManager.should_insert(
+                    user_message, last_phase, SessionPhase.CLOSURE, state.detected_distortion_id
                 )
+                if psy_insert:
+                    psy_content = PsychoeducationManager.get_content(psy_key)
+                    if psy_content:
+                        response["content"] = psy_content + " " + response["content"]
+                        response["_meta"]["psychoeducation_inserted"] = psy_key
+                return response
+
+            # ===== 正常闲聊（评估状态）=====
+            if state.phase == SessionPhase.ASSESSMENT:
+                return self._assessment_response(state)
+
+            # ===== 默认：呼吸引导 =====
+            if state.phase == SessionPhase.RELAXATION_INDUCTION:
                 return self._relaxation_response(state)
 
-        # ===== 情绪节奏加速：越来越放松 → 可提前关闭 =====
-        # 关闭阈值也基于用户历史动态调整（历史平均 + 1 轮缓冲）
-        personalized_close_threshold = 5
-        if profile:
-            avg_recovery = profile.get("avg_anxiety_recovery_turns", 0.0)
-            if avg_recovery > 0:
-                personalized_close_threshold = max(3, min(8, round(avg_recovery + 1)))
-        
-        should_close = (
-            state.total_turns >= 10 or
-            state.turns_in_phase >= personalized_close_threshold or
-            (anxiety_level == AnxietyLevel.NORMAL and state.emotional_momentum == EmotionalMomentum.IMPROVING and state.total_turns >= 8)
-        )
-        
-        if should_close and state.phase != SessionPhase.CLOSURE:
-            state.phase = SessionPhase.CLOSURE
-            # ── L4: 设置档案更新标记（由调用方在会话结束时异步处理）────────
-            response = self._closure_response(state, user_message, worry_category)
-            response["_meta"] = {
-                "should_update_profile": True,
-                "session_summary": {
-                    "worry_type": worry_category,
-                    "detected_distortion": state.detected_distortion_id or "",
-                    "technique_used": state.relaxation_technique or "",
-                    "anxiety_recovery_turns": state.turns_in_phase,
-                    "effectiveness_score": self._estimate_technique_effectiveness(state),
-                    "emotional_momentum": state.emotional_momentum.value,
-                    "total_turns": state.total_turns,
-                    "date": time.strftime("%Y-%m-%d"),
-                }
-            }
-            # ── L3: 心理教育插入（关闭仪式前的最后时机）─────────────
-            psy_insert, psy_key = PsychoeducationManager.should_insert(
-                user_message, last_phase, SessionPhase.CLOSURE, state.detected_distortion_id
-            )
-            if psy_insert:
-                psy_content = PsychoeducationManager.get_content(psy_key)
-                if psy_content:
-                    response["content"] = psy_content + " " + response["content"]
-                    response["_meta"]["psychoeducation_inserted"] = psy_key
-            return response
-
-        # ===== 正常闲聊（评估状态）=====
-        if state.phase == SessionPhase.ASSESSMENT:
-            return self._assessment_response(state)
-
-        # ===== 默认：呼吸引导 =====
-        if state.phase == SessionPhase.RELAXATION_INDUCTION:
-            return self._relaxation_response(state)
-
-        # ===== 继续当前阶段 =====
-        return self._continue_phase_response(state, user_message)
+            # ===== 继续当前阶段 =====
+            return self._continue_phase_response(state, user_message)
+        finally:
+            # 无论哪个分支 return，都会话状态持久化到 Redis
+            self._save_state(state)
 
     def _worry_capture_response(self, state: SessionState, user_message: str) -> Dict[str, Any]:
         """担忧捕获阶段的响应——由 LLM 动态生成，此处仅更新状态"""
@@ -1065,22 +1120,71 @@ class CBTManager:
         worry_display = state.worry_topic or "一些事"
         return template.format(worry_topic=worry_display, user_name=state.user_id, session_summary="")
 
-    def _safety_response(self, state: SessionState) -> Dict[str, Any]:
-        """安全协议响应"""
-        content = (
-            "我很在乎你的安全。你现在的感受听起来非常沉重。\n\n"
-            "如果你有立即的危险想法，请拨打：010-82951332（全国心理援助热线）\n\n"
-            "如果你愿意，可以告诉我你现在的情况。我在这里陪着你。"
-        )
+    # 分级危机响应资源
+    SAFETY_RESOURCES = {
+        "crisis_hotlines": [
+            {"name": "全国心理援助热线", "contact": "010-82951332", "hours": "24小时"},
+            {"name": "北京回龙观医院危机干预", "contact": "010-82951332", "hours": "24小时"},
+            {"name": "上海市精神卫生中心", "contact": "021-12320-5", "hours": "24小时"},
+            {"name": "广州市心理危机干预中心", "contact": "020-81899120", "hours": "24小时"},
+            {"name": "希望24热线", "contact": "400-161-9995", "hours": "24小时"},
+        ],
+        "online_platforms": [
+            {"name": "简单心理", "contact": "https://www.jiandanxinli.com", "type": "预约制"},
+            {"name": "壹心理", "contact": "https://www.xinli001.com", "type": "预约制"},
+            {"name": "KnowYourself", "contact": "https://www.knowyourself.cc", "type": "内容+咨询"},
+        ],
+    }
+
+    def _safety_response(self, state: SessionState, crisis_level: str = "high", crisis_types: list = None) -> Dict[str, Any]:
+        """安全协议响应——分级处理"""
+        crisis_types = crisis_types or ["suicide"]
+        
+        if crisis_level == "high":
+            # 高危：立即提供热线 + 安抚
+            hotlines = self.SAFETY_RESOURCES["crisis_hotlines"][:3]
+            hotline_text = "\n".join([f"• {h['name']}: {h['contact']}（{h['hours']}）" for h in hotlines])
+            content = (
+                "我很在乎你的安全。你现在的感受听起来非常沉重。\n\n"
+                f"{hotline_text}\n\n"
+                "如果你愿意，可以告诉我你现在的情况。我在这里陪着你。"
+            )
+            tts_params = {"rate": 0.8, "pitch": "-3st", "volume": 0.9, "pause_ms": 2500}
+        elif crisis_level == "medium":
+            # 中危：提供热线 + 平台资源 + 温和引导
+            hotlines = self.SAFETY_RESOURCES["crisis_hotlines"][:2]
+            platforms = self.SAFETY_RESOURCES["online_platforms"][:2]
+            hotline_text = "\n".join([f"• {h['name']}: {h['contact']}（{h['hours']}）" for h in hotlines])
+            platform_text = "\n".join([f"• {p['name']}: {p['contact']}（{p['type']}）" for p in platforms])
+            content = (
+                "我听到你了，这些感受一定很不容易。\n\n"
+                "如果你需要和人聊聊，可以拨打：\n"
+                f"{hotline_text}\n\n"
+                "或者考虑预约专业心理咨询：\n"
+                f"{platform_text}\n\n"
+                "我在这里陪着你。"
+            )
+            tts_params = {"rate": 0.85, "pitch": "-2st", "volume": 0.95, "pause_ms": 2000}
+        else:
+            # 低危/默认：基础安抚 + 资源提示
+            content = (
+                "我听到你了。如果这些感受持续困扰你，\n"
+                "可以考虑和心理专业人士聊聊。\n\n"
+                "全国心理援助热线：010-82951332（24小时）\n\n"
+                "我在这里陪着你。"
+            )
+            tts_params = {"rate": 0.9, "pitch": "-1st", "volume": 1.0, "pause_ms": 1500}
         
         return {
             "response_type": "safety",
             "content": content,
-            "tts_params": {"rate": 0.85, "pitch": "-2st", "volume": 1.0, "pause_ms": 2000},
+            "tts_params": tts_params,
             "state_update": _serialize_state(state),
             "next_phase": SessionPhase.SAFETY_PROTOCOL.value,
             "should_close": False,
-            "safety_trigger": True
+            "safety_trigger": True,
+            "crisis_level": crisis_level,
+            "crisis_types": crisis_types,
         }
 
     def _assessment_response(self, state: SessionState) -> Dict[str, Any]:
@@ -1166,10 +1270,15 @@ class CBTManager:
         
         return self.CBT_SYSTEM_PROMPT_V2 + context_addition + phase_instruction + persona_instruction + relationship_instruction
     def reset_session(self, user_id: str, session_id: str) -> None:
-        """重置会话状态"""
+        """重置会话状态（本地 + Redis）"""
         key = f"{user_id}:{session_id}"
         if key in self._sessions:
             del self._sessions[key]
+        if self._redis:
+            try:
+                self._redis.delete(self._redis_key(user_id, session_id))
+            except Exception as e:
+                print(f"[reset_session error] {e}")
 
 
 def _serialize_state(state: SessionState) -> Dict[str, Any]:
@@ -1193,6 +1302,38 @@ def _serialize_state(state: SessionState) -> Dict[str, Any]:
         "detected_scenario": state.detected_scenario,
         "last_topic": state.last_topic,
     }
+
+
+def _deserialize_state(data: Dict[str, Any]) -> SessionState:
+    """将字典反序列化为 SessionState"""
+    state = SessionState(
+        user_id=data.get("user_id", ""),
+        session_id=data.get("session_id", ""),
+        phase=SessionPhase(data.get("phase", "assessment")),
+        anxiety_level=AnxietyLevel(data.get("anxiety_level", "normal")),
+        worry_topic=data.get("worry_topic"),
+        worry_expressed=data.get("worry_expressed", False),
+        worry_write_confirmed=data.get("worry_write_confirmed", False),
+        detected_distortion_id=data.get("detected_distortion_id"),
+        relaxation_technique=data.get("relaxation_technique"),
+        relaxation_cycles_completed=data.get("relaxation_cycles_completed", 0),
+        turns_in_phase=data.get("turns_in_phase", 0),
+        total_turns=data.get("total_turns", 0),
+        consecutive_rumination=data.get("consecutive_rumination", 0),
+        emotional_momentum=EmotionalMomentum(data.get("emotional_momentum", "unknown")),
+        user_style=UserStyle(data.get("user_style", "normal")),
+        detected_scenario=data.get("detected_scenario"),
+        last_topic=data.get("last_topic"),
+    )
+    # 恢复列表/字典字段
+    state.logical_chain = data.get("logical_chain", [])
+    state.technique_effectiveness = data.get("technique_effectiveness", {})
+    state.anxiety_scores = data.get("anxiety_scores", [])
+    state.user_sentence_lengths = data.get("user_sentence_lengths", [])
+    state.conversation_history = data.get("conversation_history", [])
+    state.session_start_time = data.get("session_start_time", time.time())
+    state.triggers = data.get("triggers", {})
+    return state
 
 
 # ============ L3: 理解性共情 - 信念链推理 ============

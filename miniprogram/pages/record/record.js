@@ -100,7 +100,9 @@ Page({
       trend: [],
       recommendation: null,
       trendDirection: '',
-      trendEmoji: ''
+      trendEmoji: '',
+      srt: null,
+      srtPhaseColor: '#8BA3B9',
     },
 
     // 焦虑趋势
@@ -359,12 +361,23 @@ Page({
     // 更新最新睡眠数据
     const latest = trend[0] || {}
     this.setData({
+    // SRT数据处理
+    let srtPhaseColor = "#8BA3B9"
+    if (data.srt) {
+      const phase = data.srt.phase
+      if (phase === "restricting") srtPhaseColor = "#E8846B"
+      else if (phase === "stabilizing") srtPhaseColor = "#7EC8A3"
+      else if (phase === "optimizing") srtPhaseColor = "#F5C869"
+      else if (phase === "maintenance") srtPhaseColor = "#6B9FD4"
+    }
       'sleepDashboard.hasData': true,
       'sleepDashboard.stats': data.stats,
       'sleepDashboard.trend': trend,
       'sleepDashboard.recommendation': data.recommendation,
       'sleepDashboard.trendDirection': data.trend_direction,
       'sleepDashboard.trendEmoji': data.trend_emoji,
+      'sleepDashboard.srt': data.srt || null,
+      'sleepDashboard.srtPhaseColor': srtPhaseColor,
       'weeklySleep': weeklySleep.length > 0 ? weeklySleep : this.data.weeklySleep,
       'sleepData': {
         bedTime: latest.actual_bed || latest.planned_bed || '--:--',
@@ -395,7 +408,39 @@ Page({
   },
 
   // 隐藏睡眠效率仪表盘
-  hideSleepDashboard() {
+  
+  // 应用SRT推荐睡眠窗口
+  applySrtRecommendation() {
+    const srt = this.data.sleepDashboard.srt
+    if (!srt || !srt.adjustment_needed) {
+      wx.showToast({ title: '无需调整', icon: 'none' })
+      return
+    }
+    wx.showLoading({ title: '应用中...' })
+    const app = getApp()
+    wx.request({
+      url: app.globalData.baseUrl + '/api/v1/srt/apply',
+      method: 'POST',
+      header: { Authorization: 'Bearer ' + app.globalData.token },
+      success: (res) => {
+        wx.hideLoading()
+        if (res.data.status === 'ok') {
+          wx.showToast({ title: '已更新睡眠窗口', icon: 'success' })
+          this.hideSleepDashboard()
+          this.onShow()
+        } else {
+          wx.showToast({ title: res.data.message || '更新失败', icon: 'none' })
+        }
+      },
+      fail: () => {
+        wx.hideLoading()
+        wx.showToast({ title: '网络错误', icon: 'none' })
+      }
+    })
+  },
+
+
+hideSleepDashboard() {
     this.setData({ showSleepDashboard: false })
   },
 
