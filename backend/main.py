@@ -2384,10 +2384,10 @@ async def _chat_events(req: ChatRequest, user_id: str):
         "paradoxical_intention": "睡不着就别努力，反而容易入睡",
     }
     phase_map = {
-        "assessment": ("说说你今晚怎么样", "今晚感觉怎么样？慢慢说，我帮你听着"),
-        "worry_capture": ("说说你今晚怎么样", "慢慢说就好，我帮你记着"),
-        "cognitive": ("换个角度想想", "换个角度看，也许没那么严重"),
-        "relaxation": ("", ""),
+        "assessment": ("说说今晚", "今晚感觉怎么样？慢慢说，我帮你听着"),
+        "worry_capture": ("说出担心", "把你的担心说出来，我帮你记着"),
+        "cognitive": ("换个角度", "换个角度看，也许没那么严重"),
+        "relaxation": ("身体放松", "跟着感觉，慢慢来"),
         "closure": ("准备睡觉", "今晚就到这里，晚安"),
         "safety": ("", ""),
         "normal_chat": ("准备睡觉", "用正确的认识改善睡眠"),
