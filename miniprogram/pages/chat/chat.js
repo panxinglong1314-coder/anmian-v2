@@ -94,7 +94,6 @@ Page({
     cbtPhase: '',
     cbtPhaseLabel: '',
     cbtPhaseHint: '',
-    cbtStepIndex: -1,
     showCbtPhase: false,
     statusText: '准备入睡',
     statusHint: '点击下方按钮，将手机放在枕边',
@@ -442,8 +441,14 @@ Page({
   },
 
   _startVADLoop() {
-    console.log('[_VAD] start, sleepModeActive:', this.data.sleepModeActive, 'mode:', this.data.mode)
+    console.log('[_VAD] start, sleepModeActive:', this.data.sleepModeActive, 'mode:', this.data.mode, 'state=', this._recordingState, 'locked=', this._recorderLocked)
     if (!this.data.sleepModeActive) return
+    // ✅【关键互斥】如果状态机已经在 vad 或 asr，说明上一轮还没结束，绝对不能再 start()
+    // 这是防止 "audio is recording, don't start record again" 错误的根本保护
+    if (this._recordingState === 'vad' || this._recordingState === 'asr') {
+      console.warn('[_VAD] state machine busy (' + this._recordingState + '), skip duplicate start')
+      return
+    }
     // ✅ 如果录音机正在停止，直接返回，等 onStop 后再启动
     if (this._recorderStopping) {
       console.warn('[_VAD] recorder is stopping, defer start')
@@ -1028,12 +1033,8 @@ Page({
           const finalText = streamingText.trim()
           console.log('[SleepMode] SSE done, hasStreamTTS:', hasStreamTTS, 'finalText:', finalText || '(empty)')
           // 如果流式过程中已经下发 tts_chunk，就不再整句 fallback 合成
-          // AI说晚安后追加评分提问（语音）
-          const _rq = '今晚的陪伴感觉怎么样？想听听你的反馈，1到5星，觉得好给5星，觉得不够好可以告诉我哪里可以改进～'
-          const _needsRating = finalText.includes('晚安') || finalText.includes('安心睡')
-          const _ttsText = _needsRating ? finalText + ' ' + _rq : finalText
           if (!hasStreamTTS && finalText) {
-            this._playTTS(_ttsText, true)
+            this._playTTS(finalText, true)
           } else if (!hasStreamTTS && !finalText) {
             setTimeout(() => this._startVADLoop(), 500)
           }
@@ -1047,14 +1048,6 @@ Page({
           // if (!hasStreamTTS && finalText) { this._playTTS(finalText, false) }
           const closeDecision = this._shouldTriggerClosure(text, streamingText)
           if (closeDecision.trigger) {
-            // AI说晚安 → 追加评分消息（文本模式）
-            if (streamingText.includes('晚安') || streamingText.includes('安心睡')) {
-              const ratingQuestion = { id: 'rating_q_' + Date.now(), role: 'assistant',
-                content: '今晚的陪伴感觉怎么样？你可以点击下面星星评分：',
-                time: this._now(), isRatingTarget: true, userRating: 0, rated: false,
-                isPlayingTTS: false }
-              this.setData({ messages: this.data.messages.concat(ratingQuestion) })
-            }
             console.log('[Closure] trigger:', closeDecision.reason, 'delay:', closeDecision.delay)
             setTimeout(() => this.triggerClosure(), closeDecision.delay)
           }
@@ -1065,10 +1058,17 @@ Page({
         this.setData({ isAIResponding: false, isLoading: false, _asrPending: false })
         // ✅ 只在完全没有收到 TTS 时才 fallback（ERR_INCOMPLETE_CHUNKED_ENCODING 等网络错误不代表 TTS 没收到）
         if (fromSleep && !hasStreamTTS) {
+          // _playTTS 内部的 onEnded/onError 会负责重启 VAD，这里不再 setTimeout 重复触发
           this._playTTS('刚才没听清楚，可以再说一遍吗？', true)
-        }
-        if (fromSleep && this.data.sleepModeActive) {
-          setTimeout(() => this._startVADLoop(), 2000)
+        } else if (fromSleep && this.data.sleepModeActive) {
+          // 已经有 TTS 在流式播放，不调 fallback，由 TTS onEnded 重启 VAD；
+          // 但如果 TTS 也异常结束没回调，加一道 5 秒兜底
+          setTimeout(() => {
+            if (this.data.sleepModeActive && this._recordingState === null && !this.data.isPlayingTTS) {
+              console.log('[_sendToAI fail] 5s safety net, restart VAD')
+              this._startVADLoop()
+            }
+          }, 5000)
         }
       },
       complete: () => {
@@ -1128,16 +1128,14 @@ Page({
             const phase = data.data
             const label = phase.phase_label || ''
             const hint = phase.phase_hint || ''
-            const stepIndex = phase.step_index !== undefined ? phase.step_index : -1
             if (label && phase.phase !== 'normal_chat' && phase.phase !== 'safety') {
               this.setData({
                 cbtPhase: phase.phase,
                 cbtPhaseLabel: label,
                 cbtPhaseHint: hint,
-                cbtStepIndex: stepIndex,
                 showCbtPhase: true,
               })
-              console.log("[CBT-UI] phase=", phase.phase, "label=", label, "hint=", hint, "step=", stepIndex)
+              console.log("[CBT-UI] phase=", phase.phase, "label=", label, "hint=", hint)
             } else {
               this.setData({ showCbtPhase: false })
             }
@@ -1715,7 +1713,7 @@ Page({
 心里可能有一点点思绪在飘。不要抓住它们，也不要推开它们。
 只是看着它们来，看着它们走。像云一样飘过天空。
 
-准备好入睡了。晚安。 今晚的陪伴感觉怎么样？想听听你的反馈，1到5星，觉得好给5星，觉得不够好可以告诉我哪里可以改进～。`
+准备好入睡了。晚安。`
 
     // 调用 MiniMax TTS 生成音频
     this.setData({ _pmrActive: true })
@@ -2031,47 +2029,6 @@ Page({
     }, 1500)
   },
 
-
-  // 会话评分（晚安后语音+文字触发）
-  _submitSessionRating(rating) {
-    var userId = app.globalData.userId || wx.getStorageSync('userId') || ''
-    var sessionId = app.globalData.sessionId || ''
-    if (!userId || !sessionId || !rating) return
-    var that = this
-    wx.request({
-      url: API + '/api/v1/sessions/' + sessionId + '/rating',
-      method: 'POST',
-      header: { 'Content-Type': 'application/json' },
-      data: { rating: rating },
-      success: function() {
-        console.log('[Rating] submitted: ' + rating)
-        var ratingMsg = {
-          id: 'rating_confirm_' + Date.now(),
-          role: 'assistant',
-          content: '谢谢你的' + rating + '星反馈，今晚就到这里，晚安',
-          time: that._now(),
-          isPlayingTTS: false
-        }
-        that.setData({ messages: that.data.messages.concat(ratingMsg) })
-        setTimeout(function() { wx.showToast({ title: '感谢反馈', icon: 'none', duration: 2000 }) }, 100)
-      },
-      fail: function(err) { console.error('[Rating Error]', err) }
-    })
-  },
-
-  onStarRatingTap(e) {
-    var rating = parseInt(e.currentTarget.dataset.rating) || 0
-    if (!rating) return
-    var msgs = this.data.messages.map(function(m) {
-      if (m.isRatingTarget) {
-        return Object.assign({}, m, { userRating: rating, isRatingTarget: false, rated: true })
-      }
-      return m
-    })
-    this.setData({ messages: msgs })
-    this._submitSessionRating(rating)
-  },
-
   // 文字模式 TTS（流式版 - 腾讯云 2秒极速）
   async playAITTS(index) {
     const msg = this.data.messages[index]
@@ -2242,7 +2199,7 @@ Page({
     }
 
     // AI 确认（通过 MiniMax TTS）
-    const confirmText = `我记下了："${worryText.slice(0, 50)}"。明天17:00，我们再一起看看。现在，把这件事交给我，安心睡吧。晚安🌙 今晚的陪伴感觉怎么样？想听听你的反馈，1到5星，觉得好给5星，觉得不够好可以告诉我哪里可以改进～。`
+    const confirmText = `我记下了："${worryText.slice(0, 50)}"。明天17:00，我们再一起看看。现在，把这件事交给我，安心睡吧。晚安🌙`
 
     const newLog = [...this.data.conversationLog, { role: 'assistant', text: confirmText }]
     this.setData({
@@ -2782,9 +2739,28 @@ Page({
       this._vadLoopActive = false
       this._recordingState = null
 
-      const isNotFound = err && err.errMsg && err.errMsg.includes('NotFoundError')
+      const errMsg = (err && err.errMsg) || ''
+
+      // ✅【并发 start 误报】"audio is recording, don't start record again"
+      // 这是并发调用 recorderManager.start() 的副作用，录音机硬件本身正常。
+      // 不要退出睡眠模式，只清状态、延迟重启 VAD 让状态机自愈。
+      if (errMsg.includes('audio is recording') || errMsg.includes("don't start record again")) {
+        console.warn('[Recorder] 并发 start 误报，已自动恢复（不退出睡眠模式）')
+        if (this.data.sleepModeActive) {
+          // 等录音机真正空闲（系统侧）再重启 VAD
+          if (this._listenTimer) clearTimeout(this._listenTimer)
+          this._listenTimer = setTimeout(() => {
+            if (this.data.sleepModeActive && !this._recorderLocked && !this._recorderStopping) {
+              this._restartVAD('recover from concurrent-start')
+            }
+          }, 1200)
+        }
+        return
+      }
+
+      const isNotFound = errMsg.includes('NotFoundError')
       if (isNotFound) {
-        // 【修复】模拟器无麦克风 → 退出睡眠模式，切文字模式，不再重启 VAD
+        // 模拟器无麦克风 → 退出睡眠模式，切文字模式
         console.warn('[Recorder] 模拟器无麦克风，自动切换为文字模式')
         wx.showToast({ title: '模拟器无麦克风，已切换为文字模式', icon: 'none', duration: 3000 })
         this.exitSleepMode()
@@ -2794,9 +2770,26 @@ Page({
         return
       }
 
-      // 非 NotFoundError（如权限拒绝）：退出睡眠模式，切文字模式
+      // ✅【临时性失败】operateRecorder:fail（无具体原因）也可能是系统瞬时占用，先尝试自愈
+      const isTransient = errMsg.includes('operateRecorder:fail') && !errMsg.includes('auth') && !errMsg.includes('permission') && !errMsg.includes('Permission')
+      if (isTransient && this.data.sleepModeActive) {
+        this._recorderTransientCount = (this._recorderTransientCount || 0) + 1
+        if (this._recorderTransientCount <= 3) {
+          console.warn('[Recorder] 临时失败，自愈重试 ' + this._recorderTransientCount + '/3')
+          if (this._listenTimer) clearTimeout(this._listenTimer)
+          this._listenTimer = setTimeout(() => {
+            if (this.data.sleepModeActive) this._restartVAD('recover from transient error')
+          }, 1500)
+          return
+        }
+        // 连续 3 次失败才放弃
+        console.error('[Recorder] 连续 3 次临时失败，退出睡眠模式')
+        this._recorderTransientCount = 0
+      }
+
+      // 真正的硬故障（权限拒绝等）：退出睡眠模式，切文字模式
       if (this.data.sleepModeActive) {
-        console.warn('[Recorder] 录音失败，退出睡眠模式')
+        console.warn('[Recorder] 录音硬故障，退出睡眠模式:', errMsg)
         this.exitSleepMode()
         this.setData({ mode: 'text', sleepModeActive: false, isRecording: false, audioLevel: 0 }, () => {
           this._resetStimulusControlTimer()
