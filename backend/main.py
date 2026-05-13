@@ -3897,7 +3897,31 @@ def _get_srt_data(records, user_id):
         }
     except Exception as e:
         print(f'[SRT data error] {e}')
-        return None
+        import traceback
+        traceback.print_exc()
+        # Return default learning phase
+        return {
+            'phase': 'learning',
+            'phase_label': '📝 学习期',
+            'current_tib_hours': 8.0,
+            'recommended_tib_hours': 8.0,
+            'recommended_bed_time': '23:00',
+            'recommended_wake_time': '07:00',
+            'adjustment_needed': False,
+            'adjustment_minutes': 0,
+            'avg_se': 0,
+            'avg_tst_minutes': 0,
+            'avg_sol_minutes': 0,
+            'avg_waso_minutes': 0,
+            'avg_fatigue': 0,
+            'se_trend': 'stable',
+            'tst_trend': 'stable',
+            'poor_nights_count': 0,
+            'consecutive_poor_nights': 0,
+            'record_count': 0,
+            'week_tip': '开始记录睡眠日记，获得个性化分析',
+            'daily_tips': ['记录睡眠日记是改善睡眠的第一步'],
+        }
 
 
 @app.get("/api/v1/sleep/dashboard")
