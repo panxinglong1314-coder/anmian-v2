@@ -46,6 +46,35 @@
       <text wx:if="{{!showCbtPhase}}" class="sleep-hint">用正确的认识改善睡眠 · 知眠</text>
       <!-- CBT hint -->
       <text wx:if="{{showCbtPhase && cbtPhaseHint}}" class="sleep-hint cbt-phase-hint">{{cbtPhaseHint}}</text>
+    <!-- CBT 阶段进度指示器 -->
+    <view wx:if="{{showCbtPhase}}" class="cbt-phase-area">
+      <view class="cbt-phase-steps">
+        <view class="cbt-step {{cbtStepIndex === 0 ? 'active' : ''}}">
+          <view class="cbt-dot"></view>
+          <text class="cbt-label">说说今晚</text>
+        </view>
+        <view class="cbt-line {{cbtStepIndex > 0 ? 'done' : ''}}"></view>
+        <view class="cbt-step {{cbtStepIndex === 0 ? 'active' : ''}}">
+          <view class="cbt-dot"></view>
+          <text class="cbt-label">说出担心</text>
+        </view>
+        <view class="cbt-line {{cbtStepIndex > 0 ? 'done' : ''}}"></view>
+        <view class="cbt-step {{cbtStepIndex === 1 ? 'active' : ''}}">
+          <view class="cbt-dot"></view>
+          <text class="cbt-label">换个角度</text>
+        </view>
+        <view class="cbt-line {{cbtStepIndex > 1 ? 'done' : ''}}"></view>
+        <view class="cbt-step {{cbtStepIndex === 2 ? 'active' : ''}}">
+          <view class="cbt-dot"></view>
+          <text class="cbt-label">身体放松</text>
+        </view>
+        <view class="cbt-line {{cbtStepIndex > 2 ? 'done' : ''}}"></view>
+        <view class="cbt-step {{cbtStepIndex === 3 ? 'active' : ''}}">
+          <view class="cbt-dot"></view>
+          <text class="cbt-label">准备睡觉</text>
+        </view>
+      </view>
+    </view>
     </view>
 
     <!-- 白噪音 -->
