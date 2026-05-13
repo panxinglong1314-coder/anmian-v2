@@ -34,8 +34,8 @@ import redis
 from infra.settings import settings, ADMIN_TOKEN, BACKEND_VERSION
 from infra.redis_client import redis_client, async_redis_client
 from services.auth import create_jwt_token, verify_jwt_token, AuthUser
-from services.sleep_stats import update_streak
-from srt_engine import srt_engine, get_streak_days, get_user_sleep_stats, get_sleep_diary, save_sleep_diary
+from services.sleep_stats import update_streak, get_streak_days, get_user_sleep_stats, get_sleep_diary, save_sleep_diary
+from srt_engine import srt_engine
 
 # ==================== 安全验证工具 ====================
 
