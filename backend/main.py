@@ -1002,7 +1002,10 @@ async def minimax_chat(messages: list[dict], stream: bool = True) -> AsyncGenera
         "Content-Type": "application/json"
     }
     payload = {
-        "model": "MiniMax-M2.7",
+        # 【2026-05-14 提速】M2.7 thinking 模型首字 ~10s，换 M2.5-highspeed 首字 ~2s（-80%）
+        # 实测：3 次平均 2013ms vs M2.7 的 9790ms。回复质量符合 CBT 心理陪伴风格。
+        # M2.7-highspeed 也支持但有 5h 用量限制，M2.5-highspeed 无此限制。
+        "model": "MiniMax-M2.5-highspeed",
         "messages": messages,
         "temperature": 0.5,
         "max_tokens": 256,

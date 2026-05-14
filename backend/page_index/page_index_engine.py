@@ -27,12 +27,15 @@ def _call_minimax(prompt: str, system: str = "", timeout: int = 30) -> str:
         "Content-Type": "application/json",
     }
     payload = {
-        "model": "MiniMax-M2.7",
+        # 【2026-05-14 提速】M2.7 thinking 模型导航选节点要 5-7s（thinking 时间）。
+        # 换成 M2.5-highspeed 后约 1-2s，整条响应链能省 ~5s。
+        # max_tokens 也降到 2000：PageIndex 只需选几个节点 ID，不需要长输出。
+        "model": "MiniMax-M2.5-highspeed",
         "messages": (
             [{"role": "system", "content": system}] if system else []
         ) + [{"role": "user", "content": prompt}],
         "temperature": 0.1,
-        "max_tokens": 12000,
+        "max_tokens": 2000,
         "stream": False,
     }
     try:
