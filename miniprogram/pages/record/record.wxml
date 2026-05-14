@@ -59,13 +59,13 @@
 
       <!-- 洞察文字（轻量纯文字行） -->
       <view wx:if="{{insight}}" class="insight-row">
-        <text class="insight-prefix">·</text>
+        <view class="worry-entry-dot"></view>
         <text class="insight-text">{{insight}}</text>
       </view>
 
       <!-- 担忧箱入口（纯文字行） -->
       <view class="worry-entry" bindtap="goToWorryBox">
-        <text class="insight-prefix" style="color: {{unreviewedCount > 0 ? '#F5C869' : 'rgba(139,163,185,0.4)'}}">·</text>
+        <view class="worry-entry-dot {{unreviewedCount > 0 ? '' : 'dot-empty'}}"></view>
         <text class="worry-entry-text {{unreviewedCount > 0 ? 'has-unread' : ''}}">
           {{unreviewedCount > 0 ? '担忧箱 ' + unreviewedCount + '条待处理' : '担忧箱'}}
         </text>
