@@ -554,10 +554,58 @@ class CBTManager:
 
             state.conversation_history.append({"role": "user", "content": user_message})
 
-            # ===== 安全协议 =====
+            # ===== 分级危机检测（独立通道，与 anxiety_level 解耦）=====
+            # 走 EmotionAnalyzer._detect_crisis，覆盖 suicide / self_harm / violence / acute_psychosis / child_abuse
+            crisis_info = {"level": "none", "types": [], "score": 0.0}
+            try:
+                from emotion_analyzer import get_emotion_analyzer
+                _analyzer = get_emotion_analyzer()
+                crisis_info = _analyzer._detect_crisis(user_message)
+            except Exception as _e:
+                # 兜底：分级检测异常时不应阻塞主流程，但要记录
+                import logging
+                logging.warning(f"[CrisisDetect] _detect_crisis 异常，退回旧逻辑: {_e}")
+
+            # ===== 安全协议（分级触发）=====
+            # 触发条件 = 任一为真：
+            #   1. EmotionAnalyzer 检测出 high/medium 级别危机
+            #   2. EmotionDetector 老路径判定 SEVERE / IMMEDIATE_SAFETY（向后兼容）
+            #
+            # 触发时同步推送告警到 Admin 后台危机面板（不阻塞主响应；emit 失败仅日志）
+            def _push_to_admin(level: str, types: list):
+                try:
+                    from services.crisis_alert import emit_crisis_alert
+                    emit_crisis_alert(
+                        user_id=user_id,
+                        session_id=session_id,
+                        level=level,
+                        types=types,
+                        message=user_message,
+                        extra={
+                            "anxiety_level": str(anxiety_level),
+                            "phase_before": str(state.phase),
+                            "total_turns": state.total_turns,
+                        },
+                    )
+                except Exception as _e:
+                    import logging
+                    logging.warning(f"[CrisisAlert] emit 调用失败（不阻塞主流程）: {_e}")
+
+            crisis_level_for_route = crisis_info["level"]
+            if crisis_level_for_route in ("high", "medium"):
+                state.phase = SessionPhase.SAFETY_PROTOCOL
+                types_for_alert = crisis_info["types"] or ["suicide"]
+                _push_to_admin(crisis_level_for_route, types_for_alert)
+                return self._safety_response(
+                    state,
+                    crisis_level=crisis_level_for_route,
+                    crisis_types=types_for_alert,
+                )
             if anxiety_level == AnxietyLevel.SEVERE or action == RecommendedAction.IMMEDIATE_SAFETY.value:
                 state.phase = SessionPhase.SAFETY_PROTOCOL
-                return self._safety_response(state)
+                # 老路径未识别具体 type，按 high+suicide 处理（最保守）
+                _push_to_admin("high", ["suicide"])
+                return self._safety_response(state, crisis_level="high", crisis_types=["suicide"])
 
             # ===== 情绪节奏自适应：越来越紧张 → 回退到接住 =====
             if state.emotional_momentum == EmotionalMomentum.DETERIORATING:

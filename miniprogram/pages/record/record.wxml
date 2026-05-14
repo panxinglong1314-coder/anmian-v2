@@ -59,13 +59,13 @@
 
       <!-- 洞察文字（轻量纯文字行） -->
       <view wx:if="{{insight}}" class="insight-row">
-        <text class="insight-prefix">•</text>
+        <text class="insight-prefix">·</text>
         <text class="insight-text">{{insight}}</text>
       </view>
 
       <!-- 担忧箱入口（纯文字行） -->
       <view class="worry-entry" bindtap="goToWorryBox">
-        <view class="worry-entry-dot {{unreviewedCount > 0 ? '' : 'dot-empty'}}"></view>
+        <text class="insight-prefix" style="color: {{unreviewedCount > 0 ? '#F5C869' : 'rgba(139,163,185,0.4)'}}">·</text>
         <text class="worry-entry-text {{unreviewedCount > 0 ? 'has-unread' : ''}}">
           {{unreviewedCount > 0 ? '担忧箱 ' + unreviewedCount + '条待处理' : '担忧箱'}}
         </text>
@@ -193,16 +193,18 @@
       <view class="sheet-handle"></view>
       <view class="sheet-header">
         <text class="sheet-title">睡眠效率详情</text>
-        <view class="sheet-close" bindtap="hideSleepDashboard">✕</view>
+        <view class="sheet-close" bindtap="hideSleepDashboard">
+          <text style="font-size:28rpx;color:#8BA3B9;">✕</text>
+        </view>
       </view>
       <scroll-view class="sheet-content" scroll-y="true">
         <view wx:if="{{sleepDashboard.hasData}}" class="report-section">
+          <text class="report-section-title">平均睡眠效率</text>
           <view class="se-big-display">
             <view class="se-circle" style="border-color: {{sleepDashboard.stats.avg_se >= 85 ? '#7EC8A3' : sleepDashboard.stats.avg_se >= 70 ? '#F5C869' : '#E8846B'}}">
               <text class="se-circle-value">{{sleepDashboard.stats.avg_se}}</text>
               <text class="se-circle-unit">%</text>
             </view>
-            <text class="se-circle-label">平均睡眠效率</text>
           </view>
           <view class="kpi-row">
             <view class="kpi">
@@ -221,8 +223,9 @@
         </view>
 
         <!-- SRT阶段信息 -->
-        <view wx:if="{{sleepDashboard.srt}}" class="report-section srt-section">
-          <view class="srt-phase-badge" style="background: {{sleepDashboard.srtPhaseColor}}">
+        <view wx:if="{{sleepDashboard.srt}}" class="srt-section">
+          <text class="report-section-title">睡眠限制疗法</text>
+          <view class="srt-phase-badge" style="background: {{sleepDashboard.srtPhaseColor}}30; color: {{sleepDashboard.srtPhaseColor}}; border: 1rpx solid {{sleepDashboard.srtPhaseColor}}60;">
             <text>{{sleepDashboard.srt.phase_label}}</text>
           </view>
           <view class="srt-window-info">
@@ -257,8 +260,11 @@
 
         <view wx:if="{{sleepDashboard.srt && sleepDashboard.srt.daily_tips.length > 0}}" class="report-section">
           <text class="report-section-title">每日建议</text>
-          <view wx:for="{{sleepDashboard.srt.daily_tips}}" wx:key="index" class="srt-tip-item">
-            <text>{{item}}</text>
+          <view class="daily-tips-list">
+            <view wx:for="{{sleepDashboard.srt.daily_tips}}" wx:key="index" class="srt-tip-item">
+              <view class="srt-tip-item-dot"></view>
+              <text>{{item}}</text>
+            </view>
           </view>
         </view>
         <view wx:elif="{{sleepDashboard.recommendation}}" class="report-section">

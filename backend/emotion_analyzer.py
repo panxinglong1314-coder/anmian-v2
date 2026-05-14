@@ -5,7 +5,7 @@
 """
 import json
 import os
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 from dataclasses import dataclass
 
 @dataclass

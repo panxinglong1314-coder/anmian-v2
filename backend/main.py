@@ -35,7 +35,14 @@ from infra.settings import settings, ADMIN_TOKEN, BACKEND_VERSION
 from infra.redis_client import redis_client, async_redis_client
 from services.auth import create_jwt_token, verify_jwt_token, AuthUser
 from services.sleep_stats import update_streak, get_streak_days, get_user_sleep_stats, get_sleep_diary, save_sleep_diary
-from srt_engine import srt_engine
+from services.srt_engine import (
+    get_sleep_window, save_sleep_window,
+    get_sleep_baseline, save_sleep_baseline,
+    get_last_n_sleep_records, get_last_n_morning_records,
+    get_morning_record, save_morning_record,
+    minutes_to_time_str, build_restriction_tip, get_sleep_advice,
+    calculate_srt_recommendation, apply_srt_restriction,
+)
 
 # ==================== 安全验证工具 ====================
 
@@ -841,6 +848,8 @@ class SleepDiarySubmitRequest(BaseModel):
     wake_time: str                  # "07:00" 格式
     sleep_latency_minutes: int = 0  # 入睡潜伏期（分钟）
     wake_count: int = 0             # 夜间醒来次数
+    waso_minutes: int = 0           # 夜间醒来总时长（分钟），比 wake_count*10 更准确
+    nap_minutes: int = 0            # 午睡时长（分钟）
     quality: int = 3                # 睡眠质量 1-5
     note: str = ""                  # 备注
     date: Optional[str] = None      # 默认今天
@@ -1088,7 +1097,7 @@ def _get_sleep_summary(user_id: str, days: int = 7) -> str:
         
         lines = [
             f"\n\n[用户睡眠数据（最近{len(entries)}天）]",
-            f"- 平均睡眠效率: {avg_se:.1f}%（目标>85%，{'达标' if avg_se >= 85 else '偏低'}）",
+            f"- 平均睡眠效率: {avg_se:.1f}%（目标≥85%，{'达标' if avg_se >= 85 else '偏低'}）",
             f"- 平均实际睡眠: {avg_tst:.1f}h（目标7-8h）",
             f"- 平均卧床时间: {avg_tib:.1f}h",
             f"- 平均睡眠质量: {avg_quality:.1f}/5",
@@ -3486,7 +3495,7 @@ async def sleep_recommendation(user: AuthUser = Depends(get_current_user)):
     - 根据 SE 调整推荐睡眠窗口
     """
     try:
-        records = get_last_n_morning_records(user_id, n=7)
+        records = get_last_n_sleep_records(user_id, n=7)
 
         # 默认推荐（数据不足时）
         if len(records) < 3:
@@ -3523,12 +3532,12 @@ async def sleep_recommendation(user: AuthUser = Depends(get_current_user)):
             current_tib_minutes += 24 * 60
         current_tib_hours = round(current_tib_minutes / 60, 1)
 
-        # 根据平均 SE 调整 TIB
-        if avg_se >= 85:
-            new_tib_minutes = min(current_tib_minutes + 30, 9 * 60)
-            message = "睡眠效率优秀，建议适当增加睡眠时间"
-        elif avg_se <= 80:
-            new_tib_minutes = max(current_tib_minutes, 4.5 * 60)
+        # 根据平均 SE 调整 TIB（阈值已校准：优秀≥90%，良好≥85%）
+        if avg_se >= 90:
+            new_tib_minutes = min(current_tib_minutes + 15, 9 * 60)
+            message = "睡眠效率优秀，建议适当增加 15 分钟卧床时间"
+        elif avg_se <= 85:
+            new_tib_minutes = max(current_tib_minutes, 4 * 60)
             message = "睡眠效率有待提升，建议保持当前睡眠窗口"
         else:
             new_tib_minutes = current_tib_minutes
@@ -3751,8 +3760,8 @@ async def submit_sleep_diary(req: SleepDiarySubmitRequest, user: AuthUser = Depe
             wake_minutes += 24 * 60
         tib_minutes = wake_minutes - bed_minutes
 
-        # 估算 WASO（每次醒来约 10 分钟）
-        waso_minutes = req.wake_count * 10
+        # 使用用户填写的真实 WASO，未填写时降级为 wake_count * 10 估算
+        waso_minutes = req.waso_minutes if req.waso_minutes > 0 else req.wake_count * 10
         # TST = TIB - latency - WASO
         tst_minutes = max(0, tib_minutes - req.sleep_latency_minutes - waso_minutes)
         # SE = TST / TIB
@@ -3765,12 +3774,13 @@ async def submit_sleep_diary(req: SleepDiarySubmitRequest, user: AuthUser = Depe
             existing["actual_wake_time"] = req.wake_time
             existing["sleep_latency_minutes"] = req.sleep_latency_minutes
             existing["wake_count"] = req.wake_count
+            existing["waso_minutes"] = waso_minutes
+            existing["nap_minutes"] = req.nap_minutes
             existing["sleep_quality"] = req.quality
             existing["note"] = req.note
             existing["tib_minutes"] = tib_minutes
             existing["tst_minutes"] = tst_minutes
             existing["se"] = se
-            existing["waso_minutes"] = waso_minutes
             existing["updated_at"] = datetime.now().isoformat()
         else:
             existing = {
@@ -3780,12 +3790,13 @@ async def submit_sleep_diary(req: SleepDiarySubmitRequest, user: AuthUser = Depe
                 "actual_wake_time": req.wake_time,
                 "sleep_latency_minutes": req.sleep_latency_minutes,
                 "wake_count": req.wake_count,
+                "waso_minutes": waso_minutes,
+                "nap_minutes": req.nap_minutes,
                 "sleep_quality": req.quality,
                 "note": req.note,
                 "tib_minutes": tib_minutes,
                 "tst_minutes": tst_minutes,
                 "se": se,
-                "waso_minutes": waso_minutes,
                 "created_at": datetime.now().isoformat(),
                 "updated_at": datetime.now().isoformat(),
             }
@@ -3860,70 +3871,6 @@ async def get_diary_history(user: AuthUser = Depends(get_current_user), days: in
         return {"status": "error", "message": str(e)}
 
 
-def _get_srt_data(records, user_id):
-    try:
-        if records:
-            latest = records[0]
-            bed = latest.get('planned_bed_time', latest.get('sleep_window_start', '23:00'))
-            wake = latest.get('planned_wake_time', latest.get('sleep_window_end', '07:00'))
-        else:
-            window = get_sleep_window(user_id)
-            bed = f"{window['bed_hour']:02d}:{window['bed_min']:02d}"
-            wake = f"{window['wake_hour']:02d}:{window['wake_min']:02d}"
-        window_dict = {'bed': bed, 'wake': wake}
-        result = srt_engine.analyze(records, window_dict)
-        phase_labels = {'learning': '📝 学习期', 'restricting': '📉 限制期', 'stabilizing': '👍 稳定期', 'optimizing': '🌟 优化期', 'maintenance': '✨ 维持期'}
-        return {
-            'phase': result.phase.value,
-            'phase_label': phase_labels.get(result.phase.value, '未知'),
-            'current_tib_hours': result.current_tib_hours,
-            'recommended_tib_hours': result.recommended_tib_hours,
-            'recommended_bed_time': result.recommended_bed_time,
-            'recommended_wake_time': result.recommended_wake_time,
-            'adjustment_needed': result.adjustment_minutes > 0,
-            'adjustment_minutes': result.adjustment_minutes,
-            'avg_se': result.avg_se,
-            'avg_tst_minutes': result.avg_tst_minutes,
-            'avg_sol_minutes': result.avg_sol_minutes,
-            'avg_waso_minutes': result.avg_waso_minutes,
-            'avg_fatigue': result.avg_fatigue,
-            'se_trend': result.se_trend,
-            'tst_trend': result.tst_trend,
-            'poor_nights_count': result.poor_nights_count,
-            'consecutive_poor_nights': result.consecutive_poor_nights,
-            'record_count': result.record_count,
-            'week_tip': result.week_tip,
-            'daily_tips': result.daily_tips,
-        }
-    except Exception as e:
-        print(f'[SRT data error] {e}')
-        import traceback
-        traceback.print_exc()
-        # Return default learning phase
-        return {
-            'phase': 'learning',
-            'phase_label': '📝 学习期',
-            'current_tib_hours': 8.0,
-            'recommended_tib_hours': 8.0,
-            'recommended_bed_time': '23:00',
-            'recommended_wake_time': '07:00',
-            'adjustment_needed': False,
-            'adjustment_minutes': 0,
-            'avg_se': 0,
-            'avg_tst_minutes': 0,
-            'avg_sol_minutes': 0,
-            'avg_waso_minutes': 0,
-            'avg_fatigue': 0,
-            'se_trend': 'stable',
-            'tst_trend': 'stable',
-            'poor_nights_count': 0,
-            'consecutive_poor_nights': 0,
-            'record_count': 0,
-            'week_tip': '开始记录睡眠日记，获得个性化分析',
-            'daily_tips': ['记录睡眠日记是改善睡眠的第一步'],
-        }
-
-
 @app.get("/api/v1/sleep/dashboard")
 async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int = 7):
     user_id = user.user_id
@@ -3979,11 +3926,11 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
             trend_direction = "insufficient_data"
             trend_emoji = "📝"
         
-        # 生成建议
-        if avg_se >= 85:
+        # 生成建议（阈值已校准：优秀≥90%，良好≥85%）
+        if avg_se >= 90:
             se_level = "excellent"
             se_message = "🌟 睡眠效率优秀！你的睡眠质量很高"
-        elif avg_se >= 80:
+        elif avg_se >= 85:
             se_level = "good"
             se_message = "👍 睡眠效率良好，继续保持"
         elif avg_se >= 70:
@@ -3999,9 +3946,9 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
         if current_tib_minutes < 0:
             current_tib_minutes += 24 * 60
         
-        if avg_se >= 85 and current_tib_minutes < 9 * 60:
+        if avg_se >= 90 and current_tib_minutes < 9 * 60:
             tib_suggestion = "可以逐渐增加 15 分钟睡眠时间"
-        elif avg_se <= 80:
+        elif avg_se <= 85:
             tib_suggestion = "建议保持当前睡眠窗口，提高效率比增加时长更重要"
         else:
             tib_suggestion = "当前睡眠窗口合适"
@@ -4035,8 +3982,7 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
             "trend_emoji": trend_emoji,
             "recommendation": {
                 "tib_suggestion": tib_suggestion,
-                "general_advice": get_sleep_advice(avg_se, avg_tst),
-            "srt": _get_srt_data(records, user_id)
+                "general_advice": get_sleep_advice(avg_se, avg_tst)
             }
         }
     except Exception as e:
@@ -4044,66 +3990,7 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
         return {"status": "error", "message": str(e)}
 
 
-def get_sleep_advice(avg_se: float, avg_tst: float) -> str:
-    """根据睡眠数据生成建议"""
-    if avg_se >= 85 and avg_tst >= 7:
-        return "你的睡眠状况很好！继续保持规律的作息。"
-    elif avg_se >= 85 and avg_tst < 7:
-        return "睡眠效率很高，但可以尝试稍微延长睡眠时间。"
-    elif avg_se < 80 and avg_tst >= 7:
-        return "在床上的时间很长但实际睡眠效率不高，建议只在困了才上床。"
-    else:
-        return "睡眠效率有待提升。试试固定起床时间，建立规律的睡眠节律。"
-
-
-# ==================== Sleep Window Helpers ====================
-
-def get_sleep_window(user_id: str) -> dict:
-    """获取用户当前睡眠窗口，未设置则返回默认值 23:00-07:00"""
-    key = f"sleep_window:{user_id}"
-    raw = redis_client.get(key)
-    if raw:
-        return json.loads(raw)
-    return {"bed_hour": 23, "bed_min": 0, "wake_hour": 7, "wake_min": 0}
-
-
-def save_sleep_window(user_id: str, bed_hour: int, bed_min: int, wake_hour: int, wake_min: int):
-    """保存用户睡眠窗口，TTL 30 天"""
-    key = f"sleep_window:{user_id}"
-    data = {"bed_hour": bed_hour, "bed_min": bed_min, "wake_hour": wake_hour, "wake_min": wake_min}
-    redis_client.setex(key, 30 * 86400, json.dumps(data, ensure_ascii=False))
-
-
-def get_sleep_baseline(user_id: str) -> Optional[dict]:
-    """获取睡眠限制基线数据"""
-    key = f"sleep_baseline:{user_id}"
-    raw = redis_client.get(key)
-    if raw:
-        return json.loads(raw)
-    return None
-
-
-def save_sleep_baseline(user_id: str, data: dict):
-    """保存睡眠限制基线数据，TTL 365 天"""
-    key = f"sleep_baseline:{user_id}"
-    redis_client.setex(key, 365 * 86400, json.dumps(data, ensure_ascii=False))
-
-
-def get_last_n_sleep_records(user_id: str, n: int = 7) -> list:
-    """获取最近 N 天有 SE 记录的睡眠日记（优先从 morning_record 读）"""
-    records = []
-    for i in range(n):
-        date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
-        # morning_record 包含前端计算的完整 SE/TST，是权威数据源
-        record = get_morning_record(user_id, date)
-        if record and record.get("se", 0) > 0:
-            records.append(record)
-        else:
-            # 降级：从 sleep_diary 读（睡前设定场景）
-            diary = get_sleep_diary(user_id, date)
-            if diary and diary.get("se", 0) > 0:
-                records.append(diary)
-    return records
+# ==================== SRT Helpers (moved to services.srt_engine) ====================
 
 
 # ==================== Sleep Restriction Algorithm ====================
@@ -4112,8 +3999,8 @@ def get_last_n_sleep_records(user_id: str, n: int = 7) -> list:
 #
 # 核心逻辑：
 # - 学习期（前 7 天）：收集 TST，计算初始 TIB = avg(TST) + 30 分钟
-# - 每周评估：SE ≥ 85% → TIB +15~30min；SE ≤ 80% → 保持（不缩短）
-# - TIB 范围：4.5h ~ 9h（临床安全边界）
+# - 每周评估：连续 7 天 SE ≥ 90% → TIB +15min；SE < 85% → 保持/限制
+# - TIB 范围：4h ~ 9h（临床安全边界）
 # - 起床时间固定，入睡时间动态调整
 
 @app.get("/api/v1/sleep/restriction")
@@ -4124,168 +4011,16 @@ async def get_sleep_restriction(user: AuthUser = Depends(get_current_user)):
     - phase: "learning" | "active" | "optimizing"
     - learning: < 7 天记录，返回基于历史的预估 TIB
     - active: ≥ 7 天，进入睡眠限制正式阶段
-    - optimizing: SE ≥ 85%，可以扩展 TIB
+    - optimizing: 连续 7 天 SE ≥ 90%，可以扩展 TIB
     """
     try:
-        records = get_last_n_sleep_records(user_id, n=7)
-        window = get_sleep_window(user_id)
-        baseline = get_sleep_baseline(user_id)
-
-        # 计算当前 TIB
-        current_tib = (window["wake_hour"] * 60 + window["wake_min"]) - (window["bed_hour"] * 60 + window["bed_min"])
-        if current_tib < 0:
-            current_tib += 24 * 60
-
-        # 无记录：返回默认值
-        if not records:
-            return {
-                "phase": "learning",
-                "has_baseline": False,
-                "current_tib_minutes": current_tib,
-                "current_tib_hours": round(current_tib / 60, 1),
-                "planned_bed_time": f"{window['bed_hour']:02d}:{window['bed_min']:02d}",
-                "planned_wake_time": f"{window['wake_hour']:02d}:{window['wake_min']:02d}",
-                "recommended_tib_minutes": current_tib,
-                "recommended_bed_time": f"{window['bed_hour']:02d}:{window['bed_min']:02d}",
-                "recommended_wake_time": f"{window['wake_hour']:02d}:{window['wake_min']:02d}",
-                "avg_se": None,
-                "avg_tst_minutes": None,
-                "record_count": 0,
-                "message": "开始记录睡眠日记，我会为你计算最佳卧床时间",
-                "days_needed": 7,
-                "week_tip": "每晚睡前记录睡眠日记，7 天后我会给你个性化的睡眠窗口建议 🌙",
-            }
-
-        record_count = len(records)
-        avg_se = round(sum(r["se"] for r in records) / record_count, 1)
-        avg_tst = round(sum(r.get("tst_minutes", 0) for r in records) / record_count)
-
-        # 计算预估 TIB（用于学习期）
-        estimated_tib = min(max(avg_tst + 30, 4.5 * 60), 9 * 60)
-        # 固定起床时间，计算建议入睡时间
-        fixed_wake_min = window["wake_hour"] * 60 + window["wake_min"]
-        suggested_bed_min = fixed_wake_min - estimated_tib
-        if suggested_bed_min < 0:
-            suggested_bed_min += 24 * 60
-        suggested_bed_h = suggested_bed_min // 60
-        suggested_bed_m = suggested_bed_min % 60
-
-        if record_count < 7:
-            # 学习期：展示预估数据，鼓励继续记录
-            pct = round(record_count / 7 * 100)
-            return {
-                "phase": "learning",
-                "has_baseline": False,
-                "current_tib_minutes": current_tib,
-                "current_tib_hours": round(current_tib / 60, 1),
-                "planned_bed_time": f"{window['bed_hour']:02d}:{window['bed_min']:02d}",
-                "planned_wake_time": f"{window['wake_hour']:02d}:{window['wake_min']:02d}",
-                "estimated_tib_minutes": estimated_tib,
-                "estimated_tib_hours": round(estimated_tib / 60, 1),
-                "recommended_bed_time": f"{suggested_bed_h:02d}:{suggested_bed_m:02d}",
-                "recommended_wake_time": f"{window['wake_hour']:02d}:{window['wake_min']:02d}",
-                "avg_se": avg_se,
-                "avg_tst_minutes": avg_tst,
-                "record_count": record_count,
-                "message": f"已记录 {record_count}/7 天，继续记录获得准确建议",
-                "days_needed": 7 - record_count,
-                "week_tip": f"📊 当前平均睡眠效率 {avg_se}%，入睡时间 {avg_tst} 分钟。保持记录，{7 - record_count} 天后我会给出精确的睡眠窗口！",
-            }
-
-        # ========== 正式睡眠限制阶段（≥7 天记录）==========
-        # CBT-I Sleep Restriction 核心公式：TIB = avg(TST) + 30min 缓冲
-        # 参考：AASM 2025 指南 / Sleepio 算法
-        # 安全边界：4.5h ~ 8.5h（不推荐超过9h）
-        MIN_TIB = 4.5 * 60   # 270 min
-        MAX_TIB = 8.5 * 60  # 510 min
-
-        # 初始目标 TIB = avg(TST) + 30min
-        target_tib = min(max(avg_tst + 30, MIN_TIB), MAX_TIB)
-
-        if avg_se >= 85:
-            # 优化阶段：SE 优秀 → 可扩展 TIB（+15~30min）
-            new_tib = min(target_tib + 30, MAX_TIB)
-            phase = "optimizing"
-            tib_adjustment = new_tib - target_tib
-            suggestion = f"🌟 睡眠效率 {avg_se}% 优秀！本周可增加 {tib_adjustment:.0f} 分钟卧床时间"
-        elif avg_se >= 80:
-            # 稳定阶段：SE 良好 → 维持当前 TIB
-            new_tib = target_tib
-            phase = "stable"
-            tib_adjustment = 0
-            suggestion = f"👍 睡眠效率 {avg_se}% 良好，维持当前 {round(target_tib/60, 1)} 小时睡眠窗口"
-        else:
-            # 限制阶段：SE < 80% → 主动限制 TIB = avg(TST) + 30min
-            # 这是 CBT-I 核心机制：减少卧床时间以提高 SE
-            if current_tib <= target_tib:
-                new_tib = current_tib
-                phase = "restricting"
-                tib_adjustment = 0
-                suggestion = f"💡 睡眠效率 {avg_se}% 偏低。当前卧床 {round(current_tib/60,1)} 小时已接近最优，继续保持"
-            else:
-                new_tib = target_tib
-                phase = "restricting"
-                tib_adjustment = current_tib - new_tib
-                suggestion = f"📉 睡眠效率 {avg_se}% 偏低，建议将卧床时间调整为 {round(new_tib/60,1)} 小时（推迟入睡时间）"
-
-        # 如果当前 TIB 已在建议值 ±15min 内，不需要调整
-        diff = abs(current_tib - new_tib)
-        if diff <= 15:
-            final_tib = current_tib
-            final_bed_min = window["bed_hour"] * 60 + window["bed_min"]
-            adjustment_needed = False
-            suggestion = f"当前睡眠窗口已经很合适（{round(current_tib/60,1)} 小时），继续保持！"
-        else:
-            final_tib = new_tib
-            adjustment_needed = True
-
-        # 计算建议入睡时间（固定起床时间）
-        fixed_wake_min = window["wake_hour"] * 60 + window["wake_min"]
-        recommended_bed_min = fixed_wake_min - final_tib
-        if recommended_bed_min < 0:
-            recommended_bed_min += 24 * 60
-        rec_bed_h = recommended_bed_min // 60
-        rec_bed_m = recommended_bed_min % 60
-
-        return {
-            "phase": phase,
-            "has_baseline": True,
-            "current_tib_minutes": current_tib,
-            "current_tib_hours": round(current_tib / 60, 1),
-            "planned_bed_time": f"{window['bed_hour']:02d}:{window['bed_min']:02d}",
-            "planned_wake_time": f"{window['wake_hour']:02d}:{window['wake_min']:02d}",
-            "baseline_tib_minutes": baseline_tib,
-            "baseline_tib_hours": round(baseline_tib / 60, 1),
-            "avg_se": avg_se,
-            "avg_tst_minutes": avg_tst,
-            "record_count": record_count,
-            "tib_adjustment_minutes": tib_adjustment,
-            "adjustment_needed": adjustment_needed,
-            "recommended_tib_minutes": final_tib,
-            "recommended_tib_hours": round(final_tib / 60, 1),
-            "recommended_bed_time": f"{rec_bed_h:02d}:{rec_bed_m:02d}",
-            "recommended_wake_time": f"{window['wake_hour']:02d}:{window['wake_min']:02d}",
-            "message": suggestion,
-            "week_tip": _build_restriction_tip(phase, avg_se, avg_tst, final_tib),
-        }
+        return calculate_srt_recommendation(user_id)
     except Exception as e:
         print(f"[sleep_restriction error] {e}")
         return {"status": "error", "message": str(e)}
 
 
-def _build_restriction_tip(phase: str, avg_se: float, avg_tst: float, tib: int) -> str:
-    """根据阶段生成睡眠限制提示语（CBT-I Sleep Restriction Therapy）"""
-    tib_h = round(tib / 60, 1)
-    tst_h = round(avg_tst / 60, 1)
-    if phase == "optimizing":
-        return f"🌟 SE {avg_se}% 优秀！本周建议卧床 {tib_h}h（实际睡眠约 {tst_h}h）。睡眠效率越高，可适度多休息。"
-    elif phase == "stable":
-        return f"👍 SE {avg_se}% 良好，维持 {tib_h}h 睡眠窗口。继续记录，保持规律。"
-    elif phase == "restricting":
-        return f"📉 SE {avg_se}% 偏低。卧床压缩至 {tib_h}h（入睡时间推迟），目标是让 SE 达到 85% 以上。"
-    else:
-        return f"继续记录睡眠日记，{max(0, 7 - int(avg_se // 10))} 天后可给出精确建议。"
-
+# _build_restriction_tip moved to services.srt_engine
 
 @app.post("/api/v1/sleep/restriction/apply")
 async def apply_sleep_restriction(user: AuthUser = Depends(get_current_user), recommended_bed_time: str = None, recommended_wake_time: str = None):
@@ -4296,63 +4031,13 @@ async def apply_sleep_restriction(user: AuthUser = Depends(get_current_user), re
     - 保存 baseline 数据
     """
     try:
-        # 解析推荐时间
-        if recommended_bed_time and recommended_wake_time:
-            bh, bm = map(int, recommended_bed_time.split(":"))
-            wh, wm = map(int, recommended_wake_time.split(":"))
-        else:
-            window = get_sleep_window(user_id)
-            bh, bm = window["bed_hour"], window["bed_min"]
-            wh, wm = window["wake_hour"], window["wake_min"]
-
-        save_sleep_window(user_id, bh, bm, wh, wm)
-
-        # 保存基线（来自本周数据）
-        records = get_last_n_sleep_records(user_id, 7)
-        if records:
-            avg_se = round(sum(r["se"] for r in records) / len(records), 1)
-            avg_tst = round(sum(r.get("tst_minutes", 0) for r in records) / len(records))
-            save_sleep_baseline(user_id, {
-                "baseline_tib_minutes": min(max(avg_tst + 30, 4.5 * 60), 9 * 60),
-                "avg_se": avg_se,
-                "avg_tst_minutes": avg_tst,
-                "established_at": datetime.now().isoformat(),
-                "固定起床时间": f"{wh:02d}:{wm:02d}",
-            })
-
-        return {"status": "ok", "message": f"睡眠窗口已更新：{bh:02d}:{bm:02d} - {wh:02d}:{wm:02d}"}
+        return apply_srt_restriction(user_id, recommended_bed_time, recommended_wake_time)
     except Exception as e:
         print(f"[apply_sleep_restriction error] {e}")
         return {"status": "error", "message": str(e)}
 
 
-# ==================== Morning Record Helpers ====================
-
-def save_morning_record(user_id: str, date: str, record: dict):
-    """保存晨间打卡记录，TTL 365 天"""
-    key = f"morning:{user_id}:{date}"
-    redis_client.set(key, json.dumps(record, ensure_ascii=False), ex=365*24*3600)
-
-
-def get_morning_record(user_id: str, date: str) -> Optional[dict]:
-    """获取指定日期的晨间打卡"""
-    key = f"morning:{user_id}:{date}"
-    raw = redis_client.get(key)
-    if raw:
-        return json.loads(raw)
-    return None
-
-
-def get_last_n_morning_records(user_id: str, n: int = 7) -> list:
-    """获取最近 N 天有 SE 记录的晨间打卡（用于睡眠限制算法）"""
-    records = []
-    for i in range(n):
-        date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
-        record = get_morning_record(user_id, date)
-        if record and record.get("se", 0) > 0:
-            records.append(record)
-    return records
-
+# ==================== Morning Record Helpers (moved to services.srt_engine) ====================
 
 @app.post("/api/v1/evaluate/session")
 async def evaluate_session(session_data: dict):
@@ -4607,6 +4292,68 @@ async def admin_user_detail(user_id: str, limit: int = Query(20, le=100)):
     """用户详情"""
     return get_user_detail(user_id, limit=limit)
 
+
+# ==================== 危机告警 Admin API ====================
+# 配套服务：services/crisis_alert.py
+# 数据流：cbt_manager.process_message 触发 _safety_response 时 emit_crisis_alert()
+#         → Admin 前端轮询 unread_count + 拉 pending 列表 → 人工 ack 标记已处理
+
+from services.crisis_alert import (
+    get_unread_count as _crisis_unread_count,
+    get_pending_alerts as _crisis_pending,
+    get_history as _crisis_history,
+    ack_alert as _crisis_ack,
+    get_event as _crisis_event,
+    get_stats as _crisis_stats,
+)
+
+
+@app.get("/api/v1/admin/crisis/unread_count")
+async def admin_crisis_unread_count():
+    """轻量轮询接口：仅返回未处理告警数量"""
+    return {"count": _crisis_unread_count()}
+
+
+@app.get("/api/v1/admin/crisis/pending")
+async def admin_crisis_pending(limit: int = Query(50, le=200)):
+    """未处理危机告警列表（按时间倒序）"""
+    return {"alerts": _crisis_pending(limit=limit), "count": _crisis_unread_count()}
+
+
+@app.get("/api/v1/admin/crisis/history")
+async def admin_crisis_history(days: int = Query(30, le=90), limit: int = Query(100, le=500)):
+    """已处理危机告警历史"""
+    return {"alerts": _crisis_history(days=days, limit=limit)}
+
+
+@app.get("/api/v1/admin/crisis/stats")
+async def admin_crisis_stats(days: int = Query(7, le=90)):
+    """危机告警统计（Dashboard 卡片用）"""
+    return _crisis_stats(days=days)
+
+
+@app.get("/api/v1/admin/crisis/{event_id}")
+async def admin_crisis_event_detail(event_id: str):
+    """单条事件详情"""
+    ev = _crisis_event(event_id)
+    if not ev:
+        raise HTTPException(status_code=404, detail="事件不存在或已过期")
+    return ev
+
+
+@app.post("/api/v1/admin/crisis/{event_id}/ack")
+async def admin_crisis_ack(event_id: str, request: Request):
+    """标记已处理"""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    operator = (body.get("operator") or "admin").strip()[:64]
+    note = (body.get("note") or "").strip()[:1000]
+    result = _crisis_ack(event_id, operator=operator, note=note)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "操作失败"))
+    return result
 
 
 # ==================== 用户数据合规（GDPR/PIPL）====================

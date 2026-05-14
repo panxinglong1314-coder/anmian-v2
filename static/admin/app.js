@@ -46,11 +46,13 @@ function checkAuth() {
     loadDashboard(7);
     startAutoRefresh();
     startHealthCheck();
+    _startCrisisPolling();   // 🚨 启动危机告警轮询
   } else {
     document.getElementById('login-page').classList.remove('hidden');
     document.getElementById('main-app').classList.add('hidden');
     document.getElementById('main-app').style.display = 'none';
     stopHealthCheck();
+    _stopCrisisPolling();
   }
 }
 
@@ -147,6 +149,7 @@ async function downloadCSV(type) {
 const pageTitles = {
   dashboard: '仪表盘', safety: '安全中心', quality: 'AI 质量监控',
   users: '用户列表', health: '服务器监控', retention: '留存分析',
+  crisis: '🚨 危机告警',
 };
 
 function showPage(name) {
@@ -157,8 +160,277 @@ function showPage(name) {
   if (nav) nav.classList.add('active');
   document.getElementById('page-title').textContent = pageTitles[name] || name;
   const loaders = { dashboard: loadDashboard, safety: loadSafety, quality: loadQuality,
-                     users: loadUsers, health: loadHealth, retention: loadRetention };
+                     users: loadUsers, health: loadHealth, retention: loadRetention,
+                     crisis: loadCrisis };
   if (loaders[name]) loaders[name](loaders[name] === loadDashboard ? 7 : 30);
+
+  // 切到危机页面后，停止标题闪烁（视为"已读"）
+  if (name === 'crisis') {
+    stopTitleFlash();
+  }
+}
+
+// ============================================================
+// 🚨 危机告警面板
+// ============================================================
+let crisisPrevUnread = -1;          // 上一次轮询的未读数（用于检测"新事件"）
+let crisisPollTimer = null;
+let crisisTitleFlashTimer = null;
+let crisisOriginalTitle = document.title;
+let crisisCurrentEventId = null;    // 当前正在处理的事件 id
+let crisisNotificationPermission = 'default';
+
+// ----- 工具：等级标签 -----
+function crisisLevelBadge(level) {
+  const map = {
+    high:   { txt: 'HIGH',   cls: 'bg-red-100 text-red-700 border-red-300' },
+    medium: { txt: 'MEDIUM', cls: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
+    low:    { txt: 'LOW',    cls: 'bg-blue-100 text-blue-700 border-blue-300' },
+  };
+  const m = map[level] || { txt: level || '-', cls: 'bg-gray-100 text-gray-600 border-gray-300' };
+  return `<span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${m.cls}">${m.txt}</span>`;
+}
+
+function crisisTypesLabel(types) {
+  if (!types || !types.length) return '<span class="text-gray-400">-</span>';
+  const labels = { suicide: '自杀', self_harm: '自伤', violence: '暴力', acute_psychosis: '精神症状', child_abuse: '虐待' };
+  return types.map(t => `<span class="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-[11px] mr-1">${labels[t] || t}</span>`).join('');
+}
+
+function _escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function _formatTime(iso) {
+  if (!iso) return '-';
+  try { return iso.replace('T', ' ').slice(0, 16); } catch { return iso; }
+}
+
+// ----- 加载危机面板 -----
+async function loadCrisis() {
+  await Promise.all([_loadCrisisStats(), _loadCrisisPending()]);
+}
+
+async function _loadCrisisStats() {
+  try {
+    const r = await fetch(`${API_BASE}/crisis/stats?days=7`, { headers: { 'X-Admin-Token': adminToken } });
+    const data = await r.json();
+    document.getElementById('crisis-pending-count').textContent = data.pending ?? 0;
+    document.getElementById('crisis-high-count').textContent = (data.by_level && data.by_level.high) || 0;
+    document.getElementById('crisis-medium-count').textContent = (data.by_level && data.by_level.medium) || 0;
+    const byType = data.by_type || {};
+    const topType = Object.entries(byType).sort((a,b)=>b[1]-a[1])[0];
+    const tLabels = { suicide: '自杀', self_harm: '自伤', violence: '暴力', acute_psychosis: '精神症状', child_abuse: '虐待' };
+    document.getElementById('crisis-types-summary').textContent = topType ? (tLabels[topType[0]] || topType[0]) : '无';
+  } catch (e) {
+    console.error('loadCrisisStats', e);
+  }
+}
+
+async function _loadCrisisPending() {
+  const tbody = document.getElementById('crisis-pending-tbody');
+  try {
+    const r = await fetch(`${API_BASE}/crisis/pending?limit=50`, { headers: { 'X-Admin-Token': adminToken } });
+    const data = await r.json();
+    const alerts = data.alerts || [];
+    if (!alerts.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-8">🎉 当前没有待处理告警</td></tr>';
+      return;
+    }
+    tbody.innerHTML = alerts.map(a => {
+      const isOverdue = (Date.now() / 1000 - new Date(a.created_at).getTime() / 1000) > 8 * 3600;  // 8h 未处理高亮
+      return `
+        <tr class="${isOverdue ? 'bg-red-50' : ''}">
+          <td class="text-xs">
+            ${_formatTime(a.created_at)}
+            ${isOverdue ? '<span class="ml-1 text-red-500 text-[10px]">⚠ 超 8h</span>' : ''}
+          </td>
+          <td>${crisisLevelBadge(a.level)}</td>
+          <td>${crisisTypesLabel(a.types)}</td>
+          <td class="text-xs font-mono">${_escapeHtml((a.user_id || '').slice(0, 18))}</td>
+          <td class="text-xs max-w-md truncate" title="${_escapeHtml(a.message || '')}">${_escapeHtml((a.message || '').slice(0, 80))}</td>
+          <td>
+            <button onclick="openCrisisAckModal('${a.event_id}', '${_escapeHtml(a.level)}', '${_escapeHtml((a.message || '').slice(0,40))}')" class="btn btn-sm bg-blue-600 text-white hover:bg-blue-700">处理</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-red-500 py-4">加载失败: ${e.message}</td></tr>`;
+  }
+}
+
+async function loadCrisisHistory() {
+  const tbody = document.getElementById('crisis-history-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-4">加载中...</td></tr>';
+  try {
+    const r = await fetch(`${API_BASE}/crisis/history?days=30&limit=100`, { headers: { 'X-Admin-Token': adminToken } });
+    const data = await r.json();
+    const alerts = data.alerts || [];
+    if (!alerts.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-6">暂无已处理记录</td></tr>';
+      return;
+    }
+    tbody.innerHTML = alerts.map(a => `
+      <tr>
+        <td class="text-xs">${_formatTime(a.resolved_at)}</td>
+        <td>${crisisLevelBadge(a.level)}</td>
+        <td>${crisisTypesLabel(a.types)}</td>
+        <td class="text-xs font-mono">${_escapeHtml((a.user_id || '').slice(0, 18))}</td>
+        <td class="text-xs">${_escapeHtml(a.ack_operator || '-')}</td>
+        <td class="text-xs max-w-md truncate" title="${_escapeHtml(a.ack_note || '')}">${_escapeHtml((a.ack_note || '').slice(0, 100))}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-red-500 py-4">加载失败: ${e.message}</td></tr>`;
+  }
+}
+
+// ----- 处理弹框 -----
+function openCrisisAckModal(eventId, level, msgPreview) {
+  crisisCurrentEventId = eventId;
+  document.getElementById('crisis-ack-info').innerHTML = `
+    <div><span class="text-gray-500">事件 ID：</span><code class="text-xs">${eventId}</code></div>
+    <div><span class="text-gray-500">等级：</span>${crisisLevelBadge(level)}</div>
+    <div><span class="text-gray-500">原话片段：</span><span class="italic">"${_escapeHtml(msgPreview)}..."</span></div>
+  `;
+  document.getElementById('crisis-ack-note').value = '';
+  document.getElementById('crisis-ack-operator').value = localStorage.getItem('admin_operator_name') || '';
+  document.getElementById('crisis-ack-modal').classList.remove('hidden');
+}
+
+function hideCrisisAckModal() {
+  document.getElementById('crisis-ack-modal').classList.add('hidden');
+  crisisCurrentEventId = null;
+}
+
+async function submitCrisisAck() {
+  const eid = crisisCurrentEventId;
+  if (!eid) return;
+  const note = document.getElementById('crisis-ack-note').value.trim();
+  const operator = document.getElementById('crisis-ack-operator').value.trim();
+  if (!note) { toast('请填写处理备注', 'error'); return; }
+  if (!operator) { toast('请填写处理人姓名', 'error'); return; }
+  localStorage.setItem('admin_operator_name', operator);
+  const btn = document.getElementById('crisis-ack-submit-btn');
+  btn.disabled = true; btn.textContent = '提交中...';
+  try {
+    const r = await fetch(`${API_BASE}/crisis/${encodeURIComponent(eid)}/ack`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
+      body: JSON.stringify({ operator, note })
+    });
+    if (r.ok) {
+      toast('已标记处理', 'success');
+      hideCrisisAckModal();
+      loadCrisis();
+    } else {
+      const err = await r.json().catch(()=>({detail:'未知错误'}));
+      toast('处理失败: ' + (err.detail || r.status), 'error');
+    }
+  } catch (e) {
+    toast('网络错误: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '确认已处理';
+  }
+}
+
+// ----- 全局轮询：未读数 + 提醒 -----
+async function _pollCrisisUnread() {
+  if (!adminToken) return;
+  try {
+    const r = await fetch(`${API_BASE}/crisis/unread_count`, { headers: { 'X-Admin-Token': adminToken } });
+    const data = await r.json();
+    const cnt = data.count || 0;
+    const badge = document.getElementById('crisis-unread-badge');
+    if (cnt > 0) {
+      badge.textContent = cnt;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+    // 检测"新事件"：unread 增加 → 触发提醒
+    if (crisisPrevUnread >= 0 && cnt > crisisPrevUnread) {
+      _notifyNewCrisis(cnt - crisisPrevUnread, cnt);
+    }
+    crisisPrevUnread = cnt;
+  } catch (e) {
+    // 静默失败，不打扰主流程
+  }
+}
+
+function _notifyNewCrisis(newCount, totalCount) {
+  const soundEnabled = document.getElementById('crisis-sound-toggle')?.checked !== false;
+  if (soundEnabled) _playCrisisBeep();
+  _startTitleFlash(`🚨 ${totalCount} 条危机告警`);
+  // 浏览器通知
+  if (crisisNotificationPermission === 'granted') {
+    try {
+      const n = new Notification('🚨 知眠危机告警', {
+        body: `新增 ${newCount} 条高危事件，共 ${totalCount} 条待处理`,
+        icon: '/admin/favicon.ico',
+        tag: 'crisis-alert',
+        requireInteraction: true,
+      });
+      n.onclick = () => { window.focus(); showPage('crisis'); n.close(); };
+    } catch (_) {}
+  }
+}
+
+// Web Audio API 生成蜂鸣（无需音频文件）
+function _playCrisisBeep() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    // 急促三声 "叮-叮-叮"，每声 150ms，间隔 100ms
+    for (let i = 0; i < 3; i++) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = 880;          // A5 高音
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.25);
+      g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + i * 0.25 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.25 + 0.15);
+      o.connect(g).connect(ctx.destination);
+      o.start(ctx.currentTime + i * 0.25);
+      o.stop(ctx.currentTime + i * 0.25 + 0.16);
+    }
+    setTimeout(() => ctx.close(), 1500);
+  } catch (e) {
+    console.warn('beep failed', e);
+  }
+}
+
+function _startTitleFlash(flashText) {
+  stopTitleFlash();
+  let on = true;
+  crisisTitleFlashTimer = setInterval(() => {
+    document.title = on ? flashText : crisisOriginalTitle;
+    on = !on;
+  }, 1000);
+}
+function stopTitleFlash() {
+  if (crisisTitleFlashTimer) { clearInterval(crisisTitleFlashTimer); crisisTitleFlashTimer = null; }
+  document.title = crisisOriginalTitle;
+}
+
+function _startCrisisPolling() {
+  _stopCrisisPolling();
+  // 立即拉一次，然后每 20 秒轮询
+  _pollCrisisUnread();
+  crisisPollTimer = setInterval(_pollCrisisUnread, 20000);
+  // 请求浏览器通知权限（仅首次）
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then(p => { crisisNotificationPermission = p; });
+  } else if ('Notification' in window) {
+    crisisNotificationPermission = Notification.permission;
+  }
+}
+function _stopCrisisPolling() {
+  if (crisisPollTimer) { clearInterval(crisisPollTimer); crisisPollTimer = null; }
+  stopTitleFlash();
 }
 
 // ========== Auto Refresh ==========
