@@ -24,6 +24,9 @@ redis==5.0.1
 # 机器学习（可选，sklearn 用于反刍检测）
 # scikit-learn==1.4.0
 
+# 数值计算（cbt_manager.calculate_emotional_momentum 用 np.polyfit）
+numpy>=1.24.0,<2.0.0
+
 # 异步支持
 anyio==4.2.0
 
