@@ -341,8 +341,8 @@
   background: #F5C869;
   flex-shrink: 0;
   align-self: center;
-  /* 中文字符的视觉中心比 line-box 几何中心偏下，圆点下移 2rpx 视觉居中 */
-  transform: translateY(2rpx);
+  /* 中文字符的视觉中心比 line-box 几何中心偏下，圆点下移视觉居中 */
+  transform: translateY(4rpx);
 }
 .worry-entry-dot.dot-empty {
   background: rgba(139,163,185,0.4);
