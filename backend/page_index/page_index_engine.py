@@ -15,7 +15,31 @@ from .page_index_tree import PageNode, NodeKind, CorpusTreeBuilder, load_tree
 # ── LLM 调用（MiniMax Text-01）───────────────────────────────────────────────
 
 def _call_minimax(prompt: str, system: str = "", timeout: int = 30) -> str:
-    """调用 MiniMax /v1/text/chat/completions（RPA 000 签名模式）"""
+    """RAG LLM 调用：优先 DeepSeek-chat（极速 500ms），fallback MiniMax-M2.5-highspeed。"""
+    # 【优先 DeepSeek】首字 ~500ms vs MiniMax 2000ms
+    ds_key = os.getenv("DEEPSEEK_API_KEY", "")
+    if ds_key:
+        try:
+            import httpx
+            headers = {"Authorization": f"Bearer {ds_key}", "Content-Type": "application/json"}
+            payload = {
+                "model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+                "messages": (
+                    [{"role": "system", "content": system}] if system else []
+                ) + [{"role": "user", "content": prompt}],
+                "temperature": 0.1,
+                "max_tokens": 2000,
+                "stream": False,
+            }
+            with httpx.Client(timeout=max(timeout, 60)) as client:
+                resp = client.post("https://api.deepseek.com/v1/chat/completions",
+                                    headers=headers, json=payload)
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"]
+        except Exception as e:
+            print(f"[PageIndex DeepSeek] 失败回退 MiniMax: {e}")
+
+    # Fallback: MiniMax
     import os, httpx
 
     api_key = os.getenv("MINIMAX_API_KEY", "")

@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     minimax_group_id: str = ""
     minimax_secret_id: str = ""
 
+    # DeepSeek 对话 API（首字 ~500ms，比 MiniMax 快 4 倍）
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com/v1"
+    deepseek_model: str = "deepseek-chat"   # 当前最快的非 thinking 模型
+    # llm_provider: "deepseek" | "minimax"  (deepseek 配置就走 deepseek)
+    llm_provider: str = "deepseek"
+
     # Redis
     redis_host: str = "localhost"
     redis_port: int = 6379

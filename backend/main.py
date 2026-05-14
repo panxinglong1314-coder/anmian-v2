@@ -991,8 +991,67 @@ def _get_minimax_http_client() -> httpx.AsyncClient:
         )
     return _minimax_http_client
 
+async def deepseek_chat(messages: list[dict], stream: bool = True) -> AsyncGenerator[str, None]:
+    """
+    调用 DeepSeek Chat API（OpenAI 兼容流式）
+    实测首字 ~500ms，比 MiniMax-M2.5-highspeed 快 4 倍。
+    """
+    if not settings.deepseek_api_key:
+        yield "抱歉，AI 服务暂不可用，请稍后再试。"
+        return
+
+    headers = {
+        "Authorization": f"Bearer {settings.deepseek_api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": settings.deepseek_model,
+        "messages": messages,
+        "temperature": 0.5,
+        "max_tokens": 256,
+        "stream": stream,
+    }
+    url = f"{settings.deepseek_base_url.rstrip('/')}/chat/completions"
+    client = _get_minimax_http_client()  # 复用 httpx 客户端（无 vendor 绑定）
+    try:
+        async with client.stream("POST", url, headers=headers, json=payload) as resp:
+            if resp.status_code != 200:
+                err_body = await resp.aread()
+                print(f"[DeepSeek] HTTP {resp.status_code}: {err_body[:200]}")
+                yield "抱歉，服务暂时不稳定，请稍后再试。"
+                return
+            async for line in resp.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                data = line[6:]
+                if data == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data)
+                    for choice in chunk.get("choices", []):
+                        delta = choice.get("delta", {})
+                        text = delta.get("content", "")
+                        if text:
+                            yield text
+                except json.JSONDecodeError:
+                    continue
+    except Exception as e:
+        print(f"[DeepSeek Chat Error] {e}")
+        yield "抱歉，服务暂时不稳定，请稍后再试。"
+
+
 async def minimax_chat(messages: list[dict], stream: bool = True) -> AsyncGenerator[str, None]:
-    """调用 MiniMax Chat API（Anthropic 兼容格式，过滤 thinking 过程）"""
+    """
+    主对话入口（保持函数名不变以兼容所有调用方）。
+    根据 settings.llm_provider 路由到 DeepSeek 或 MiniMax。
+    """
+    # 路由：deepseek 配置就走 deepseek（默认）
+    if settings.llm_provider == "deepseek" and settings.deepseek_api_key:
+        async for chunk in deepseek_chat(messages, stream=stream):
+            yield chunk
+        return
+
+    # ===== 以下原 MiniMax 路径（fallback）=====
     if not settings.minimax_api_key:
         yield "抱歉，AI 服务暂不可用，请稍后再试。"
         return
