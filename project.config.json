@@ -1,0 +1,60 @@
+{
+  "description": "知眠 - 睡前大脑关机助手（git 仓库根入口，真实小程序代码在 miniprogram/ 子目录）",
+  "miniprogramRoot": "miniprogram/",
+  "compileType": "miniprogram",
+  "libVersion": "3.4.10",
+  "appid": "wx9e51d39bc9fd64ac",
+  "projectname": "anmian-v2",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": true,
+    "minified": true,
+    "uglifyFileName": false,
+    "enhance": true,
+    "packNpmRelationList": [],
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    },
+    "useCompilerPlugins": false,
+    "minifyWXML": true,
+    "minifyWXSS": true,
+    "checkInvalidFields": true,
+    "checkSiteMap": true,
+    "useApiHook": true,
+    "useApiHostProcess": true,
+    "ignoreUploadUnusedFiles": true,
+    "useMultiFrameRuntime": true,
+    "newFeature": true,
+    "coverView": true,
+    "scopeDataCheck": false
+  },
+  "packOptions": {
+    "ignore": [
+      { "type": "folder", "value": "backend" },
+      { "type": "folder", "value": "corpus" },
+      { "type": "folder", "value": "docs" },
+      { "type": "folder", "value": "nginx" },
+      { "type": "folder", "value": "scripts" },
+      { "type": "folder", "value": "backup" },
+      { "type": "folder", "value": "conversation_logs" },
+      { "type": "folder", "value": "evaluation_tracking" },
+      { "type": "folder", "value": "emotion_service" },
+      { "type": "folder", "value": "static" },
+      { "type": "folder", "value": "venv" },
+      { "type": "folder", "value": "scripts" },
+      { "type": "file", "value": "deploy.sh" },
+      { "type": "file", "value": "docker-compose.yml" },
+      { "type": "file", "value": "requirements.txt" }
+    ],
+    "include": []
+  },
+  "simulatorPluginLibVersion": {},
+  "condition": {},
+  "editorSetting": {
+    "tabIndent": "insertSpaces",
+    "tabSize": 2
+  }
+}
