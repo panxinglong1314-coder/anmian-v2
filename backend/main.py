@@ -1683,18 +1683,30 @@ async def tencent_tts_stream(text: str, voice: str = "female_warm", speed: int =
         t = threading.Thread(target=run_ws, daemon=True)
         t.start()
 
+        # 【2026-05-14 提速】静默超时早退：
+        # 腾讯云 TTS 实测：首字节 ~270ms，所有音频 1-2s 内发完，
+        # 但 WebSocket 服务端不主动发 done 也不立刻关闭，要等 ~10s 自然超时。
+        # 改进：收到音频后若 1s 内无新 chunk 且 done 未触发 → 视为已完成，主动退出。
+        last_chunk_time = time.time()
+        SILENT_THRESHOLD = 1.0  # 1 秒静默视为完成（音频较短）
         try:
             while not done.is_set():
                 try:
-                    chunk = await asyncio.wait_for(qianbao.get(), timeout=1.0)
+                    chunk = await asyncio.wait_for(qianbao.get(), timeout=0.3)
+                    last_chunk_time = time.time()
                     yield chunk
                 except asyncio.TimeoutError:
+                    # 已收过音频 且 静默时间足够长 → 主动结束
+                    if got_audio and (time.time() - last_chunk_time) > SILENT_THRESHOLD:
+                        # 短文本（≤30 字）静默 1 秒；长文本最多等 2 秒
+                        if len(text) <= 30 or (time.time() - last_chunk_time) > 2.0:
+                            break
                     continue
             if not got_audio:
                 raise Exception("[腾讯TTS] 未收到任何音频数据")
         finally:
             ws_client.close()
-            t.join(timeout=5)
+            t.join(timeout=2)
 
     async for chunk in _ws_stream():
         yield chunk
@@ -2303,15 +2315,19 @@ async def _chat_events(req: ChatRequest, user_id: str):
                     flush_text = tts_buffer[:first_cut].strip()
                     if flush_text:
                         try:
+                            import time as _ttp
+                            _tts_t0 = _ttp.time()
                             sent_any = False
                             async for evt in tencent_tts_stream_sse(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed):
                                 yield evt
+                                if not sent_any:
+                                    _tts_first_yield = _ttp.time() - _tts_t0
                                 sent_any = True
                             if sent_any:
                                 has_yielded_tts = True
                                 tts_buffer = tts_buffer[first_cut:]
                                 tts_last_flush_time = now_ms
-                                print(f"[TTS-fast] FIRST chunk ({len(flush_text)} chars, punct={first_punct_idx>=0}): {flush_text[:30]}")
+                                print(f"[TTS-fast] FIRST '{flush_text[:30]}' ({len(flush_text)} chars) → tts_synth={int(_tts_first_yield*1000)}ms")
                         except Exception as e:
                             print(f"[TTS-fast] first flush error: {e}")
                 
