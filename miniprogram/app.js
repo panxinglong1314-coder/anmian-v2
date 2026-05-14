@@ -174,6 +174,50 @@ App({
     return wx.getStorageSync('jwt_token') || null
   },
 
+  // 统一带 JWT 的请求封装（双模式）
+  // - 如果传了 success/fail/complete：callback 模式，返回 requestTask（支持 .onChunkReceived/.abort）
+  // - 否则：Promise 模式，可 `await app.authRequest({...})` 直接拿响应
+  // 自动注入 Authorization: Bearer <jwt>，无 token 时也能跑（公开接口）
+  authRequest(options) {
+    const opts = options || {}
+    const token = this.getToken()
+    const headers = Object.assign({}, opts.header || {})
+    if (token && !headers['Authorization']) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    if (!headers['Content-Type'] && (opts.method || 'GET').toUpperCase() !== 'GET') {
+      headers['Content-Type'] = 'application/json'
+    }
+
+    // callback 模式
+    if (opts.success || opts.fail || opts.complete) {
+      return wx.request(Object.assign({}, opts, { header: headers }))
+    }
+
+    // Promise 模式
+    return new Promise((resolve, reject) => {
+      wx.request(Object.assign({}, opts, {
+        header: headers,
+        success: resolve,
+        fail: reject,
+      }))
+    })
+  },
+
+  // 等待 wxLogin 完成后再发请求（避免认证竞态）
+  // 用法：await app.waitForLogin(); await app.authRequest({...})
+  waitForLogin(timeoutMs = 5000) {
+    if (this.getToken()) return Promise.resolve()
+    return new Promise((resolve) => {
+      const start = Date.now()
+      const tick = () => {
+        if (this.getToken() || Date.now() - start > timeoutMs) return resolve()
+        setTimeout(tick, 100)
+      }
+      tick()
+    })
+  },
+
   // 获取用户唯一标识（使用微信 UnionID 或 OpenID）
   getUserId() {
     const userId = wx.getStorageSync('user_id')
