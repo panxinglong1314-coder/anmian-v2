@@ -17,8 +17,7 @@ class EmotionResult:
     risk_flag: str        # CONTINUE / CONTINUE_WITH_CARE / IMMEDIATE_SAFETY
     worry_domains: List[str]  # 担忧领域
     cognitive_distortions: List[str]  # 认知扭曲信号
-    continuous_anxiety_score: float = 5.0  # 连续焦虑分数 0-10，LLM辅助时可更高精度
-    suicide_risk: float = 0.0  # 自杀风险 0-1
+    suicide_risk: float   # 自杀风险 0-1
 
 class EmotionAnalyzer:
     """情感分析器（规则基线 + LLM 增强）"""
@@ -36,14 +35,62 @@ class EmotionAnalyzer:
         # 默认空结构
         return {"emotion_categories": {}, "worry_domains": {}, "cognitive_distortion_signals": {}}
     
+    # 分级危机关键词库
+    CRISIS_KEYWORDS = {
+        "suicide": {
+            "high": ["想死", "不想活了", "活着没意思", "死了算了", "自杀", "结束生命", "了结自己", "没有活下去的理由"],
+            "medium": ["活不下去", "撑不下去了", "死了更好", "不想存在", "消失", "离开这个世界"],
+            "low": ["没意思", "没劲", "好累", "想休息", "不想面对"],
+        },
+        "self_harm": {
+            "high": ["自残", "割腕", "跳楼", "上吊", "服毒", "烧自己"],
+            "medium": ["伤害自己", "打自己", "掐自己", "撞墙", "划伤"],
+            "low": ["想疼一下", "想流血", "想感受疼痛"],
+        },
+        "violence": {
+            "high": ["杀人", "想杀人", "同归于尽", "报复", "毁灭"],
+            "medium": ["想打人", "想砸东西", "控制不住暴力", "想报复"],
+            "low": ["好烦", "想发泄", "想吵架"],
+        },
+        "acute_psychosis": {
+            "high": ["幻听", "幻视", "被监视", "被控制", "脑子不是自己的", "有人在脑子里说话"],
+            "medium": ["感觉不真实", "解离", "和现实脱节", "恍恍惚惚"],
+            "low": ["奇怪的感觉", "不对劲", "说不出的怪"],
+        },
+        "child_abuse": {
+            "high": ["虐待孩子", "打孩子", "性侵", "猥亵", "儿童色情"],
+            "medium": ["家庭暴力", "家暴", "打老婆", "打老公", "虐老"],
+            "low": ["孩子害怕", "不敢回家", "家里很可怕"],
+        },
+    }
+
+    def _detect_crisis(self, text: str) -> Dict[str, Any]:
+        """分级危机检测：返回危机类型、等级、分数"""
+        max_level = "none"  # none / low / medium / high
+        max_score = 0
+        detected_types = []
+        for crisis_type, levels in self.CRISIS_KEYWORDS.items():
+            for level, kws in levels.items():
+                score = sum(1 for kw in kws if kw in text)
+                if score > 0:
+                    detected_types.append(crisis_type)
+                    level_score = {"low": 1, "medium": 2, "high": 3}.get(level, 0) * score
+                    if level_score > max_score:
+                        max_score = level_score
+                        max_level = level
+        return {
+            "level": max_level,
+            "score": min(max_score * 0.15, 1.0),
+            "types": list(set(detected_types)),
+        }
+
     def analyze(self, text: str) -> EmotionResult:
         """分析文本情绪"""
         text_lower = text.lower()
         
-        # 1. 自杀/自伤风险检测（最高优先级）
-        suicide_keywords = ["想死", "不想活了", "活着没意思", "死了算了", "自杀", "自残", "活不下去"]
-        suicide_score = sum(1 for kw in suicide_keywords if kw in text)
-        suicide_risk = min(suicide_score * 0.3, 1.0)
+        # 1. 分级危机检测（最高优先级）
+        crisis = self._detect_crisis(text)
+        suicide_risk = crisis["score"]
         
         # 2. 情绪分类和强度
         primary = "neutral"
@@ -90,17 +137,25 @@ class EmotionAnalyzer:
             if any(kw in text for kw in kws):
                 cognitive_distortions.append(distortion)
         
-        # 5. 自杀风险覆盖
-        if suicide_risk > 0.5:
+        # 5. 危机风险覆盖（分级）
+        if crisis["level"] == "high":
             risk_flag = "IMMEDIATE_SAFETY"
             if primary == "neutral":
                 primary = "sadness"
                 level = "severe"
                 intensity = 5
+        elif crisis["level"] == "medium":
+            if risk_flag not in ["IMMEDIATE_SAFETY"]:
+                risk_flag = "CONTINUE_WITH_CARE"
+            if level in ["mild", "moderate"]:
+                level = "moderate"
+                intensity = max(intensity, 3)
+        elif crisis["level"] == "low":
+            if level == "mild":
+                level = "moderate"
+                intensity = max(intensity, 2)
         
         confidence = min(max_score / 6, 1.0) if max_score > 0 else 0.3
-        # 连续焦虑分数
-        continuous_score = self.get_continuous_anxiety_score(text)
         
         return EmotionResult(
             primary=primary,
@@ -110,50 +165,9 @@ class EmotionAnalyzer:
             risk_flag=risk_flag,
             worry_domains=worry_domains,
             cognitive_distortions=cognitive_distortions,
-            suicide_risk=suicide_risk,
-            continuous_anxiety_score=continuous_score
+            suicide_risk=suicide_risk
         )
     
-    def get_continuous_anxiety_score(self, text: str) -> float:
-        """
-        返回连续焦虑评分 0-10。
-        基于关键词加权 + LLM辅助（如有）综合计算。
-        比 analyze().intensity (1-5离散) 更精细。
-        """
-        text_lower = text.lower()
-        base_score = 5.0  # 默认中性
-
-        # 强焦虑词（权重高）
-        high_anxiety = [
-            ("非常害怕", 2.0), ("特别担心", 1.8), ("睡不着", 1.5),
-            ("一直想", 1.5), ("脑子停不下来", 1.5), ("焦虑到", 2.0),
-            ("很紧张", 1.2), ("心慌", 1.5), ("害怕睡着", 1.8),
-            ("反复担心", 1.3), ("灾难化", 2.0), ("控制不住", 1.5),
-        ]
-        # 情绪缓和词（减分）
-        calming = [
-            ("放松", -0.8), ("好多了", -1.5), ("不担心了", -1.5),
-            ("感觉好些", -1.2), ("平静", -1.0), ("安心", -1.2),
-            ("不那么焦虑", -1.3), ("现在好点了", -1.2),
-        ]
-        # 自杀/自伤风险词（直接拉满）
-        crisis = [
-            "想死", "不想活了", "活着没意思", "死了算了", "自杀", "自残"
-        ]
-
-        score = base_score
-        for kw, weight in high_anxiety:
-            if kw in text_lower:
-                score += weight
-        for kw, weight in calming:
-            if kw in text_lower:
-                score += weight
-        for kw in crisis:
-            if kw in text_lower:
-                score = 10.0
-                break
-        return max(0.0, min(10.0, round(score, 1)))
-
     def to_dict(self, result: EmotionResult) -> dict:
         return {
             "primary": result.primary,
