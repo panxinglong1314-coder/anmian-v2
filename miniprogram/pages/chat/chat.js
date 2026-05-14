@@ -2457,12 +2457,11 @@ Page({
       success: () => {
         console.log('[TTS] file written:', filePath)
         ctx.src = filePath
-        setTimeout(() => {
-          try {
-            ctx.play()
-            console.log('[TTS] play started')
-          } catch (e) { console.error('[TTS] play fail:', e) }
-        }, 80)
+        // 【优化 2026-05-14】去掉 80ms setTimeout，文件写入成功后立即播放
+        try {
+          ctx.play()
+          console.log('[TTS] play started (no delay)')
+        } catch (e) { console.error('[TTS] play fail:', e) }
       },
       fail: (err) => {
         console.error('[TTS] write fail:', err)

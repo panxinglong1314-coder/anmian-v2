@@ -2252,10 +2252,11 @@ async def _chat_events(req: ChatRequest, user_id: str):
     llm_error = False
 
     # 段落级 TTS 参数：累积 30-80 字后批量合成，减少调用次数，提升连贯性
-    # 优化：降低下限阈值，LLM首个chunk立即触发TTS（首字响应提速）
-    MIN_TTS_CHARS = 15
+    # 【优化 2026-05-14】降低首段阈值 15→6 字 + 标点优先切分，首句响应提速 300-500ms
+    MIN_TTS_CHARS = 6              # 首段最低字数（原 15）
     MAX_TTS_CHARS = 80
-    MAX_TTS_WAIT_MS = 600  # 加速强制刷新
+    MAX_TTS_WAIT_MS = 400          # 首段最长等待（原 600）
+    FIRST_CHUNK_MIN_CHARS = 4      # 即便遇到标点，首段也至少 4 字（避免"嗯"这种太短）
     tts_last_flush_time = None
 
     try:
@@ -2272,22 +2273,44 @@ async def _chat_events(req: ChatRequest, user_id: str):
             if tts_last_flush_time is None:
                 tts_last_flush_time = now_ms
 
-            # 【优化】首个chunk立即触发：收到首个文本后立即合成TTS（无等待）
-            if not has_yielded_tts and len(tts_buffer) >= 15:
-                flush_text = tts_buffer.strip()
-                if flush_text:
-                    try:
-                        sent_any = False
-                        async for evt in tencent_tts_stream_sse(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed):
-                            yield evt
-                            sent_any = True
-                        if sent_any:
-                            has_yielded_tts = True
-                            tts_buffer = ""
-                            tts_last_flush_time = now_ms
-                            print(f"[TTS-fast] first chunk streaming: {flush_text[:20]}...")
-                    except Exception as e:
-                        print(f"[TTS-fast] first flush error: {e}")
+            # 【优化】首段尽快触发：3 种条件任一满足即合成第一段
+            #   A. 遇到标点 且 累积 ≥ FIRST_CHUNK_MIN_CHARS（最短一句话）
+            #   B. 累积达到 MIN_TTS_CHARS（即便没标点，6 字也足够发声）
+            #   C. 等待超过 MAX_TTS_WAIT_MS 且累积 ≥ 4 字（防慢 LLM 卡住）
+            if not has_yielded_tts:
+                first_punct_idx = -1
+                for i, ch in enumerate(tts_buffer):
+                    if ch in sentence_end:
+                        first_punct_idx = i
+                        break
+
+                trigger_first = False
+                first_cut = -1
+                if first_punct_idx >= FIRST_CHUNK_MIN_CHARS - 1:
+                    trigger_first = True
+                    first_cut = first_punct_idx + 1
+                elif len(tts_buffer) >= MIN_TTS_CHARS:
+                    trigger_first = True
+                    first_cut = len(tts_buffer)
+                elif (now_ms - tts_last_flush_time) > MAX_TTS_WAIT_MS and len(tts_buffer) >= 4:
+                    trigger_first = True
+                    first_cut = len(tts_buffer)
+
+                if trigger_first and first_cut > 0:
+                    flush_text = tts_buffer[:first_cut].strip()
+                    if flush_text:
+                        try:
+                            sent_any = False
+                            async for evt in tencent_tts_stream_sse(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed):
+                                yield evt
+                                sent_any = True
+                            if sent_any:
+                                has_yielded_tts = True
+                                tts_buffer = tts_buffer[first_cut:]
+                                tts_last_flush_time = now_ms
+                                print(f"[TTS-fast] FIRST chunk ({len(flush_text)} chars, punct={first_punct_idx>=0}): {flush_text[:30]}")
+                        except Exception as e:
+                            print(f"[TTS-fast] first flush error: {e}")
                 
 
 
@@ -3881,7 +3904,7 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
     - 给出建议
     """
     try:
-        # 获取历史记录
+        # 获取历史记录（遍历全部 N 天，缺失数据填充空值，保证前端柱图始终有 7 根）
         records = []
         for i in range(days):
             date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
@@ -3900,7 +3923,7 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
                 "recommendation": None
             }
         
-        # 计算统计数据
+        # 计算统计数据（仅基于有数据的天）
         se_values = [r["se"] for r in records]
         tst_values = [r["tst_minutes"] for r in records if r.get("tst_minutes", 0) > 0]
         quality_values = [r["sleep_quality"] for r in records if r.get("sleep_quality", 0) > 0]
@@ -3953,17 +3976,30 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
         else:
             tib_suggestion = "当前睡眠窗口合适"
         
-        # 构建趋势数据（按日期倒序）
+        # 构建趋势数据（补齐最近 N 天，缺失天用空值占位，保持倒序兼容前端 reverse）
         trend = []
-        for r in sorted(records, key=lambda x: x["date"], reverse=True)[:7]:
-            trend.append({
-                "date": r["date"],
-                "se": r["se"],
-                "tst_hours": round(r.get("tst_minutes", 0) / 60, 1),
-                "quality": r.get("sleep_quality", 0),
-                "planned_bed": r.get("planned_bed_time", "--:--"),
-                "actual_bed": r.get("actual_bed_time", "--:--"),
-            })
+        diary_map = {r["date"]: r for r in records}
+        for i in range(days):
+            date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+            r = diary_map.get(date)
+            if r:
+                trend.append({
+                    "date": r["date"],
+                    "se": r["se"],
+                    "tst_hours": round(r.get("tst_minutes", 0) / 60, 1),
+                    "quality": r.get("sleep_quality", 0),
+                    "planned_bed": r.get("planned_bed_time", "--:--"),
+                    "actual_bed": r.get("actual_bed_time", "--:--"),
+                })
+            else:
+                trend.append({
+                    "date": date,
+                    "se": 0,
+                    "tst_hours": 0,
+                    "quality": 0,
+                    "planned_bed": "--:--",
+                    "actual_bed": "--:--",
+                })
         
         return {
             "user_id": user_id,
