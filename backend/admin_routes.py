@@ -87,7 +87,7 @@ def _get_all_sessions(days: int = 30) -> List[Dict]:
     r = _get_redis()
     cutoff = datetime.now() - timedelta(days=days)
     sessions = []
-    for key in r.keys("chat:history:*"):
+    for key in r.scan_iter(match="chat:history:*", count=100):
         data = r.get(key)
         if not data:
             continue
@@ -200,7 +200,7 @@ def _get_user_ratings(days: int = 30) -> list:
     # 来源3: Redis feedback:*
     try:
         fb_r = _get_redis()
-        fb_keys = fb_r.keys("feedback:*")
+        fb_keys = list(fb_r.scan_iter(match="feedback:*", count=100))
         for k in fb_keys:
             for item in fb_r.lrange(k, 0, -1):
                 try:
@@ -260,6 +260,15 @@ def _load_evaluation_records(days: int = 30) -> List[Dict]:
 # ==================== 仪表盘 ====================
 
 def get_dashboard_stats(days: int = 7, limit: int = 500) -> Dict[str, Any]:
+    cache_key = f"admin:dashboard:{days}"
+    r = _get_redis()
+    cached = r.get(cache_key)
+    if cached:
+        try:
+            return json.loads(cached)
+        except Exception:
+            pass
+
     eval_records = _load_evaluation_records(days=days)
     sessions = _get_all_sessions(days=days)
 
@@ -312,7 +321,7 @@ def get_dashboard_stats(days: int = 7, limit: int = 500) -> Dict[str, Any]:
     prev_cutoff_end = datetime.now() - timedelta(days=days)
     prev_sessions = []
     r = _get_redis()
-    for key in r.keys("chat:history:*"):
+    for key in r.scan_iter(match="chat:history:*", count=100):
         detail = _get_session_detail(key)
         if not detail or not detail.get("start_dt"):
             continue
@@ -356,7 +365,7 @@ def get_dashboard_stats(days: int = 7, limit: int = 500) -> Dict[str, Any]:
         if dt:
             hourly_dist[dt.hour] += 1
 
-    return {
+    result = {
         "period_days": days,
         "total_sessions": total_sessions,
         "active_users": current_users,
@@ -377,6 +386,11 @@ def get_dashboard_stats(days: int = 7, limit: int = 500) -> Dict[str, Any]:
         "daily_trend": daily_trend_formatted,
         "hourly_distribution": [hourly_dist[h] for h in range(24)],
     }
+    try:
+        r.set(cache_key, json.dumps(result, ensure_ascii=False), ex=300)
+    except Exception:
+        pass
+    return result
 
 # ==================== 安全中心 ====================
 
@@ -605,15 +619,15 @@ def delete_user_data(user_id: str) -> Dict[str, Any]:
         r = _get_redis()
         deleted_keys = []
         # 删除chat会话
-        for key in r.keys(f"chat:history:{user_id}:*"):
+        for key in r.scan_iter(match=f"chat:history:{user_id}:*", count=100):
             r.delete(key)
             deleted_keys.append(key)
         # 删除feedback
-        for key in r.keys(f"feedback:{user_id}:*"):
+        for key in r.scan_iter(match=f"feedback:{user_id}:*", count=100):
             r.delete(key)
             deleted_keys.append(key)
         # 删除morning
-        for key in r.keys(f"morning:{user_id}:*"):
+        for key in r.scan_iter(match=f"morning:{user_id}:*", count=100):
             r.delete(key)
             deleted_keys.append(key)
         # 删除profile
@@ -652,7 +666,7 @@ def get_user_detail(user_id: str, limit: int = 20) -> Dict[str, Any]:
 
     r = _get_redis()
     user_sessions = []
-    for key in r.keys(f"chat:history:{user_id}:*"):
+    for key in r.scan_iter(match=f"chat:history:{user_id}:*", count=100):
         detail = _get_session_detail(key)
         if detail:
             # 估算时长（轮次 × 2分钟）
@@ -789,7 +803,7 @@ def get_health_history(hours: int = 24) -> List[Dict]:
 def get_retention_stats(days: int = 30) -> Dict[str, Any]:
     r = _get_redis()
     user_sessions_by_date: Dict[str, Dict[str, int]] = {}
-    for key in r.keys("chat:history:*"):
+    for key in r.scan_iter(match="chat:history:*", count=100):
         detail = _get_session_detail(key)
         if not detail or not detail.get("start_dt"):
             continue

@@ -253,7 +253,7 @@
               <view class="se-trend-bar-bg">
                 <view class="se-trend-bar {{item.se >= 85 ? 'se-good' : item.se >= 70 ? 'se-fair' : 'se-poor'}}" style="height: {{item.se}}%"></view>
               </view>
-              <text class="se-trend-day">{{item.date.slice(5)}}</text>
+              <text class="se-trend-day">{{item.date.slice(8)}}</text>
             </view>
           </view>
         </view>

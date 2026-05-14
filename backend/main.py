@@ -33,7 +33,8 @@ import redis
 
 from infra.settings import settings, ADMIN_TOKEN, BACKEND_VERSION
 from infra.redis_client import redis_client, async_redis_client
-from services.auth import create_jwt_token, verify_jwt_token, AuthUser
+from services.auth import create_jwt_token, verify_jwt_token, AuthUser, create_admin_jwt, verify_admin_jwt
+from services.admin_audit import log_admin_action
 from services.sleep_stats import update_streak, get_streak_days, get_user_sleep_stats, get_sleep_diary, save_sleep_diary
 from services.srt_engine import (
     get_sleep_window, save_sleep_window,
@@ -252,6 +253,22 @@ VOICE_LIMIT_FREE  = 180     # 免费版：3分钟语音/天
 VOICE_LIMIT_BASIC = 54000   # 基础 Pro：15小时/月
 VOICE_LIMIT_CORE  = 108000  # 核心 Pro：30小时/月
 
+# ==================== 后台定时任务 ====================
+
+async def _dashboard_aggregator():
+    """Dashboard 数据预聚合（每 6 小时执行一次，首次延迟 30 分钟）"""
+    await asyncio.sleep(1800)
+    while True:
+        try:
+            from admin_routes import get_dashboard_stats
+            for days in [7, 30]:
+                await asyncio.to_thread(get_dashboard_stats, days=days, limit=500)
+            print("   Dashboard 预聚合: ✅ 完成")
+        except Exception as e:
+            print(f"   Dashboard 预聚合: ⚠️ 失败 - {e}")
+        await asyncio.sleep(21600)
+
+
 # ==================== 启动 ====================
 
 @asynccontextmanager
@@ -314,8 +331,16 @@ async def lifespan(app: FastAPI):
                 print(f"   RAG 索引: ⚠️ 初始化失败 - {e}")
         asyncio.get_event_loop().call_later(0.5, lambda: asyncio.create_task(asyncio.to_thread(_init_rag_bg)))
 
+    # ✅ Dashboard 预聚合后台任务
+    _aggregator_task = asyncio.create_task(_dashboard_aggregator())
+
     yield
     print("👋 后端关闭...")
+    _aggregator_task.cancel()
+    try:
+        await _aggregator_task
+    except asyncio.CancelledError:
+        pass
     if _redis_mod.async_redis_client:
         try:
             await _redis_mod.async_redis_client.aclose()
@@ -348,17 +373,18 @@ async def get_current_user(authorization: str = Header(None)) -> AuthUser:
         raise HTTPException(status_code=401, detail="Token 无效或已过期")
     return user
 
+# CORS 动态配置：生产环境只允许正式域名
+_cors_origins = [
+    "https://sleepai.chat",
+    "https://www.sleepai.chat",
+]
+if os.getenv("ENV", "production").lower() in ("dev", "development", "local"):
+    _cors_origins.extend(["http://localhost:3000", "http://127.0.0.1:3000"])
+
 app = FastAPI(title="知眠 API v2", version="2.0.0", description="腾讯云流式TTS + 实时ASR + 千问对话", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://sleepai.chat",
-        "https://www.sleepai.chat",
-        "https://anmian.com",
-        "https://www.anmian.com",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Admin-Token"],
@@ -386,15 +412,22 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         if path.startswith("/api/v1/admin/"):
             if path == "/api/v1/admin/login":
-                # 登录接口无需验证
+                # 登录接口本身不验证身份，但受 rate limit 保护（见 admin_login）
                 pass
             elif not ADMIN_TOKEN:
-                # 空 TOKEN = 未配置，禁止访问（fail-safe）
                 from fastapi.responses import JSONResponse
                 return JSONResponse({"error": "运营后台未配置管理员密码，请联系运维"}, status_code=503)
             else:
-                token = request.headers.get("X-Admin-Token", "")
-                if token != ADMIN_TOKEN:
+                # 优先检查 Authorization: Bearer <jwt>
+                auth = request.headers.get("Authorization", "")
+                jwt_valid = False
+                if auth.lower().startswith("bearer "):
+                    jwt_valid = verify_admin_jwt(auth[7:].strip())
+                # 兼容旧 X-Admin-Token
+                if not jwt_valid:
+                    old_token = request.headers.get("X-Admin-Token", "")
+                    jwt_valid = (old_token == ADMIN_TOKEN)
+                if not jwt_valid:
                     from fastapi.responses import JSONResponse
                     return JSONResponse({"error": "未授权"}, status_code=401)
         return await call_next(request)
@@ -4079,6 +4112,38 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
                     "actual_bed": "--:--",
                 })
         
+        # SRT 数据（调用 srt_engine 核心计算）
+        srt_res = calculate_srt_recommendation(user_id)
+        phase_label_map = {
+            "learning": "数据收集中",
+            "restricting": "限制阶段",
+            "stable": "稳定阶段",
+            "optimizing": "优化阶段",
+        }
+        srt_data = {
+            "phase": srt_res["phase"],
+            "phase_label": phase_label_map.get(srt_res["phase"], srt_res["phase"]),
+            "current_tib_hours": srt_res["current_tib_hours"],
+            "recommended_tib_hours": srt_res.get("recommended_tib_hours"),
+            "recommended_bed_time": srt_res.get("recommended_bed_time"),
+            "recommended_wake_time": srt_res.get("recommended_wake_time"),
+            "adjustment_needed": srt_res.get("adjustment_needed", False),
+            "week_tip": srt_res.get("week_tip", ""),
+            "message": srt_res.get("message", ""),
+            "avg_se": srt_res.get("avg_se"),
+            "avg_tst_minutes": srt_res.get("avg_tst_minutes"),
+            "daily_tips": [],
+        }
+        # 根据阶段生成每日建议
+        if srt_res["phase"] == "learning":
+            srt_data["daily_tips"] = ["继续记录睡眠日记，7天后获得精准建议"]
+        elif srt_res["phase"] == "restricting":
+            srt_data["daily_tips"] = ["固定起床时间，白天不补觉", "睡前1小时远离电子屏幕"]
+        elif srt_res["phase"] == "stable":
+            srt_data["daily_tips"] = ["保持规律作息，周末也按时起床", "睡前放松练习有助于维持良好睡眠"]
+        elif srt_res["phase"] == "optimizing":
+            srt_data["daily_tips"] = ["睡眠效率优秀！可以适度增加卧床时间", "继续保持规律作息"]
+        
         return {
             "user_id": user_id,
             "days": days,
@@ -4094,6 +4159,7 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
             "trend": trend,
             "trend_direction": trend_direction,
             "trend_emoji": trend_emoji,
+            "srt": srt_data,
             "recommendation": {
                 "tib_suggestion": tib_suggestion,
                 "general_advice": get_sleep_advice(avg_se, avg_tst)
@@ -4367,13 +4433,35 @@ async def llm_review_endpoint(session_data: dict):
 
 @app.post("/api/v1/admin/login")
 async def admin_login(request: Request):
-    """运营后台登录验证"""
+    """运营后台登录验证（支持 rate limit + JWT Session）"""
     data = await request.json()
     token = data.get("token", "")
+
+    # Rate limit: 同一 IP 5 分钟内最多 5 次失败
+    client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"admin:login_attempts:{client_ip}"
+    attempts_raw = redis_client.get(rate_key)
+    attempts = int(attempts_raw) if attempts_raw else 0
+    if attempts >= 5:
+        raise HTTPException(status_code=429, detail="登录尝试过多，请5分钟后再试")
+
     if not ADMIN_TOKEN:
-        return {"success": True, "message": "未配置认证，直接访问"}
+        # 未配置认证时直接签发 JWT（开发环境）
+        jwt_token = create_admin_jwt()
+        return {"success": True, "message": "未配置认证，直接访问", "token": jwt_token}
+
     if token == ADMIN_TOKEN:
-        return {"success": True, "message": "登录成功"}
+        # 验证成功，清除失败计数，签发 JWT
+        redis_client.delete(rate_key)
+        jwt_token = create_admin_jwt()
+        log_admin_action("admin_login", "system", {"ip": client_ip, "method": "token"})
+        return {"success": True, "message": "登录成功", "token": jwt_token}
+
+    # 验证失败，增加计数（TTL 5 分钟）
+    pipe = redis_client.pipeline()
+    pipe.incr(rate_key)
+    pipe.expire(rate_key, 300)
+    pipe.execute()
     raise HTTPException(status_code=401, detail="Token 错误")
 
 
@@ -4467,6 +4555,7 @@ async def admin_crisis_ack(event_id: str, request: Request):
     result = _crisis_ack(event_id, operator=operator, note=note)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "操作失败"))
+    log_admin_action("crisis_ack", operator, {"event_id": event_id, "note": note[:200]})
     return result
 
 
@@ -4590,6 +4679,7 @@ async def delete_user_data(user: AuthUser = Depends(get_current_user)):
 async def export_users(days: int = 30):
     """导出用户列表 CSV"""
     csv_data = export_users_csv(days=days)
+    log_admin_action("export_users", "admin", {"days": days})
     return StreamingResponse(
         io.StringIO(csv_data),
         media_type="text/csv",
@@ -4601,6 +4691,7 @@ async def export_users(days: int = 30):
 async def export_safety(days: int = 30):
     """导出安全事件 CSV"""
     csv_data = export_safety_csv(days=days)
+    log_admin_action("export_safety", "admin", {"days": days})
     return StreamingResponse(
         io.StringIO(csv_data),
         media_type="text/csv",
@@ -4612,6 +4703,7 @@ async def export_safety(days: int = 30):
 async def export_evaluations(days: int = 30):
     """导出评估数据 CSV"""
     csv_data = export_evaluations_csv(days=days)
+    log_admin_action("export_evaluations", "admin", {"days": days})
     return StreamingResponse(
         io.StringIO(csv_data),
         media_type="text/csv",

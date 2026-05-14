@@ -346,9 +346,12 @@ Page({
       const days = ['日', '一', '二', '三', '四', '五', '六']
       const date = new Date(r.date)
       const dayName = days[date.getDay()]
-      let quality = 'fair'
-      if (r.se >= 85) quality = 'good'
-      else if (r.se < 70) quality = 'poor'
+      let quality = 'empty'
+      if (r.se > 0) {
+        if (r.se >= 85) quality = 'good'
+        else if (r.se < 70) quality = 'poor'
+        else quality = 'fair'
+      }
       return {
         day: dayName,
         hours: r.tst_hours || 0,
@@ -365,9 +368,10 @@ Page({
     if (data.srt) {
       const phase = data.srt.phase
       if (phase === "restricting") srtPhaseColor = "#E8846B"
-      else if (phase === "stabilizing") srtPhaseColor = "#7EC8A3"
+      else if (phase === "stable" || phase === "stabilizing") srtPhaseColor = "#7EC8A3"
       else if (phase === "optimizing") srtPhaseColor = "#F5C869"
       else if (phase === "maintenance") srtPhaseColor = "#6B9FD4"
+      else srtPhaseColor = "#5B9BD5"
     }
     this.setData({
       'sleepDashboard.hasData': true,
