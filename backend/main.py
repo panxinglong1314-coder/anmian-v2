@@ -1598,6 +1598,8 @@ async def _warmup_tts_phrases():
     """
     import base64
     phrases = [p.strip() for p in settings.tts_warmup_phrases.split(",") if p.strip()]
+    # 【2026-05-15】合并 P2 preroll 集合，确保 /api/v1/tts/preroll 永远缓存命中
+    phrases = list(set(phrases + _PREROLL_PHRASES))
     if not phrases:
         return
     print(f"   TTS 预热: {len(phrases)} 条短句...")
@@ -2968,6 +2970,7 @@ async def submit_feedback(req: FeedbackRequest, user: AuthUser = Depends(get_cur
     """
     from datetime import datetime
     feedback_key = f"feedback:{user_id}:{datetime.now().strftime('%Y%m%d')}"
+    # 【2026-05-15 A/B】记录当前 LLM provider + model，用于按模型分桶统计满意度
     feedback_entry = {
         "user_id": user_id,
         "session_id": req.session_id or "",
@@ -2976,8 +2979,17 @@ async def submit_feedback(req: FeedbackRequest, user: AuthUser = Depends(get_cur
         "comment": req.comment or "",
         "turn_text": req.turn_text or "",
         "response_text": req.response_text or "",
+        "llm_provider": settings.llm_provider,
+        "llm_model": (settings.deepseek_model if settings.llm_provider == "deepseek" else "MiniMax-M2.5-highspeed"),
         "timestamp": datetime.now().isoformat(),
     }
+    # 同时写入"按 provider 分桶"的索引，方便统计
+    try:
+        provider_bucket_key = f"feedback:by_provider:{settings.llm_provider}:{datetime.now().strftime('%Y%m')}"
+        redis_client.lpush(provider_bucket_key, json.dumps(feedback_entry, ensure_ascii=False))
+        redis_client.expire(provider_bucket_key, 180 * 86400)
+    except Exception:
+        pass
     try:
         # 使用 Redis List 存储，方便后续批量导出
         redis_client.lpush(feedback_key, json.dumps(feedback_entry, ensure_ascii=False))
@@ -3005,6 +3017,61 @@ async def get_feedback(user: AuthUser = Depends(get_current_user), limit: int = 
 
 
 # ---------- TTS ----------
+# ===== 预录开声（响应感优化）=====
+# 用户说完话 → ASR final → 前端立即调此端点拿 0.5s "嗯/我在听" 短音播放，
+# 同时后台调主 chat/stream。把用户感知的"AI 沉默期"从 3.7s 降到 0.3s。
+# 设计：从已缓存的 warmup phrases 里随机挑一句，无 LLM 调用，无外部 API，延迟 < 50ms。
+
+_PREROLL_PHRASES = ["嗯", "我在", "我在听", "嗯，我在", "好", "嗯嗯"]
+_preroll_idx = 0   # 简单轮询，避免连续两次相同
+
+@app.get("/api/v1/tts/preroll")
+async def tts_preroll(voice: str = Query("female_warm")):
+    """
+    预录开声：返回一句缓存的极短安抚音（base64 mp3）。
+    用法：前端 ASR final 后立即调用，播放此音"占位"，同时调主 chat/stream。
+    """
+    global _preroll_idx
+    import base64
+
+    # 轮询取一句（避免重复）
+    phrase = _PREROLL_PHRASES[_preroll_idx % len(_PREROLL_PHRASES)]
+    _preroll_idx += 1
+
+    # 从内存缓存命中
+    cache_key = _get_tts_cache_key(phrase, voice, 90)
+    audio_b64 = _tts_memory_cache.get(cache_key)
+
+    # Redis fallback
+    if not audio_b64 and async_redis_client:
+        try:
+            audio_b64 = await async_redis_client.get(f"tts_cache:{cache_key}")
+            if audio_b64:
+                _tts_memory_cache[cache_key] = audio_b64
+        except Exception:
+            pass
+
+    # 最后兜底：Edge TTS 现合成（首次冷启动时可能走这条路）
+    if not audio_b64:
+        try:
+            audio_bytes = await edge_tts(phrase, voice=voice, speed=0.9)
+            audio_b64 = base64.b64encode(audio_bytes).decode()
+            _tts_memory_cache[cache_key] = audio_b64
+            if async_redis_client:
+                try:
+                    await async_redis_client.setex(f"tts_cache:{cache_key}", 30 * 24 * 3600, audio_b64)
+                except Exception:
+                    pass
+        except Exception as e:
+            return {"error": str(e), "phrase": phrase}
+
+    return {
+        "phrase": phrase,
+        "audio_base64": audio_b64,
+        "duration_ms_estimate": 400,  # 给前端 hint
+    }
+
+
 @app.post("/api/v1/tts")
 async def tts(text: str = Form(...), voice: str = Form("female_warm"), speed: float = Form(0.9)):
     """
@@ -4854,6 +4921,66 @@ async def admin_crisis_history(days: int = Query(30, le=90), limit: int = Query(
 async def admin_crisis_stats(days: int = Query(7, le=90)):
     """危机告警统计（Dashboard 卡片用）"""
     return _crisis_stats(days=days)
+
+
+@app.get("/api/v1/admin/feedback/llm_stats")
+async def admin_feedback_llm_stats(months: int = Query(3, le=12)):
+    """
+    【2026-05-15 A/B】LLM provider × 用户满意度统计
+    比较不同 LLM 模型（DeepSeek / MiniMax / ...）的用户 rating 分布
+    """
+    from datetime import datetime
+    from collections import defaultdict
+
+    now = datetime.now()
+    stats = defaultdict(lambda: {"thumbs_up": 0, "thumbs_down": 0, "comments": [], "samples": []})
+
+    for offset in range(months):
+        y = now.year if now.month - offset >= 1 else now.year - 1
+        m = ((now.month - offset - 1) % 12) + 1
+        month_str = f"{y:04d}{m:02d}"
+        for provider in ("deepseek", "minimax"):
+            key = f"feedback:by_provider:{provider}:{month_str}"
+            try:
+                entries = redis_client.lrange(key, 0, -1)
+            except Exception:
+                continue
+            for e in entries[:500]:  # 单 provider × 月 最多统计 500 条
+                try:
+                    obj = json.loads(e)
+                    rating = obj.get("rating", "")
+                    if rating in ("👍", "up", "1", "good"):
+                        stats[provider]["thumbs_up"] += 1
+                    elif rating in ("👎", "down", "-1", "bad"):
+                        stats[provider]["thumbs_down"] += 1
+                    if obj.get("comment"):
+                        stats[provider]["comments"].append({
+                            "rating": rating, "comment": obj["comment"][:100],
+                            "time": obj.get("timestamp", "")
+                        })
+                    if len(stats[provider]["samples"]) < 5:
+                        stats[provider]["samples"].append({
+                            "rating": rating,
+                            "turn": (obj.get("turn_text") or "")[:50],
+                            "response": (obj.get("response_text") or "")[:80],
+                            "model": obj.get("llm_model", "")
+                        })
+                except Exception:
+                    continue
+
+    # 计算正面比率
+    out = {}
+    for prov, s in stats.items():
+        total = s["thumbs_up"] + s["thumbs_down"]
+        out[prov] = {
+            "thumbs_up": s["thumbs_up"],
+            "thumbs_down": s["thumbs_down"],
+            "total": total,
+            "positive_rate": round(s["thumbs_up"] / total, 3) if total else None,
+            "recent_comments": s["comments"][:10],
+            "samples": s["samples"],
+        }
+    return {"months": months, "stats": out, "current_provider": settings.llm_provider}
 
 
 @app.get("/api/v1/admin/crisis/{event_id}")

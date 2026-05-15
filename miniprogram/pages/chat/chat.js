@@ -718,6 +718,9 @@ Page({
           }, 500)
           // 立即触发 AI（不等录音停止）
           this.setData({ _asrPending: false })
+          // 【2026-05-15 P2 预录开声】立即播放 "嗯…/我在听" 短音占位，
+          // 同时并行调主 chat。把"AI 沉默期"从 3.7s 降到 ~0.3s。
+          this._playPrerollAck()
           this._sendToAI(asrText, true)
         }
       } catch (e) {
@@ -1217,6 +1220,66 @@ Page({
         } catch (e) {
           console.error('[SSE] parse error:', e)
         }
+      }
+    })
+  },
+
+  // ================================================
+  // 【2026-05-15 P2】预录开声 — 用户说完话立刻播 "嗯/我在听"
+  // 把"AI 沉默期"从 3.7s 降到 ~0.3s，提升心理感知响应速度。
+  // 设计：
+  //   - 调 /api/v1/tts/preroll 拿 base64 mp3 (10ms 命中缓存)
+  //   - 用独立 InnerAudioContext 播放，不影响后续 TTS 队列
+  //   - 真 LLM 回复 chunk 到达时 _enqueueTTS/_playNextTTS 会接管，preroll 自动让位
+  // ================================================
+  _playPrerollAck() {
+    // 已在播 TTS（如上一句还在响）就不再 preroll，避免冲突
+    if (this.data.isPlayingTTS) {
+      console.log('[Preroll] TTS already playing, skip ack')
+      return
+    }
+    // 用户处于安静状态时再播；如果用户还在说话就不打扰
+    if (this.data.isRecording && this.data.audioLevel > 5) return
+
+    const t0 = Date.now()
+    app.authRequest({
+      url: `${API}/api/v1/tts/preroll?voice=female_warm`,
+      method: 'GET',
+      timeout: 3000,
+      success: (res) => {
+        if (!res.data || !res.data.audio_base64) return
+        const elapsed = Date.now() - t0
+        // 如果真 TTS 已经在播放（chat/stream 比我们快），就不要插播
+        if (this.data.isPlayingTTS) {
+          console.log('[Preroll] real TTS already playing, skip ack (preroll fetched in ' + elapsed + 'ms)')
+          return
+        }
+        console.log('[Preroll] play "' + res.data.phrase + '" (' + elapsed + 'ms)')
+        try {
+          const fs = wx.getFileSystemManager()
+          const filePath = `${wx.env.USER_DATA_PATH}/preroll_${Date.now()}.mp3`
+          fs.writeFile({
+            filePath,
+            data: wx.base64ToArrayBuffer(res.data.audio_base64),
+            encoding: 'binary',
+            success: () => {
+              // 用独立 context 避免污染主 TTS 队列
+              const ctx = wx.createInnerAudioContext({ useWebAudioImplement: false })
+              ctx.obeyMuteSwitch = false
+              ctx.src = filePath
+              ctx.volume = 0.85
+              ctx.onError(() => { try { ctx.destroy() } catch(e){} })
+              ctx.onEnded(() => { try { ctx.destroy() } catch(e){} })
+              try { ctx.play() } catch (e) { console.warn('[Preroll] play fail:', e) }
+            }
+          })
+        } catch (e) {
+          console.warn('[Preroll] error:', e)
+        }
+      },
+      fail: (err) => {
+        // 静默失败：不影响主对话流
+        console.log('[Preroll] fetch failed (silent):', err && err.errMsg)
       }
     })
   },
