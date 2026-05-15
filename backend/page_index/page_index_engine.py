@@ -4,8 +4,10 @@ PageIndex Engine — LLM 推理导航引擎
 Leaf fallback: hybrid_rag_index 的 LSA 检索。
 """
 
+import os
 import json
 import time
+import httpx
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -40,8 +42,6 @@ def _call_minimax(prompt: str, system: str = "", timeout: int = 30) -> str:
             print(f"[PageIndex DeepSeek] 失败回退 MiniMax: {e}")
 
     # Fallback: MiniMax
-    import os, httpx
-
     api_key = os.getenv("MINIMAX_API_KEY", "")
     if not api_key:
         return '{"error":"MINIMAX_API_KEY not set"}'

@@ -259,7 +259,17 @@ def finalize_session(outcome: str = "completed", sleep_quality: Optional[int] = 
 
 # ── RAG 个性化系统提示 ─────────────────────────────────────────────────────
 
-def _anxiety_desc(level: int) -> str:
+def _anxiety_desc(level) -> str:
+    """兼容 int (0-10) / str ("normal"/"mild"/etc) / AnxietyLevel enum value"""
+    if isinstance(level, str):
+        _smap = {"normal": 0, "mild": 2, "moderate": 5, "severe": 8,
+                 "AnxietyLevel.NORMAL": 0, "AnxietyLevel.MILD": 2,
+                 "AnxietyLevel.MODERATE": 5, "AnxietyLevel.SEVERE": 8}
+        if level in _smap:
+            level = _smap[level]
+        else:
+            try: level = int(level)
+            except (TypeError, ValueError): level = 0
     if level >= 8: return "重度焦虑，需要大量安全感和沉稳陪伴"
     elif level >= 5: return "中度焦虑，需要被确认和温柔转移"
     elif level >= 2: return "轻度焦虑，只需要简洁引导和信任"

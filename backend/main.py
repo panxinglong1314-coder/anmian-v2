@@ -988,11 +988,13 @@ def _build_user_profile_block(memory: dict) -> str:
     lines.append("")
     lines.append("[使用提示]")
     if last_summary and session_count >= 1:
-        lines.append("- 若合适，可自然询问上次担忧的近况（如'上次说的 XX 后来怎么样？'），但不要每次都问。")
-    if triggers:
+        lines.append("- 你是一位认识用户的睡前陪伴师，请像老朋友重逢一样自然带出对上次的轻盈回访。")
+        lines.append("- 推荐的开场（在用户首句较短或泛泛时）：「今晚怎么样，上次说的那件事 / 上次提到的 XX，有没有再让你难受？」")
+        lines.append("- 不要机械复述「上次」二字，关键词换成抽象的呼应（例如说「汇报的事」而不是「被裁的担心」，让用户感到被记得，但不被审视）。")
+    elif triggers:
         top_label = _label_domain(sorted(triggers.items(), key=lambda kv: -kv[1])[0][0])
-        lines.append(f"- 用户最常因「{top_label}」失眠，若当前消息提到类似话题，可呼应。")
-    lines.append("- 不要直接念出这份档案；像老朋友一样用上即可。")
+        lines.append(f"- 用户最常因「{top_label}」失眠；当前消息若涉及类似话题，自然呼应。")
+    lines.append("- 严禁直接念出这份档案的字段、数字或原文。当作内部记忆使用。")
 
     return "\n".join(lines)
 
@@ -2557,6 +2559,24 @@ async def _chat_events(req: ChatRequest, user_id: str):
         history.append(Message(role="user", content=req.message))
         history.append(Message(role="assistant", content=cbt_result['content']))
         save_session_history(user_id, session_id, history)
+        # 【2026-05-15】更新 memory（含抽象 domain），并在 closure 触发 session_summary
+        try:
+            _msg_domain = cbt_result.get('state_update', {}).get('last_topic') or "general"
+            update_user_memory(user_id, req.message, cbt_result['content'], worry_domain=_msg_domain)
+        except Exception:
+            pass
+        if cbt_result['response_type'] == 'closure' or cbt_result.get('should_close'):
+            try:
+                asyncio.create_task(_async_generate_session_summary(
+                    user_id=user_id,
+                    session_id=session_id,
+                    history=history,
+                    cbt_state=cbt_result.get('state_update', {}),
+                    technique_used=cbt_result.get('response_type', '')
+                ))
+            except Exception as _e:
+                print(f"[session_summary] 异步调度失败（special 分支）: {_e}")
+
         has_yielded_tts = False
         if not skip_tts:
             try:
