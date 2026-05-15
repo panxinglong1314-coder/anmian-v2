@@ -147,6 +147,9 @@
       <div class="nav-item" data-page="quality" onclick="showPage('quality')">
         <span class="icon">🔧</span>AI 质量监控
       </div>
+      <div class="nav-item" data-page="sleep" onclick="showPage('sleep')">
+        <span class="icon">🌙</span>睡眠数据
+      </div>
       <div class="nav-group-label">用户管理</div>
       <div class="nav-item" data-page="users" onclick="showPage('users')">
         <span class="icon">👥</span>用户列表
@@ -160,6 +163,9 @@
       </div>
       <div class="nav-item" data-page="abconfig" onclick="showPage('abconfig')">
         <span class="icon">⚙️</span>A/B 配置
+      </div>
+      <div class="nav-item" data-page="kb" onclick="showPage('kb')">
+        <span class="icon">📚</span>知识库
       </div>
     </nav>
     <div class="border-t border-gray-700/50 p-3">
@@ -520,6 +526,122 @@
                 <tbody id="ab-history-body"><tr><td colspan="3" class="text-gray-400 py-2">加载中...</td></tr></tbody>
               </table>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 睡眠数据大盘 -->
+      <div id="page-sleep" class="page hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-bold text-gray-800">🌙 睡眠数据大盘</h2>
+          <div class="flex gap-2">
+            <button onclick="loadSleepDashboard(7)" class="tab-btn" id="tab-s-7">近7天</button>
+            <button onclick="loadSleepDashboard(30)" class="tab-btn active" id="tab-s-30">近30天</button>
+          </div>
+        </div>
+        <!-- 核心指标卡 -->
+        <div class="grid grid-cols-5 gap-4">
+          <div class="card metric-card">
+            <div class="metric-value text-blue-600" id="sd-users">--</div>
+            <div class="metric-label">有睡眠数据用户</div>
+            <div class="metric-sub">累计记录者</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-green-600" id="sd-avg-se">--</div>
+            <div class="metric-label">平均睡眠效率 (SE)</div>
+            <div class="metric-sub">全平台均值</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-indigo-600" id="sd-avg-tst">--</div>
+            <div class="metric-label">平均实际睡眠 (TST)</div>
+            <div class="metric-sub">小时</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-orange-500" id="sd-avg-quality">--</div>
+            <div class="metric-label">平均主观质量</div>
+            <div class="metric-sub">1-10 分</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-red-600" id="sd-at-risk">--</div>
+            <div class="metric-label">高风险用户</div>
+            <div class="metric-sub">SE &lt; 70%</div>
+          </div>
+        </div>
+        <!-- 图表行 -->
+        <div class="grid grid-cols-2 gap-4">
+          <div class="card">
+            <div class="card-header"><span class="card-title">📈 每日记录者 & 平均 SE 趋势</span></div>
+            <div class="card-body"><div id="sleep-trend-chart" style="height:300px"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">🥧 SE 质量分布</span></div>
+            <div class="card-body"><div id="sleep-quality-pie" style="height:300px"></div></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="card">
+            <div class="card-header"><span class="card-title">🛏️ SRT 阶段分布</span></div>
+            <div class="card-body"><div id="sleep-phase-chart" style="height:260px"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">⚠️ 高风险用户（SE &lt; 70%）</span></div>
+            <div class="card-body">
+              <table class="w-full text-sm">
+                <thead><tr class="text-gray-500 border-b"><th class="text-left py-1">用户</th><th class="text-left">SE</th><th class="text-left">TST</th><th class="text-left">阶段</th></tr></thead>
+                <tbody id="sleep-risk-body"><tr><td colspan="4" class="text-gray-400 py-2">加载中...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">📝 最新睡眠记录</span></div>
+          <div class="card-body">
+            <table class="w-full text-sm">
+              <thead><tr class="text-gray-500 border-b"><th class="text-left py-1">日期</th><th class="text-left">用户</th><th class="text-left">SE</th><th class="text-left">TST</th><th class="text-left">质量</th><th class="text-left">来源</th></tr></thead>
+              <tbody id="sleep-records-body"><tr><td colspan="6" class="text-gray-400 py-2">加载中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- RAG 知识库版本管理 -->
+      <div id="page-kb" class="page hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-bold text-gray-800">📚 RAG 知识库版本管理</h2>
+          <div class="flex gap-2">
+            <button onclick="buildKBVersion()" class="btn btn-primary btn-sm">🔨 构建新版本</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+          <div class="card metric-card">
+            <div class="metric-value text-blue-600" id="kb-current-version">--</div>
+            <div class="metric-label">当前版本</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-green-600" id="kb-total-versions">--</div>
+            <div class="metric-label">历史版本数</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-orange-500" id="kb-corpus-files">--</div>
+            <div class="metric-label">Corpus 文件数</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">📋 版本历史</span></div>
+          <div class="card-body">
+            <table class="w-full text-sm">
+              <thead><tr class="text-gray-500 border-b"><th class="text-left py-1">版本ID</th><th class="text-left">时间</th><th class="text-left">操作人</th><th class="text-left">Corpus文件</th><th class="text-left">索引大小</th><th class="text-left">备注</th><th class="text-left">操作</th></tr></thead>
+              <tbody id="kb-versions-body"><tr><td colspan="7" class="text-gray-400 py-2">加载中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">🔍 Corpus 文件哈希</span></div>
+          <div class="card-body">
+            <table class="w-full text-sm">
+              <thead><tr class="text-gray-500 border-b"><th class="text-left py-1">文件名</th><th class="text-left">SHA256(前16位)</th></tr></thead>
+              <tbody id="kb-corpus-body"><tr><td colspan="2" class="text-gray-400 py-2">加载中...</td></tr></tbody>
+            </table>
           </div>
         </div>
       </div>

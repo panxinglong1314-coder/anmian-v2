@@ -151,6 +151,8 @@ const pageTitles = {
   users: '用户列表', health: '服务器监控', retention: '留存分析',
   crisis: '🚨 危机告警',
   abconfig: 'A/B 配置',
+  sleep: '🌙 睡眠数据',
+  kb: '📚 知识库',
 };
 
 function showPage(name) {
@@ -162,7 +164,8 @@ function showPage(name) {
   document.getElementById('page-title').textContent = pageTitles[name] || name;
   const loaders = { dashboard: loadDashboard, safety: loadSafety, quality: loadQuality,
                      users: loadUsers, health: loadHealth, retention: loadRetention,
-                     crisis: loadCrisis, abconfig: loadABConfig };
+                     crisis: loadCrisis, abconfig: loadABConfig,
+                     sleep: loadSleepDashboard, kb: loadKB };
   if (loaders[name]) loaders[name](loaders[name] === loadDashboard ? 7 : 30);
 
   // 切到危机页面后，停止标题闪烁（视为"已读"）
@@ -417,9 +420,11 @@ function stopTitleFlash() {
   document.title = crisisOriginalTitle;
 }
 
+let crisisSseSource = null;
+
 function _startCrisisPolling() {
   _stopCrisisPolling();
-  // 立即拉一次，然后每 20 秒轮询
+  // 立即拉一次，然后每 20 秒轮询（兜底）
   _pollCrisisUnread();
   crisisPollTimer = setInterval(_pollCrisisUnread, 20000);
   // 请求浏览器通知权限（仅首次）
@@ -428,10 +433,56 @@ function _startCrisisPolling() {
   } else if ('Notification' in window) {
     crisisNotificationPermission = Notification.permission;
   }
+  // 启动 SSE 实时推送
+  _startCrisisSSE();
 }
 function _stopCrisisPolling() {
   if (crisisPollTimer) { clearInterval(crisisPollTimer); crisisPollTimer = null; }
+  if (crisisSseSource) { crisisSseSource.close(); crisisSseSource = null; }
   stopTitleFlash();
+}
+
+function _startCrisisSSE() {
+  if (crisisSseSource) { crisisSseSource.close(); }
+  if (!adminToken) return;
+  try {
+    const url = `${API_BASE.replace('/api/v1/admin', '')}/api/v1/admin/crisis/stream`;
+    crisisSseSource = new EventSource(url);
+    crisisSseSource.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'crisis_update') {
+          // 更新 badge
+          const badge = document.getElementById('crisis-unread-badge');
+          if (badge) {
+            badge.textContent = data.pending_count || 0;
+            badge.classList.toggle('hidden', !(data.pending_count > 0));
+          }
+          // 新告警通知
+          if (data.new_alerts && data.new_alerts.length > 0) {
+            _flashCrisisTitle();
+            if (crisisNotificationPermission === 'granted') {
+              data.new_alerts.forEach(a => {
+                new Notification('🚨 危机告警', {
+                  body: `[${a.level?.toUpperCase()}] ${(a.message || '').slice(0, 80)}`,
+                  tag: a.event_id,
+                  requireInteraction: a.level === 'high',
+                });
+              });
+            }
+            // 如果在危机页面，自动刷新列表
+            const activePage = document.querySelector('.nav-item.active')?.dataset.page;
+            if (activePage === 'crisis') {
+              loadCrisis();
+            }
+          }
+        }
+      } catch(err) { /* ignore parse errors */ }
+    };
+    crisisSseSource.onerror = () => {
+      // 出错后静默重连（浏览器自动重连）
+    };
+  } catch(e) { console.log('SSE not supported'); }
 }
 
 // ========== Auto Refresh ==========
@@ -445,6 +496,9 @@ function startAutoRefresh() {
     if (page === 'users') loadUsers();
     if (page === 'health') loadHealth();
     if (page === 'retention') loadRetention();
+    if (page === 'sleep') loadSleepDashboard(sleepDashboardDays);
+    if (page === 'kb') loadKB();
+    if (page === 'abconfig') loadABConfig();
   }, 300000);
 }
 function stopAutoRefresh() { if (refreshTimer) clearInterval(refreshTimer); }
@@ -968,6 +1022,179 @@ function renderChart(id, option, emptyHTML) {
   if (chartInstances[id]) chartInstances[id].dispose();
   chartInstances[id] = echarts.init(el);
   chartInstances[id].setOption(option);
+}
+
+// ========== 睡眠数据大盘 ==========
+let sleepDashboardDays = 30;
+
+async function loadSleepDashboard(days = 30) {
+  sleepDashboardDays = days;
+  // 更新 tab 样式
+  document.querySelectorAll('[id^="tab-s-"]').forEach(b => b.classList.remove('active'));
+  const tab = document.getElementById(`tab-s-${days}`);
+  if (tab) tab.classList.add('active');
+
+  try {
+    const data = await fetchJSON(`${API_BASE}/sleep_dashboard?days=${days}`);
+
+    // 核心指标
+    document.getElementById('sd-users').textContent = data.total_users_with_data || 0;
+    document.getElementById('sd-avg-se').textContent = (data.avg_se || 0) + '%';
+    document.getElementById('sd-avg-tst').textContent = (data.avg_tst_hours || 0) + 'h';
+    document.getElementById('sd-avg-quality').textContent = (data.avg_quality || 0);
+    document.getElementById('sd-at-risk').textContent = (data.at_risk_users || []).length;
+
+    // 趋势图
+    const trend = data.trend || [];
+    renderChart('sleep-trend-chart', {
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['记录者数', '平均SE'], bottom: 0 },
+      grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+      xAxis: { type: 'category', data: trend.map(t => t.date.slice(5)), axisLabel: { fontSize: 10, rotate: 45 } },
+      yAxis: [
+        { type: 'value', name: '人数', minInterval: 1 },
+        { type: 'value', name: 'SE%', min: 0, max: 100 }
+      ],
+      series: [
+        { name: '记录者数', type: 'bar', data: trend.map(t => t.recorders), itemStyle: { color: '#3b82f6' } },
+        { name: '平均SE', type: 'line', yAxisIndex: 1, data: trend.map(t => t.avg_se), smooth: true, itemStyle: { color: '#10b981' } }
+      ]
+    }, null);
+
+    // 质量分布饼图
+    const qd = data.quality_distribution || {};
+    renderChart('sleep-quality-pie', {
+      tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+      legend: { bottom: 0 },
+      series: [{
+        type: 'pie', radius: ['40%', '70%'],
+        data: [
+          { name: '优秀 (≥90%)', value: qd.excellent || 0, itemStyle: { color: '#10b981' } },
+          { name: '良好 (85-90%)', value: qd.good || 0, itemStyle: { color: '#3b82f6' } },
+          { name: '一般 (70-85%)', value: qd.fair || 0, itemStyle: { color: '#f59e0b' } },
+          { name: '偏低 (<70%)', value: qd.poor || 0, itemStyle: { color: '#ef4444' } },
+        ]
+      }]
+    }, null);
+
+    // SRT 阶段分布
+    const pd = data.phase_distribution || {};
+    const phaseLabels = { learning: '学习期', restricting: '限制期', stable: '稳定期', optimizing: '优化期' };
+    renderChart('sleep-phase-chart', {
+      tooltip: { trigger: 'item' },
+      xAxis: { type: 'category', data: Object.keys(pd).map(k => phaseLabels[k] || k), axisLabel: { fontSize: 10 } },
+      yAxis: { type: 'value', minInterval: 1 },
+      series: [{ type: 'bar', data: Object.values(pd), itemStyle: { color: '#8b5cf6' } }]
+    }, null);
+
+    // 风险用户列表
+    const riskBody = document.getElementById('sleep-risk-body');
+    const risks = data.at_risk_users || [];
+    if (!risks.length) {
+      riskBody.innerHTML = '<tr><td colspan="4" class="text-gray-400 py-2">暂无高风险用户 🎉</td></tr>';
+    } else {
+      riskBody.innerHTML = risks.map(u => `
+        <tr class="border-b border-gray-100">
+          <td class="py-1 truncate-id font-mono text-xs text-gray-600">${(u.user_id || '').slice(0, 20)}</td>
+          <td class="text-red-600 font-medium">${u.avg_se}%</td>
+          <td class="text-xs">${u.avg_tst_hours}h</td>
+          <td class="text-xs">${phaseLabels[u.phase] || u.phase}</td>
+        </tr>
+      `).join('');
+    }
+
+    // 最新记录
+    const recBody = document.getElementById('sleep-records-body');
+    const recs = data.recent_records || [];
+    if (!recs.length) {
+      recBody.innerHTML = '<tr><td colspan="6" class="text-gray-400 py-2">暂无记录</td></tr>';
+    } else {
+      recBody.innerHTML = recs.map(r => `
+        <tr class="border-b border-gray-100">
+          <td class="py-1 text-xs text-gray-500">${r.date || '--'}</td>
+          <td class="truncate-id font-mono text-xs text-gray-600">${(r.user_id || '').slice(0, 16)}</td>
+          <td class="font-medium">${r.se}%</td>
+          <td class="text-xs">${r.tst_hours}h</td>
+          <td class="text-xs">${r.quality || '--'}</td>
+          <td class="text-xs text-gray-400">${r.source === 'morning' ? '晨间' : '日记'}</td>
+        </tr>
+      `).join('');
+    }
+  } catch(e) { toast('加载睡眠数据失败: ' + e.message, 'error'); }
+}
+
+// ========== RAG 知识库版本管理 ==========
+async function loadKB() {
+  try {
+    const status = await fetchJSON(`${API_BASE}/kb/status`);
+    document.getElementById('kb-current-version').textContent = status.current_version || '未构建';
+    document.getElementById('kb-total-versions').textContent = status.total_versions || 0;
+    document.getElementById('kb-corpus-files').textContent = status.corpus_files || 0;
+
+    // Corpus 哈希
+    const corpusBody = document.getElementById('kb-corpus-body');
+    const hashes = status.corpus_hashes || {};
+    if (!Object.keys(hashes).length) {
+      corpusBody.innerHTML = '<tr><td colspan="2" class="text-gray-400 py-2">未检测到 corpus 文件</td></tr>';
+    } else {
+      corpusBody.innerHTML = Object.entries(hashes).map(([name, h]) => `
+        <tr class="border-b border-gray-100">
+          <td class="py-1 text-xs">${name}</td>
+          <td class="font-mono text-xs text-gray-500">${h}</td>
+        </tr>
+      `).join('');
+    }
+
+    // 版本历史
+    const versionsData = await fetchJSON(`${API_BASE}/kb/versions?limit=20`);
+    const versions = versionsData.versions || [];
+    const vBody = document.getElementById('kb-versions-body');
+    if (!versions.length) {
+      vBody.innerHTML = '<tr><td colspan="7" class="text-gray-400 py-2">暂无版本记录</td></tr>';
+    } else {
+      vBody.innerHTML = versions.map(v => `
+        <tr class="border-b border-gray-100">
+          <td class="py-1 font-mono text-xs">${v.version_id}</td>
+          <td class="text-xs text-gray-500">${(v.created_at || '').slice(0, 16)}</td>
+          <td class="text-xs">${v.operator || 'admin'}</td>
+          <td class="text-xs">${Object.keys(v.corpus_hashes || {}).length}</td>
+          <td class="text-xs">${(v.index_metrics || {}).total_size_mb || 0} MB</td>
+          <td class="text-xs text-gray-600">${v.notes || '--'}</td>
+          <td>
+            ${status.current_version === v.version_id ? '<span class="text-green-600 text-xs font-medium">当前</span>' : `<button onclick="rollbackKB('${v.version_id}')" class="text-blue-600 text-xs hover:underline">回滚</button>`}
+          </td>
+        </tr>
+      `).join('');
+    }
+  } catch(e) { toast('加载知识库失败: ' + e.message, 'error'); }
+}
+
+async function buildKBVersion() {
+  const notes = prompt('构建新版本备注（可选）:', '');
+  if (notes === null) return;
+  try {
+    const r = await fetch(`${API_BASE}/kb/build`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
+      body: JSON.stringify({ notes: notes || '' }),
+    });
+    const data = await r.json();
+    if (data.success) { toast('新版本构建完成: ' + data.version.version_id, 'success'); loadKB(); }
+    else { toast('构建失败: ' + (data.error || '未知错误'), 'error'); }
+  } catch(e) { toast('构建失败: ' + e.message, 'error'); }
+}
+
+async function rollbackKB(versionId) {
+  if (!confirm(`确定要回滚到版本 ${versionId} 吗？`)) return;
+  try {
+    const r = await fetch(`${API_BASE}/kb/rollback/${versionId}`, {
+      method: 'POST',
+      headers: { 'X-Admin-Token': adminToken },
+    });
+    const data = await r.json();
+    if (data.success) { toast('已回滚到 ' + versionId, 'success'); loadKB(); }
+    else { toast('回滚失败: ' + (data.error || '未知错误'), 'error'); }
+  } catch(e) { toast('回滚失败: ' + e.message, 'error'); }
 }
 
 // ========== A/B 配置面板 ==========

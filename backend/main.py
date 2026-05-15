@@ -4944,6 +4944,63 @@ async def admin_user_detail(user_id: str, limit: int = Query(20, le=100)):
     return get_user_detail(user_id, limit=limit)
 
 
+# ==================== 睡眠数据大盘 Admin API ====================
+
+@app.get("/api/v1/admin/sleep_dashboard")
+async def admin_sleep_dashboard(days: int = Query(30, le=90)):
+    """全平台睡眠数据大盘"""
+    from services.sleep_dashboard_admin import get_admin_sleep_dashboard
+    return get_admin_sleep_dashboard(days=days)
+
+
+# ==================== RAG 知识库版本管理 Admin API ====================
+
+@app.get("/api/v1/admin/kb/status")
+async def admin_kb_status():
+    """知识库当前状态"""
+    from services.kb_version import get_kb_status
+    return get_kb_status()
+
+
+@app.get("/api/v1/admin/kb/versions")
+async def admin_kb_versions(limit: int = Query(20, le=50)):
+    """知识库版本历史"""
+    from services.kb_version import get_kb_versions
+    return {"versions": get_kb_versions(limit=limit)}
+
+
+@app.post("/api/v1/admin/kb/build")
+async def admin_kb_build(request: Request):
+    """构建新知识库版本"""
+    from services.kb_version import create_kb_version
+    data = await request.json()
+    notes = data.get("notes", "")
+    # 先触发 RAG 索引重建
+    if RAG_AVAILABLE:
+        try:
+            build_rag_index(force=True)
+            if rag_index:
+                rag_index.load_index()
+        except Exception as e:
+            return {"success": False, "error": f"索引重建失败: {e}"}
+    result = create_kb_version(operator="admin", notes=notes)
+    return result
+
+
+@app.post("/api/v1/admin/kb/rollback/{version_id}")
+async def admin_kb_rollback(version_id: str):
+    """回滚到指定版本"""
+    from services.kb_version import rollback_kb_version
+    return rollback_kb_version(version_id, operator="admin")
+
+
+@app.delete("/api/v1/admin/kb/versions/{version_id}")
+async def admin_kb_delete_version(version_id: str):
+    """删除版本记录"""
+    from services.kb_version import delete_kb_version
+    return delete_kb_version(version_id, operator="admin")
+
+
 # ==================== 危机告警 Admin API ====================
 # 配套服务：services/crisis_alert.py
 # 数据流：cbt_manager.process_message 触发 _safety_response 时 emit_crisis_alert()
@@ -5066,6 +5123,60 @@ async def admin_crisis_ack(event_id: str, request: Request):
         raise HTTPException(status_code=400, detail=result.get("error", "操作失败"))
     log_admin_action("crisis_ack", operator, {"event_id": event_id, "note": note[:200]})
     return result
+
+
+# ==================== 危机告警 SSE 实时推送 ====================
+
+import asyncio
+
+@app.get("/api/v1/admin/crisis/stream")
+async def admin_crisis_stream():
+    """SSE 实时危机告警推送（每 5 秒检查一次新告警）"""
+    async def event_generator():
+        last_count = 0
+        last_alert_ids = set()
+        while True:
+            try:
+                from services.crisis_alert import KEY_PENDING, _load_event
+                current_count = int(redis_client.zcard(KEY_PENDING) or 0)
+                # 获取最新的 pending alert IDs
+                alert_ids = redis_client.zrevrange(KEY_PENDING, 0, 9)
+                alert_ids = [a.decode() if isinstance(a, bytes) else a for a in alert_ids]
+                current_ids = set(alert_ids)
+
+                # 如果有新告警（数量增加或有新ID）
+                new_ids = current_ids - last_alert_ids
+                if new_ids or current_count != last_count:
+                    last_count = current_count
+                    last_alert_ids = current_ids
+                    # 加载新告警详情
+                    alerts = []
+                    for aid in list(new_ids)[:5]:
+                        ev = _load_event(aid)
+                        if ev:
+                            alerts.append(ev)
+                    payload = json.dumps({
+                        "type": "crisis_update",
+                        "pending_count": current_count,
+                        "new_alerts": alerts,
+                        "timestamp": datetime.now().isoformat(),
+                    }, ensure_ascii=False)
+                    yield f"data: {payload}\n\n"
+
+                # 心跳保持连接
+                yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
+                await asyncio.sleep(5)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+                await asyncio.sleep(10)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+    )
 
 
 # ==================== 用户数据合规（GDPR/PIPL）====================

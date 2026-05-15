@@ -992,12 +992,12 @@ def get_health_history(hours: int = 24) -> List[Dict]:
 
 def _extract_user_date_from_key(key: str, pattern_prefix: str) -> tuple:
     """从 Redis key 中提取 user_id 和 date
-    支持: morning:{uid}:{YYYY-MM-DD}, sleep:diary:{uid}:{YYYY-MM-DD}, feedback:{uid}:{YYYYMMDD}
+    支持: morning:{uid}:{YYYY-MM-DD}, sleep_diary:{uid}:{YYYY-MM-DD}, feedback:{uid}:{YYYYMMDD}
     """
     try:
         parts = key.split(":")
         if len(parts) >= 3:
-            uid = parts[-2] if pattern_prefix in ("morning", "sleep:diary") else parts[1]
+            uid = parts[-2] if pattern_prefix in ("morning", "sleep_diary") else parts[1]
             date_str = parts[-1]
             # 尝试解析 YYYY-MM-DD 或 YYYYMMDD
             if len(date_str) == 8 and date_str.isdigit():
@@ -1039,9 +1039,9 @@ def get_retention_stats(days: int = 30) -> Dict[str, Any]:
         if uid and date_str:
             user_activity.setdefault(uid, set()).add(date_str)
 
-    # 3. sleep:diary:{uid}:{date}
-    for key in r.scan_iter(match="sleep:diary:*", count=100):
-        uid, date_str = _extract_user_date_from_key(key, "sleep:diary")
+    # 3. sleep_diary:{uid}:{date}
+    for key in r.scan_iter(match="sleep_diary:*", count=100):
+        uid, date_str = _extract_user_date_from_key(key, "sleep_diary")
         if uid and date_str:
             user_activity.setdefault(uid, set()).add(date_str)
 
