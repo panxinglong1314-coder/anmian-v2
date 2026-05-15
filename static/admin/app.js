@@ -834,20 +834,27 @@ async function showUserDetail(userId) {
 // ========== 服务器健康 ==========
 async function loadHealth() {
   const data = await fetchJSON(`${API_BASE}/health`);
+  // 防御：若后端返回错误结构，使用默认值
+  if (!data || data.error) {
+    document.getElementById('h-status').textContent = '加载失败';
+    document.getElementById('h-status').className = 'metric-value text-red-600';
+    return;
+  }
   const ok = data.status === 'healthy';
   document.getElementById('h-status').textContent = ok ? '运行正常' : '异常';
   document.getElementById('h-status').className = ok ? 'metric-value text-green-600' : 'metric-value text-red-600';
-  document.getElementById('h-redis-clients').textContent = data.redis?.clients != null ?? '--';
-  document.getElementById('h-redis-memory').textContent = data.redis?.used_memory_mb != null ? data.redis.used_memory_mb + ' MB' : '--';
-  document.getElementById('h-redis-uptime').textContent = data.redis?.uptime_days != null ? data.redis.uptime_days + ' 天' : '--';
-  document.getElementById('h-redis-keys').textContent = data.redis?.total_keys != null ?? '--';
-  document.getElementById('h-eval-records').textContent = data.evaluation?.records_30d != null ?? '--';
+  const redis = data.redis || {};
+  document.getElementById('h-redis-clients').textContent = redis.clients ?? '--';
+  document.getElementById('h-redis-memory').textContent = redis.used_memory_mb != null ? redis.used_memory_mb + ' MB' : '--';
+  document.getElementById('h-redis-uptime').textContent = redis.uptime_days != null ? redis.uptime_days + ' 天' : '--';
+  document.getElementById('h-redis-keys').textContent = redis.total_keys ?? '--';
+  document.getElementById('h-eval-records').textContent = data.evaluation?.records_30d ?? '--';
   const apiStats = data.api_stats || {};
   const bd = apiStats.breakdown || {};
-  document.getElementById('h-total-req').textContent = apiStats.total_requests ?? '--';
-  document.getElementById('h-llm-req').textContent = (bd.LLM?.requests != null) ? bd.LLM.requests : '0';
-  document.getElementById('h-asr-req').textContent = (bd.ASR?.requests != null) ? bd.ASR.requests : '0';
-  document.getElementById('h-tts-req').textContent = (bd.TTS?.requests != null) ? bd.TTS.requests : '0';
+  document.getElementById('h-total-req').textContent = apiStats.total_requests ?? '0';
+  document.getElementById('h-llm-req').textContent = bd.LLM?.requests ?? '0';
+  document.getElementById('h-asr-req').textContent = bd.ASR?.requests ?? '0';
+  document.getElementById('h-tts-req').textContent = bd.TTS?.requests ?? '0';
   document.getElementById('h-llm-rt').textContent = (bd.LLM?.avg_ms > 0) ? bd.LLM.avg_ms + 'ms' : '--';
   document.getElementById('h-llm-p95').textContent = (bd.LLM?.p95_ms > 0) ? bd.LLM.p95_ms + 'ms' : '--';
   document.getElementById('h-asr-rt').textContent = (bd.ASR?.avg_ms > 0) ? bd.ASR.avg_ms + 'ms' : '--';
@@ -866,9 +873,9 @@ async function loadHealth() {
   }
   // System metrics
   const sys = data.system || {};
-  document.getElementById('h-sys-load').textContent = sys.load_ratio ? sys.load_ratio.toFixed(2) + ' (核心比)' : '--';
+  document.getElementById('h-sys-load').textContent = sys.load_ratio != null ? sys.load_ratio.toFixed(2) + ' (核心比)' : '--';
   const memUsed = sys.memory_used_mb; const memTot = sys.memory_total_mb;
-  document.getElementById('h-sys-mem').textContent = (memUsed && memTot) ? memUsed + '/' + memTot + ' MB' : '--';
+  document.getElementById('h-sys-mem').textContent = (memUsed != null && memTot != null) ? memUsed + '/' + memTot + ' MB' : '--';
   document.getElementById('h-error').textContent = (data.issues && data.issues.length > 0) ? data.issues[0] : '无';
   document.getElementById('h-timestamp').textContent = data.timestamp ? data.timestamp.slice(0, 19).replace('T', ' ') : '--';
 
@@ -917,10 +924,17 @@ function renderHealthChart(data) {
 async function loadRetention() {
   const data = await fetchJSON(`${API_BASE}/retention?days=30`);
   const stats = data.daily_stats || [];
+
   if (!stats.length) {
     document.getElementById('retention-chart').innerHTML = emptyStateHTML('暂无留存数据', '', '📈');
+    document.getElementById('r-avg-dau').textContent = '0';
+    document.getElementById('r-total-users').textContent = '0';
+    document.getElementById('r-new-users').textContent = '0';
+    document.getElementById('r-retention-d1').textContent = '数据不足';
+    document.getElementById('r-retention-d7').textContent = '数据不足';
     return;
   }
+
   renderChart('retention-chart', {
     tooltip: { trigger: 'axis', axisPointer: { type: 'line' } },
     legend: { data: ['活跃用户', '新用户'], bottom: 0 },
@@ -939,8 +953,8 @@ async function loadRetention() {
   document.getElementById('r-avg-dau').textContent = avgDAU;
   document.getElementById('r-total-users').textContent = totalActive;
   document.getElementById('r-new-users').textContent = totalNew;
-  document.getElementById('r-retention-d1').textContent = data.retention?.d1 !== null ? data.retention.d1 + '%' : '数据不足';
-  document.getElementById('r-retention-d7').textContent = data.retention?.d7 !== null ? data.retention.d7 + '%' : '数据不足';
+  document.getElementById('r-retention-d1').textContent = data.retention?.d1 != null ? data.retention.d1 + '%' : '数据不足';
+  document.getElementById('r-retention-d7').textContent = data.retention?.d7 != null ? data.retention.d7 + '%' : '数据不足';
 }
 
 // ========== Charts ==========

@@ -858,89 +858,106 @@ def get_user_detail(user_id: str, limit: int = 20) -> Dict[str, Any]:
 # ==================== 服务器健康度 ====================
 
 def get_system_health() -> Dict[str, Any]:
+    """服务器健康检查 — 每个指标独立捕获异常，确保部分故障时仍返回可用数据"""
     issues = []
+    result = {
+        "status": "healthy",
+        "issues": [],
+        "redis": {"connected": False, "clients": None, "used_memory_mb": None, "uptime_days": None, "total_keys": None},
+        "evaluation": {"records_30d": 0},
+        "system": {"load_ratio": None, "memory_used_mb": None, "memory_total_mb": None},
+        "api_stats": {
+            "total_requests": 0, "total_errors": 0, "avg_response_ms": 0, "p95_response_ms": 0,
+            "uptime_since": datetime.fromtimestamp(_api_stats.get("last_reset", time.time())).isoformat(),
+            "breakdown": {"LLM": _build_cat_stats("LLM"), "ASR": _build_cat_stats("ASR"), "TTS": _build_cat_stats("TTS")},
+        },
+        "timestamp": datetime.now().isoformat(),
+    }
+
+    # 1. Redis 信息
     try:
         r = _get_redis()
+        if r.ping():
+            result["redis"]["connected"] = True
+        else:
+            issues.append("Redis ping失败")
         redis_info = r.info()
+        result["redis"]["clients"] = redis_info.get("connected_clients", 0)
+        result["redis"]["used_memory_mb"] = round(redis_info.get("used_memory", 0) / 1024 / 1024, 1)
+        result["redis"]["uptime_days"] = round(redis_info.get("uptime_in_days", 0), 1)
+        result["redis"]["total_keys"] = r.dbsize()
+    except Exception as e:
+        issues.append(f"Redis连接异常: {str(e)[:40]}")
+
+    # 2. CPU负载
+    try:
+        load1 = os.getloadavg()[0]
+        cpu_count = os.cpu_count() or 1
+        lr = load1 / cpu_count
+        result["system"]["load_ratio"] = round(lr, 2)
+        if lr > 2.0:
+            issues.append(f"CPU负载过高({lr:.1f})")
+    except Exception:
+        pass
+
+    # 3. 内存
+    try:
+        mem = os.popen("free -m 2>/dev/null | grep Mem: | awk '{print $3,$2}'").read().strip()
+        if mem:
+            parts = mem.split()
+            used_m = int(parts[0])
+            total_m = int(parts[1])
+            result["system"]["memory_used_mb"] = used_m
+            result["system"]["memory_total_mb"] = total_m
+            if total_m > 0 and used_m / total_m > 0.92:
+                issues.append(f"内存使用率过高({used_m}/{total_m}MB)")
+    except Exception:
+        pass
+
+    # 4. 磁盘
+    try:
+        du = os.popen("df / 2>/dev/null | tail -1 | awk '{print $5}'").read().strip()
+        if du and du.endswith("%"):
+            pct = int(du[:-1])
+            if pct > 90:
+                issues.append(f"磁盘使用率过高({du})")
+    except Exception:
+        pass
+
+    # 5. API 统计
+    try:
+        tot_req = _api_stats.get("total_requests", 0)
+        tot_err = _api_stats.get("total_errors", 0)
+        rt = _api_stats.get("response_times_ms", [])
+        avg_rt = round(sum(rt) / len(rt), 1) if rt else 0
+        p95_rt = round(sorted(rt)[int(len(rt) * 0.95)]) if rt else 0
+        result["api_stats"]["total_requests"] = tot_req
+        result["api_stats"]["total_errors"] = tot_err
+        result["api_stats"]["avg_response_ms"] = avg_rt
+        result["api_stats"]["p95_response_ms"] = p95_rt
+        if tot_req > 10 and tot_err / tot_req > 0.05:
+            issues.append(f"API错误率高({tot_err}/{tot_req})")
+    except Exception:
+        pass
+
+    # 6. 评估记录
+    try:
         eval_records = _load_evaluation_records(days=30)
-        rt = _api_stats["response_times_ms"]
-        avg_rt = round(sum(rt)/len(rt), 1) if rt else 0
-        p95_rt = round(sorted(rt)[int(len(rt)*0.95)]) if rt else 0
-
-        # 1. Redis连接检查
-        try:
-            if not r.ping(): issues.append("Redis ping失败")
-        except: issues.append("Redis连接异常")
-
-        # 2. CPU负载检查
-        try:
-            load1 = os.getloadavg()[0]
-            cpu_count = os.cpu_count() or 1
-            lr = load1 / cpu_count
-            if lr > 2.0: issues.append(f"CPU负载过高({lr:.1f})")
-        except: pass
-
-        # 3. 内存检查
-        try:
-            mem = os.popen("free -m 2>/dev/null | grep Mem: | awk '{print $3,$2}'").read().strip()
-            if mem:
-                parts = mem.split(); used_m = int(parts[0]); total_m = int(parts[1])
-                if total_m > 0 and used_m/total_m > 0.92: issues.append(f"内存使用率过高({used_m}/{total_m}MB)")
-        except: pass
-
-        # 4. 磁盘检查
-        try:
-            du = os.popen("df / 2>/dev/null | tail -1 | awk '{print $5}'").read().strip()
-            if du and du.endswith("%"):
-                pct = int(du[:-1])
-                if pct > 90: issues.append(f"磁盘使用率过高({du})")
-        except: pass
-
-        # 5. API错误率
-        tot_req = _api_stats["total_requests"]
-        tot_err = _api_stats["total_errors"]
-        if tot_req > 10 and tot_err/tot_req > 0.05: issues.append(f"API错误率高({tot_err}/{tot_req})")
-        #elif tot_req == 0: issues.append("API请求量为0(可能未接入)")
-
-        # 6. 评估/反馈记录检查（evaluation_tracking 或 feedback 任一有数据即可）
+        result["evaluation"]["records_30d"] = len(eval_records)
         if len(eval_records) == 0 and len(_load_feedback_records(days=30)) == 0:
             issues.append("近30天无评估/反馈记录")
+    except Exception:
+        pass
 
-        is_healthy = len(issues) == 0
-        # 保存健康快照（每小时最多1条）
+    # 7. 保存健康快照
+    try:
         _save_health_snapshot()
-        return {
-            "status": "healthy" if is_healthy else "unhealthy",
-            "issues": issues,
-            "redis": {
-                "connected": True,
-                "clients": redis_info.get("connected_clients", 0),
-                "used_memory_mb": round(redis_info.get("used_memory", 0)/1024/1024, 1),
-                "uptime_days": round(redis_info.get("uptime_in_days", 0), 1),
-                "total_keys": r.dbsize(),
-            },
-            "evaluation": {"records_30d": len(eval_records)},
-            "system": {
-                "load_ratio": round(lr, 2) if "lr" in dir() else None,
-                "memory_used_mb": int(used_m) if "used_m" in dir() else None,
-                "memory_total_mb": int(total_m) if "total_m" in dir() else None,
-            },
-            "api_stats": {
-                "total_requests": tot_req,
-                "total_errors": tot_err,
-                "avg_response_ms": avg_rt,
-                "p95_response_ms": p95_rt,
-                "uptime_since": datetime.fromtimestamp(_api_stats["last_reset"]).isoformat(),
-                "breakdown": {
-                    "LLM": _build_cat_stats("LLM"),
-                    "ASR": _build_cat_stats("ASR"),
-                    "TTS": _build_cat_stats("TTS"),
-                },
-            },
-            "timestamp": datetime.now().isoformat(),
-        }
-    except Exception as e:
-        return {"status": "unhealthy", "issues": [f"健康检查异常:{str(e)}"], "timestamp": datetime.now().isoformat()}
+    except Exception:
+        pass
+
+    result["issues"] = issues
+    result["status"] = "healthy" if len(issues) == 0 else "unhealthy"
+    return result
 
 
 
@@ -1032,6 +1049,7 @@ def get_retention_stats(days: int = 30) -> Dict[str, Any]:
     cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     date_range = [(datetime.now() - timedelta(days=days - 1 - i)).strftime("%Y-%m-%d") for i in range(days)]
 
+    # 确保返回完整的日期数组（包括 0 值），避免前端因空数组提前返回
     daily_stats = []
     for d in date_range:
         active_users = sum(1 for uid, dates in user_activity.items() if d in dates)
