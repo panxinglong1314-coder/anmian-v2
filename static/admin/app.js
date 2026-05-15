@@ -875,7 +875,9 @@ async function loadHealth() {
   const sys = data.system || {};
   document.getElementById('h-sys-load').textContent = sys.load_ratio != null ? sys.load_ratio.toFixed(2) + ' (核心比)' : '--';
   const memUsed = sys.memory_used_mb; const memTot = sys.memory_total_mb;
-  document.getElementById('h-sys-mem').textContent = (memUsed != null && memTot != null) ? memUsed + '/' + memTot + ' MB' : '--';
+  document.getElementById('h-sys-mem').textContent = (memUsed != null && memTot != null) ? memUsed + '/' + memTot + ' MB (' + Math.round(memUsed/memTot*100) + '%)' : '--';
+  const diskUsed = sys.disk_used_mb; const diskTot = sys.disk_total_mb; const diskPct = sys.disk_percent;
+  document.getElementById('h-sys-disk').textContent = (diskUsed != null && diskTot != null && diskPct != null) ? diskUsed + '/' + diskTot + ' MB (' + diskPct + '%)' : '--';
   document.getElementById('h-error').textContent = (data.issues && data.issues.length > 0) ? data.issues[0] : '无';
   document.getElementById('h-timestamp').textContent = data.timestamp ? data.timestamp.slice(0, 19).replace('T', ' ') : '--';
 

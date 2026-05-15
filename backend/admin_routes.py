@@ -142,12 +142,15 @@ def _save_health_snapshot():
             return
         rt = _api_stats["response_times_ms"]
         avg_rt = round(sum(rt)/len(rt), 1) if rt else 0
+        import shutil as _shutil
+        disk = _shutil.disk_usage('/')
         snapshot = {
             "timestamp": now.isoformat(),
             "total_requests": _api_stats["total_requests"],
             "total_errors": _api_stats["total_errors"],
             "avg_response_ms": avg_rt,
             "redis_keys": r.dbsize(),
+            "disk_percent": round(disk.used / disk.total * 100),
         }
         r.lpush("health:history", json.dumps(snapshot, ensure_ascii=False))
         r.ltrim("health:history", 0, 24 * 7 - 1)  # 保留7天
@@ -866,7 +869,7 @@ def get_system_health() -> Dict[str, Any]:
         "issues": [],
         "redis": {"connected": False, "clients": None, "used_memory_mb": None, "uptime_days": None, "total_keys": None},
         "evaluation": {"records_30d": 0},
-        "system": {"load_ratio": None, "memory_used_mb": None, "memory_total_mb": None},
+        "system": {"load_ratio": None, "memory_used_mb": None, "memory_total_mb": None, "disk_used_mb": None, "disk_total_mb": None, "disk_percent": None},
         "api_stats": {
             "total_requests": 0, "total_errors": 0, "avg_response_ms": 0, "p95_response_ms": 0,
             "uptime_since": datetime.fromtimestamp(_api_stats.get("last_reset", time.time())).isoformat(),
@@ -917,11 +920,16 @@ def get_system_health() -> Dict[str, Any]:
 
     # 4. 磁盘
     try:
-        du = os.popen("df / 2>/dev/null | tail -1 | awk '{print $5}'").read().strip()
-        if du and du.endswith("%"):
-            pct = int(du[:-1])
-            if pct > 90:
-                issues.append(f"磁盘使用率过高({du})")
+        import shutil as _shutil
+        disk = _shutil.disk_usage('/')
+        total_mb = disk.total / 1024 / 1024
+        used_mb = disk.used / 1024 / 1024
+        pct = round(disk.used / disk.total * 100)
+        result["system"]["disk_total_mb"] = round(total_mb)
+        result["system"]["disk_used_mb"] = round(used_mb)
+        result["system"]["disk_percent"] = pct
+        if pct > 90:
+            issues.append(f"磁盘使用率过高({pct}%)")
     except Exception:
         pass
 
