@@ -468,10 +468,14 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
                 jwt_valid = False
                 if auth.lower().startswith("bearer "):
                     jwt_valid = verify_admin_jwt(auth[7:].strip())
-                # 兼容旧 X-Admin-Token
+                # 兼容旧 X-Admin-Token + query token（EventSource 无法自定义 header）
                 if not jwt_valid:
                     old_token = request.headers.get("X-Admin-Token", "")
                     jwt_valid = (old_token == ADMIN_TOKEN)
+                    if not jwt_valid:
+                        # SSE endpoint passes token via query param
+                        query_token = request.query_params.get("token", "")
+                        jwt_valid = (query_token == ADMIN_TOKEN)
                 if not jwt_valid:
                     from fastapi.responses import JSONResponse
                     return JSONResponse({"error": "未授权"}, status_code=401)
@@ -5100,38 +5104,14 @@ async def admin_feedback_llm_stats(months: int = Query(3, le=12)):
     return {"months": months, "stats": out, "current_provider": settings.llm_provider}
 
 
-@app.get("/api/v1/admin/crisis/{event_id}")
-async def admin_crisis_event_detail(event_id: str):
-    """单条事件详情"""
-    ev = _crisis_event(event_id)
-    if not ev:
-        raise HTTPException(status_code=404, detail="事件不存在或已过期")
-    return ev
-
-
-@app.post("/api/v1/admin/crisis/{event_id}/ack")
-async def admin_crisis_ack(event_id: str, request: Request):
-    """标记已处理"""
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    operator = (body.get("operator") or "admin").strip()[:64]
-    note = (body.get("note") or "").strip()[:1000]
-    result = _crisis_ack(event_id, operator=operator, note=note)
-    if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "操作失败"))
-    log_admin_action("crisis_ack", operator, {"event_id": event_id, "note": note[:200]})
-    return result
-
-
-# ==================== 危机告警 SSE 实时推送 ====================
-
-import asyncio
-
 @app.get("/api/v1/admin/crisis/stream")
-async def admin_crisis_stream():
+async def admin_crisis_stream(request: Request):
     """SSE 实时危机告警推送（每 5 秒检查一次新告警）"""
+    # 优先从 query token 获取（EventSource 无法自定义 header）
+    token = request.query_params.get("token") or request.headers.get("X-Admin-Token", "")
+    if not token:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": "Unauthorized, token required for SSE"}, status_code=401)
     async def event_generator():
         last_count = 0
         last_alert_ids = set()
@@ -5178,6 +5158,35 @@ async def admin_crisis_stream():
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )
 
+
+@app.get("/api/v1/admin/crisis/{event_id}")
+async def admin_crisis_event_detail(event_id: str):
+    """单条事件详情"""
+    ev = _crisis_event(event_id)
+    if not ev:
+        raise HTTPException(status_code=404, detail="事件不存在或已过期")
+    return ev
+
+
+@app.post("/api/v1/admin/crisis/{event_id}/ack")
+async def admin_crisis_ack(event_id: str, request: Request):
+    """标记已处理"""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    operator = (body.get("operator") or "admin").strip()[:64]
+    note = (body.get("note") or "").strip()[:1000]
+    result = _crisis_ack(event_id, operator=operator, note=note)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "操作失败"))
+    log_admin_action("crisis_ack", operator, {"event_id": event_id, "note": note[:200]})
+    return result
+
+
+# ==================== 危机告警 SSE 实时推送 ====================
+
+import asyncio
 
 # ==================== 用户数据合规（GDPR/PIPL）====================
 

@@ -446,7 +446,7 @@ function _startCrisisSSE() {
   if (crisisSseSource) { crisisSseSource.close(); }
   if (!adminToken) return;
   try {
-    const url = `${API_BASE.replace('/api/v1/admin', '')}/api/v1/admin/crisis/stream`;
+    const url = `${API_BASE.replace('/api/v1/admin', '')}/api/v1/admin/crisis/stream?token=${adminToken}`;
     crisisSseSource = new EventSource(url);
     crisisSseSource.onmessage = (e) => {
       try {
