@@ -21,7 +21,8 @@ function toast(message, type = 'info', duration = 3000) {
 function showModal(content, title = '详情') {
   const modal = document.getElementById('suggestion-modal');
   document.getElementById('suggestion-modal-body').textContent = content;
-  document.querySelector('.modal-title').textContent = title;
+  const titleEl = document.getElementById('suggestion-modal-title');
+  if (titleEl) titleEl.textContent = title;
   modal.classList.remove('hidden');
 }
 function hideModal() { document.getElementById('suggestion-modal').classList.add('hidden'); }
