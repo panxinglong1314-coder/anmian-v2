@@ -97,6 +97,8 @@ Page({
     cbtTrailText: '',   // 单行阶段提示，如 "今晚 · 担心 · 角度 · 放松 · 晚安"，当前位置加亮
     showCbtPhase: false,
     cbtStepIndex: -1,
+    // 【2026-05-15】Closure 仪式感：12 秒"晚安"情感高潮（月亮慢呼吸+屏幕缓暗+文字金光）
+    closureActive: false,
     statusText: '准备入睡',
     statusHint: '点击下方按钮，将手机放在枕边',
     conversationLog: [],
@@ -429,6 +431,7 @@ Page({
     if (this._companionTimer) clearTimeout(this._companionTimer)
     if (this._stimulusControlTimer) clearTimeout(this._stimulusControlTimer)
     try { innerAudioContext.volume = 0 } catch (e) {}
+    if (this._closureTimer) { clearTimeout(this._closureTimer); this._closureTimer = null }
     this.setData({
       sleepModeActive: false, isListening: false,
       isRecording: false, audioLevel: 0,
@@ -439,6 +442,7 @@ Page({
       companionLevel: 0,
       showStimulusCard: false,
       showCbtPhase: false,
+      closureActive: false,  // 退出睡眠时清 closure 仪式状态
     })
   },
 
@@ -1150,6 +1154,23 @@ Page({
                 showCbtPhase: true,
               })
               console.log("[CBT-UI] phase=", phaseKey, "label=", label, "step=", stepIndex)
+
+              // 【2026-05-15 closure 仪式感】检测进入 closure 阶段
+              // 12 秒情感高潮：月亮慢呼吸 + 屏幕缓暗 + 文字放大金光 + 元素让位
+              const enteringClosure = (phaseKey === 'closure' || phase.response_type === 'closure')
+              if (enteringClosure && !this.data.closureActive) {
+                console.log("[Closure 仪式] 触发 — 12 秒晚安情感高潮")
+                this.setData({ closureActive: true })
+                // 仪式开始 → 短震动（"我准备让你休息了"）
+                try { wx.vibrateShort({ type: 'light' }) } catch (e) {}
+                // 12 秒后自动结束仪式（但保持暗背景，让用户自然过渡到睡眠）
+                if (this._closureTimer) clearTimeout(this._closureTimer)
+                this._closureTimer = setTimeout(() => {
+                  console.log("[Closure 仪式] 12s 完成")
+                  // 不重置 closureActive — 让屏幕保持低亮度，触发褪黑素
+                  // 用户切到文字模式或手动操作时再清
+                }, 12000)
+              }
             } else {
               this.setData({ showCbtPhase: false, cbtStepIndex: -1, cbtTrailText: '' })
             }

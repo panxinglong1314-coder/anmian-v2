@@ -812,6 +812,91 @@
 }
 
 /* ================================================
+   🌙 CLOSURE 仪式感（2026-05-15）
+   ================================================
+   12 秒"晚安"情感高潮 — 产品最大差异化时刻。
+   设计原则：
+   - 不打断主流程（LLM 文字/TTS 正常流），只增强视觉氛围
+   - 让月亮成为绝对焦点（其他元素让位）
+   - 屏幕亮度缓降 22%（科学：触发褪黑素分泌）
+   - 月亮 6 秒呼吸（同步副交感神经放松节奏）
+   - 时间总长 12s，结束后保持低亮度状态直到用户切换
+   ================================================ */
+
+/* 整体容器：8 秒后亮度缓降 */
+.sleep-mode.closure-active {
+  animation: closureScreenDim 12s ease-out forwards;
+}
+@keyframes closureScreenDim {
+  0%   { filter: brightness(1) saturate(1); }
+  50%  { filter: brightness(0.95) saturate(0.98); }
+  100% { filter: brightness(0.78) saturate(0.92); }
+}
+
+/* 月亮慢呼吸（取代普通 listening 脉冲）*/
+.sleep-mode.closure-active .sleep-moon {
+  animation: closureMoonBreathe 6s ease-in-out infinite !important;
+  filter: drop-shadow(0 0 60rpx rgba(245,200,105,0.75)) !important;
+}
+@keyframes closureMoonBreathe {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 50rpx rgba(245,200,105,0.55));
+  }
+  50% {
+    transform: scale(1.22);
+    filter: drop-shadow(0 0 110rpx rgba(245,200,105,0.95));
+  }
+}
+
+/* 主标题"准备睡觉"：放大 + 金光 */
+.sleep-mode.closure-active .sleep-status {
+  font-size: 52rpx !important;
+  color: #F5C869 !important;
+  text-shadow: 0 0 24rpx rgba(245,200,105,0.45);
+  letter-spacing: 2rpx;
+  animation: closureFadeUp 1.6s ease-out;
+}
+
+/* 副标题"把它放下..."：放大 + 慢淡入 */
+.sleep-mode.closure-active .sleep-hint {
+  font-size: 30rpx !important;
+  color: rgba(245,200,105,0.6) !important;
+  letter-spacing: 1rpx;
+  opacity: 0;
+  animation: closureFadeUp 2s ease-out 0.8s forwards;
+}
+
+/* breadcrumb 在仪式时隐藏（让位） */
+.sleep-mode.closure-active .cbt-trail {
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+
+/* 非核心元素让位（sub-banner / 白噪音 / 大按钮 / 声波）*/
+.sleep-mode.closure-active ~ .sub-banner,
+.sleep-mode.closure-active .sound-section,
+.sleep-mode.closure-active .sleep-btn-area,
+.sleep-mode.closure-active .sound-viz,
+.sleep-mode.closure-active .mode-toggle-pill {
+  opacity: 0.25;
+  pointer-events: none;
+  transition: opacity 2s ease;
+}
+
+/* 氛围光圈在仪式时加强（4 秒涟漪 → 6 秒，更慢） */
+.sleep-mode.closure-active::before,
+.sleep-mode.closure-active::after {
+  animation-duration: 6s !important;
+  border-color: rgba(245,200,105,0.18) !important;
+}
+
+@keyframes closureFadeUp {
+  from { opacity: 0; transform: translateY(8rpx); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ================================================
    CBT 阶段指示（2026-05-15 改造：去 5-step 进度条，改"低调阶段提示"）
    设计原则：CBT-I 强调"陪伴不是流程"，避免给用户"还有 X 步才结束"的审视感。
    - phase-name: 月亮下方主标题（48rpx，金色）

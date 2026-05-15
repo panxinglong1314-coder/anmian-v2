@@ -26,7 +26,7 @@
   <!-- ================================================
        睡眠模式（默认）
        ================================================ -->
-  <view wx:if="{{mode === 'sleep'}}" class="sleep-mode">
+  <view wx:if="{{mode === 'sleep'}}" class="sleep-mode {{closureActive ? 'closure-active' : ''}}">
 
     <!-- 模式切换（右上角浮层） -->
     <view class="sleep-header-actions">
