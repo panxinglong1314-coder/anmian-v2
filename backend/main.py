@@ -2549,6 +2549,21 @@ async def _chat_events(req: ChatRequest, user_id: str):
     except Exception:
         pass
 
+    # 【2026-05-15】兜底注入 phase_label/phase_hint/step_index
+    # 即便某些 response 函数没经过 _build_response（如 _worry_capture_response/_closure_response），
+    # 这里也能根据 state.phase 补上 UI 字段。
+    if "phase_label" not in cbt_result or not cbt_result.get("phase_label"):
+        try:
+            _phase = cbt_result.get("state_update", {}).get("phase", "")
+            _ui = cbt_manager.PHASE_UI_MAP.get(_phase, {"label": "", "hint": "", "step": -1})
+            cbt_result["phase_label"] = _ui["label"]
+            cbt_result["phase_hint"] = _ui["hint"]
+            cbt_result["step_index"] = _ui["step"]
+        except Exception:
+            cbt_result.setdefault("phase_label", "")
+            cbt_result.setdefault("phase_hint", "")
+            cbt_result.setdefault("step_index", -1)
+
     yield {"event": "cbt_state", "data": cbt_result}
 
     # 获取 TTS 参数（语速由 CBT 状态决定，不从 LLM 输出解析）

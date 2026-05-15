@@ -1265,6 +1265,19 @@ class CBTManager:
         """继续当前阶段的响应——由 LLM 动态生成"""
         return self._build_response("text", "[continue]", state)
 
+    # ── 【2026-05-15】CBT 阶段 → 前端 UI 标签映射 ─────────────────
+    # 让前端能用一致的中文短句展示当前阶段，作为月亮下方的"语义标题 + 副提示"
+    # 不是流程进度条（用户感觉被审视），是"陪伴感的节奏暗示"
+    PHASE_UI_MAP = {
+        "assessment":     {"label": "说说今晚",  "hint": "今晚怎么样，慢慢说",          "step": 0},
+        "worry_capture":  {"label": "说出担心",  "hint": "把心里的事说出来",           "step": 1},
+        "cognitive":      {"label": "换个角度",  "hint": "再听听另一种可能",           "step": 2},
+        "relaxation":     {"label": "身体放松",  "hint": "跟着呼吸慢下来",             "step": 3},
+        "closure":        {"label": "准备睡觉",  "hint": "把它放下，让睡眠自己来",      "step": 4},
+        "safety":         {"label": "安全优先",  "hint": "你不是一个人",               "step": -1},
+        "normal_chat":    {"label": "",          "hint": "",                          "step": -1},
+    }
+
     def _build_response(self, response_type: str, content: str, state: SessionState) -> Dict[str, Any]:
         """构建通用响应结构（语音参数按 response_type 覆盖焦虑等级）"""
         base_params = self.TTS_PARAMS_BY_ANXIETY.get(state.anxiety_level, self.TTS_PARAMS_BY_ANXIETY[AnxietyLevel.NORMAL]).copy()
@@ -1272,13 +1285,21 @@ class CBTManager:
         style_params = self.TTS_ADJUSTMENTS_BY_USER_STYLE.get(state.user_style, {})
         tts_params = {**base_params, **type_params, **style_params}
 
+        # 阶段 UI 信息（给前端用，非流程感）
+        phase_key = state.phase.value if hasattr(state.phase, 'value') else str(state.phase)
+        ui = self.PHASE_UI_MAP.get(phase_key, {"label": "", "hint": "", "step": -1})
+
         return {
             "response_type": response_type,
             "content": content,
             "tts_params": tts_params,
             "state_update": _serialize_state(state),
             "next_phase": state.phase.value,
-            "should_close": False
+            "should_close": False,
+            # 【2026-05-15】前端 UI 字段（取代旧的 5-step 进度条）
+            "phase_label": ui["label"],
+            "phase_hint": ui["hint"],
+            "step_index": ui["step"],
         }
 
     PHASE_INSTRUCTIONS = {

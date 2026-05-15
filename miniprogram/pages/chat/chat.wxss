@@ -786,80 +786,31 @@
 }
 
 /* ================================================
-   CBT 阶段进度指示器
+   CBT 阶段指示（2026-05-15 改造：去 5-step 进度条，改"低调阶段提示"）
+   设计原则：CBT-I 强调"陪伴不是流程"，避免给用户"还有 X 步才结束"的审视感。
+   - phase-name: 月亮下方主标题（48rpx，金色）
+   - phase-hint: 副标题，柔和氛围
+   - cbt-trail: 单行 breadcrumb 极淡灰色，给"有节奏但不强调"的暗示
    ================================================ */
-.cbt-phase-area {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12rpx;
-  padding: 16rpx 24rpx;
-}
-
-.cbt-phase-steps {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.cbt-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6rpx;
-}
-
-.cbt-dot {
-  width: 12rpx;
-  height: 12rpx;
-  border-radius: 50%;
-  background: rgba(139, 163, 185, 0.3);
-  transition: all 0.3s ease;
-}
-
-.cbt-step.active .cbt-dot {
-  background: #F5C869;
-  box-shadow: 0 0 8rpx rgba(245, 200, 105, 0.5);
-}
-
-.cbt-step.done .cbt-dot {
-  background: rgba(126, 200, 163, 0.8);
-}
-
-.cbt-label {
-  font-size: 20rpx;
-  color: rgba(139, 163, 185, 0.6);
-  transition: color 0.3s ease;
-}
-
-.cbt-step.active .cbt-label {
-  color: #F5C869;
-  font-weight: 600;
-}
-
-.cbt-step.done .cbt-label {
-  color: rgba(139, 163, 185, 0.5);
-}
-
-.cbt-line {
-  width: 24rpx;
-  height: 2rpx;
-  background: rgba(139, 163, 185, 0.2);
-  margin: 0 4rpx;
-  margin-bottom: 20rpx;
-  transition: all 0.3s ease;
-}
-
-.cbt-line.done {
-  background: rgba(126, 200, 163, 0.5);
-}
-
 .cbt-phase-hint {
   font-size: 22rpx;
   color: #8BA3B9;
   text-align: center;
   opacity: 0.7;
   animation: fadeIn 0.3s ease;
+}
+
+.cbt-trail {
+  font-size: 20rpx;
+  color: rgba(139, 163, 185, 0.35);
+  letter-spacing: 2rpx;
+  margin-top: 10rpx;
+  text-align: center;
+  animation: fadeIn 0.4s ease;
+}
+.cbt-trail .current {
+  color: rgba(245, 200, 105, 0.7);
+  font-weight: 500;
 }
 
 @keyframes fadeIn {

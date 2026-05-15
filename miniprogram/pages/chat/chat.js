@@ -90,10 +90,11 @@ Page({
     isRecording: false,
     audioLevel: 0,
 
-    // CBT 阶段进度
+    // CBT 阶段（2026-05-15 改造：去 5-step 进度条，改单行 breadcrumb）
     cbtPhase: '',
     cbtPhaseLabel: '',
     cbtPhaseHint: '',
+    cbtTrailText: '',   // 单行阶段提示，如 "今晚 · 担心 · 角度 · 放松 · 晚安"，当前位置加亮
     showCbtPhase: false,
     cbtStepIndex: -1,
     statusText: '准备入睡',
@@ -1133,17 +1134,24 @@ Page({
             const label = phase.phase_label || ''
             const hint = phase.phase_hint || ''
             const stepIndex = phase.step_index !== undefined ? phase.step_index : -1
-            if (label && phase.phase !== 'normal_chat' && phase.phase !== 'safety') {
+            // 取阶段（注意：phase 字段在 state_update 里）
+            const phaseKey = (phase.state_update && phase.state_update.phase) || phase.phase || ''
+            if (label && phaseKey !== 'normal_chat' && phaseKey !== 'safety') {
+              // 【2026-05-15】生成单行 breadcrumb：今晚 · 担心 · 角度 · 放松 · 晚安
+              // 当前位置突出显示。给"有节奏但不审视"的暗示。
+              const STEPS = ['今晚', '担心', '角度', '放松', '晚安']
+              const trail = STEPS.map((s, i) => i === stepIndex ? `『${s}』` : s).join(' · ')
               this.setData({
-                cbtPhase: phase.phase,
+                cbtPhase: phaseKey,
                 cbtPhaseLabel: label,
                 cbtPhaseHint: hint,
                 cbtStepIndex: stepIndex,
+                cbtTrailText: stepIndex >= 0 ? trail : '',
                 showCbtPhase: true,
               })
-              console.log("[CBT-UI] phase=", phase.phase, "label=", label, "hint=", hint, "step=", stepIndex)
+              console.log("[CBT-UI] phase=", phaseKey, "label=", label, "step=", stepIndex)
             } else {
-              this.setData({ showCbtPhase: false, cbtStepIndex: -1 })
+              this.setData({ showCbtPhase: false, cbtStepIndex: -1, cbtTrailText: '' })
             }
           }
           // 兼容新版按句合成（tts_sentence：完整 MP3）
