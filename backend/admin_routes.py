@@ -25,9 +25,10 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "") or None
 REDIS_DB = 0
 EVAL_TRACK_DIR = Path(__file__).parent.parent / "evaluation_tracking"
 
-def _get_redis():
+def _get_redis(socket_timeout: float = 5.0):
     return redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
-                       password=REDIS_PASSWORD, decode_responses=True)
+                       password=REDIS_PASSWORD, decode_responses=True,
+                       socket_timeout=socket_timeout, socket_connect_timeout=socket_timeout)
 
 # API调用统计（优先从Redis加载，持久化 survives 重启）
 _API_STATS_KEY = "admin:api_stats"
