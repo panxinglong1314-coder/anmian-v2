@@ -158,6 +158,9 @@
       <div class="nav-item" data-page="health" onclick="showPage('health')">
         <span class="icon">🖥️</span>服务器监控
       </div>
+      <div class="nav-item" data-page="abconfig" onclick="showPage('abconfig')">
+        <span class="icon">⚙️</span>A/B 配置
+      </div>
     </nav>
     <div class="border-t border-gray-700/50 p-3">
       <div class="flex items-center justify-between text-xs text-gray-500">
@@ -454,6 +457,70 @@
         <div class="card">
           <div class="card-header"><span class="card-title">每日活跃用户趋势（近30天）</span></div>
           <div class="card-body"><div id="retention-chart" style="height:300px"></div></div>
+        </div>
+      </div>
+
+      <!-- A/B 配置面板 -->
+      <div id="page-abconfig" class="page hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-bold text-gray-800">A/B 测试配置</h2>
+          <div class="flex gap-2">
+            <button onclick="resetABConfig()" class="btn btn-default btn-sm">↺ 重置默认</button>
+            <button onclick="saveABConfig()" class="btn btn-primary btn-sm">💾 保存配置</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <!-- SRT 阈值 -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">🛏️ SRT 睡眠限制阈值</span></div>
+            <div class="card-body space-y-3" id="ab-srt-form">
+              <div class="form-row"><label>SE 优化门槛 (%)</label><input type="number" id="ab-se-optimizing" min="80" max="95" class="input w-24"></div>
+              <div class="form-row"><label>SE 稳定门槛 (%)</label><input type="number" id="ab-se-stable" min="75" max="90" class="input w-24"></div>
+              <div class="form-row"><label>最小 TIB (小时)</label><input type="number" id="ab-min-tib" min="3" max="6" step="0.5" class="input w-24"></div>
+              <div class="form-row"><label>最大 TIB (小时)</label><input type="number" id="ab-max-tib" min="7" max="9" step="0.5" class="input w-24"></div>
+              <div class="form-row"><label>缓冲时间 (分钟)</label><input type="number" id="ab-buffer" min="15" max="60" class="input w-24"></div>
+              <div class="form-row"><label>扩展增量 (分钟)</label><input type="number" id="ab-expansion" min="5" max="30" class="input w-24"></div>
+            </div>
+          </div>
+          <!-- Prompt 配置 -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">📝 Prompt 配置</span></div>
+            <div class="card-body space-y-3" id="ab-prompt-form">
+              <div class="form-row flex items-center gap-2"><input type="checkbox" id="ab-enable-rag" class="checkbox"><label>启用 RAG 知识库</label></div>
+              <div class="form-row flex items-center gap-2"><input type="checkbox" id="ab-anxiety-detect" class="checkbox"><label>启用焦虑检测</label></div>
+              <div class="form-row"><label>最大上下文轮次</label><input type="number" id="ab-max-turns" min="3" max="40" class="input w-24"></div>
+              <div class="form-row">
+                <label>自定义系统 Prompt（留空使用默认）</label>
+                <textarea id="ab-system-prompt" rows="6" class="input w-full text-xs font-mono" placeholder="留空则使用默认 CBT_SYSTEM_PROMPT"></textarea>
+                <div class="text-xs text-gray-400 mt-1">当前字数: <span id="ab-prompt-len">0</span> | 建议 ≥ 200 字</div>
+              </div>
+            </div>
+          </div>
+          <!-- TTS 配置 -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">🔊 TTS 默认参数</span></div>
+            <div class="card-body space-y-3" id="ab-tts-form">
+              <div class="form-row"><label>默认音色</label>
+                <select id="ab-tts-voice" class="input w-40">
+                  <option value="female_warm">female_warm (温暖女声)</option>
+                  <option value="male_calm">male_calm (沉稳男声)</option>
+                  <option value="female_young">female_young (年轻女声)</option>
+                </select>
+              </div>
+              <div class="form-row"><label>默认语速</label><input type="number" id="ab-tts-speed" min="0.5" max="2.0" step="0.1" class="input w-24"></div>
+              <div class="form-row"><label>最大文本长度</label><input type="number" id="ab-tts-maxlen" min="200" max="1000" class="input w-24"></div>
+            </div>
+          </div>
+          <!-- 变更历史 -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">📜 变更历史</span></div>
+            <div class="card-body">
+              <table class="w-full text-sm">
+                <thead><tr class="text-gray-500 border-b"><th class="text-left py-1">时间</th><th class="text-left">操作人</th><th class="text-left">变更内容</th></tr></thead>
+                <tbody id="ab-history-body"><tr><td colspan="3" class="text-gray-400 py-2">加载中...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 

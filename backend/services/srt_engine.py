@@ -18,10 +18,7 @@ from infra.redis_client import redis_client
 from services.sleep_stats import get_sleep_diary
 
 
-# ===== 常量 =====
-MIN_TIB_MINUTES = 4 * 60       # 240 min
-MAX_TIB_MINUTES = int(8.5 * 60)  # 510 min — 必须是 int，否则 f"{:02d}" 格式化会崩
-
+# ===== 常量（保留作为默认值，运行时优先从 ab_config 读取）=====
 PHASE_LABELS = {
     "learning": "学习期",
     "restricting": "限制期",
@@ -30,11 +27,49 @@ PHASE_LABELS = {
     "maintenance": "维持期",
 }
 
-BUFFER_MINUTES = 30            # TST + 30min 缓冲
-EXPANSION_MINUTES = 15         # SE ≥ 90% 连续7天时的扩展量
-SE_OPTIMIZING = 90             # 进入优化阶段门槛
-SE_STABLE = 85                 # 进入稳定阶段门槛
-MAX_TIB_UPPER = 9 * 60         # 绝对上限 9h
+# 硬编码默认值（当 ab_config 不可用时回退）
+_DEFAULT_MIN_TIB_MINUTES = 4 * 60
+_DEFAULT_MAX_TIB_MINUTES = int(8.5 * 60)
+_DEFAULT_BUFFER_MINUTES = 30
+_DEFAULT_EXPANSION_MINUTES = 15
+_DEFAULT_SE_OPTIMIZING = 90
+_DEFAULT_SE_STABLE = 85
+_DEFAULT_MAX_TIB_UPPER = 9 * 60
+
+# 向后兼容的模块级常量别名（测试代码仍可直接导入）
+MIN_TIB_MINUTES = _DEFAULT_MIN_TIB_MINUTES
+MAX_TIB_MINUTES = _DEFAULT_MAX_TIB_MINUTES
+BUFFER_MINUTES = _DEFAULT_BUFFER_MINUTES
+EXPANSION_MINUTES = _DEFAULT_EXPANSION_MINUTES
+SE_OPTIMIZING = _DEFAULT_SE_OPTIMIZING
+SE_STABLE = _DEFAULT_SE_STABLE
+MAX_TIB_UPPER = _DEFAULT_MAX_TIB_UPPER
+
+
+def _get_srt_constants():
+    """从 A/B 配置读取 SRT 常量，失败则回退到默认值"""
+    try:
+        from services.ab_config import get_ab_config
+        cfg = get_ab_config().get("srt", {})
+        return {
+            "MIN_TIB_MINUTES": int(cfg.get("min_tib_hours", 4) * 60),
+            "MAX_TIB_MINUTES": int(cfg.get("max_tib_hours", 8.5) * 60),
+            "BUFFER_MINUTES": cfg.get("buffer_minutes", 30),
+            "EXPANSION_MINUTES": cfg.get("expansion_minutes", 15),
+            "SE_OPTIMIZING": cfg.get("se_optimizing", 90),
+            "SE_STABLE": cfg.get("se_stable", 85),
+            "MAX_TIB_UPPER": int(cfg.get("max_tib_upper_hours", 9) * 60),
+        }
+    except Exception:
+        return {
+            "MIN_TIB_MINUTES": _DEFAULT_MIN_TIB_MINUTES,
+            "MAX_TIB_MINUTES": _DEFAULT_MAX_TIB_MINUTES,
+            "BUFFER_MINUTES": _DEFAULT_BUFFER_MINUTES,
+            "EXPANSION_MINUTES": _DEFAULT_EXPANSION_MINUTES,
+            "SE_OPTIMIZING": _DEFAULT_SE_OPTIMIZING,
+            "SE_STABLE": _DEFAULT_SE_STABLE,
+            "MAX_TIB_UPPER": _DEFAULT_MAX_TIB_UPPER,
+        }
 
 
 # ===== 时间工具 =====
@@ -131,26 +166,30 @@ def get_last_n_sleep_records(user_id: str, n: int = 7) -> list:
 
 def build_restriction_tip(phase: str, avg_se: float, avg_tst: float, tib: int) -> str:
     """根据阶段生成睡眠限制提示语（CBT-I Sleep Restriction Therapy）"""
+    c = _get_srt_constants()
     tib_h = round(tib / 60, 1)
     tst_h = round(avg_tst / 60, 1)
     if phase == "optimizing":
-        return f"🌟 连续 7 天 SE ≥ 90%，本周建议卧床 {tib_h}h（实际睡眠约 {tst_h}h）。睡眠效率越高，可适度多休息。"
+        return f"🌟 连续 7 天 SE ≥ {c['SE_OPTIMIZING']}%，本周建议卧床 {tib_h}h（实际睡眠约 {tst_h}h）。睡眠效率越高，可适度多休息。"
     elif phase == "stable":
         return f"👍 SE {avg_se}% 良好，维持 {tib_h}h 睡眠窗口。继续记录，保持规律。"
     elif phase == "restricting":
-        return f"📉 SE {avg_se}% 偏低。卧床压缩至 {tib_h}h（入睡时间推迟），目标是让 SE 达到 85% 以上，理想 90%。"
+        return f"📉 SE {avg_se}% 偏低。卧床压缩至 {tib_h}h（入睡时间推迟），目标是让 SE 达到 {c['SE_STABLE']}% 以上，理想 {c['SE_OPTIMIZING']}% 。"
     else:
         return f"继续记录睡眠日记，{max(0, 7 - int(avg_se // 10))} 天后可给出精确建议。"
 
 
 def get_sleep_advice(avg_se: float, avg_tst: float) -> str:
     """根据睡眠数据生成建议（avg_tst 单位：分钟）"""
+    c = _get_srt_constants()
+    se_opt = c["SE_OPTIMIZING"]
+    se_sta = c["SE_STABLE"]
     SEVEN_HOURS = 7 * 60  # bugfix: avg_tst 单位是分钟，不是小时
-    if avg_se >= 90 and avg_tst >= SEVEN_HOURS:
+    if avg_se >= se_opt and avg_tst >= SEVEN_HOURS:
         return "你的睡眠状况很好！继续保持规律的作息。"
-    elif avg_se >= 90 and avg_tst < SEVEN_HOURS:
+    elif avg_se >= se_opt and avg_tst < SEVEN_HOURS:
         return "睡眠效率很高，但可以尝试稍微延长睡眠时间。"
-    elif avg_se < 85 and avg_tst >= SEVEN_HOURS:
+    elif avg_se < se_sta and avg_tst >= SEVEN_HOURS:
         return "在床上的时间很长但实际睡眠效率不高，建议只在困了才上床。"
     else:
         return "睡眠效率有待提升。试试固定起床时间，建立规律的睡眠节律。"
@@ -163,6 +202,7 @@ def calculate_srt_recommendation(user_id: str) -> dict:
     计算 SRT 推荐结果（纯函数，无 HTTP 依赖）
     返回包含 phase、recommended_tib、bed_time、message 等的字典
     """
+    c = _get_srt_constants()
     records = get_last_n_sleep_records(user_id, n=7)
     window = get_sleep_window(user_id)
     baseline = get_sleep_baseline(user_id)
@@ -198,7 +238,7 @@ def calculate_srt_recommendation(user_id: str) -> dict:
     avg_tst = round(sum(r.get("tst_minutes", 0) for r in records) / record_count)
 
     # 计算预估 TIB（用于学习期）
-    estimated_tib = min(max(avg_tst + BUFFER_MINUTES, MIN_TIB_MINUTES), MAX_TIB_UPPER)
+    estimated_tib = min(max(avg_tst + c["BUFFER_MINUTES"], c["MIN_TIB_MINUTES"]), c["MAX_TIB_UPPER"])
     fixed_wake_min = window["wake_hour"] * 60 + window["wake_min"]
     suggested_bed_min = fixed_wake_min - estimated_tib
     if suggested_bed_min < 0:
@@ -229,17 +269,17 @@ def calculate_srt_recommendation(user_id: str) -> dict:
         }
 
     # ========== 正式睡眠限制阶段（≥7 天记录）==========
-    target_tib = min(max(avg_tst + BUFFER_MINUTES, MIN_TIB_MINUTES), MAX_TIB_MINUTES)
+    target_tib = min(max(avg_tst + c["BUFFER_MINUTES"], c["MIN_TIB_MINUTES"]), c["MAX_TIB_MINUTES"])
 
     # 检查是否连续 7 天都满足条件（用于扩展 TIB 的门槛）
-    all_meet_threshold = len(records) >= 7 and all(r["se"] >= SE_OPTIMIZING for r in records)
+    all_meet_threshold = len(records) >= 7 and all(r["se"] >= c["SE_OPTIMIZING"] for r in records)
 
-    if avg_se >= SE_OPTIMIZING and all_meet_threshold:
-        new_tib = min(target_tib + EXPANSION_MINUTES, MAX_TIB_MINUTES)
+    if avg_se >= c["SE_OPTIMIZING"] and all_meet_threshold:
+        new_tib = min(target_tib + c["EXPANSION_MINUTES"], c["MAX_TIB_MINUTES"])
         phase = "optimizing"
         tib_adjustment = new_tib - target_tib
         suggestion = f"🌟 连续 7 天睡眠效率 {avg_se}% 优秀！本周可增加 {tib_adjustment:.0f} 分钟卧床时间"
-    elif avg_se >= SE_STABLE:
+    elif avg_se >= c["SE_STABLE"]:
         new_tib = target_tib
         phase = "stable"
         tib_adjustment = 0
@@ -316,12 +356,13 @@ def apply_srt_restriction(user_id: str, recommended_bed_time: str = None, recomm
     save_sleep_window(user_id, bh, bm, wh, wm)
 
     # 保存基线（来自本周数据）
+    c = _get_srt_constants()
     records = get_last_n_sleep_records(user_id, 7)
     if records:
         avg_se = round(sum(r["se"] for r in records) / len(records), 1)
         avg_tst = round(sum(r.get("tst_minutes", 0) for r in records) / len(records))
         save_sleep_baseline(user_id, {
-            "baseline_tib_minutes": min(max(avg_tst + BUFFER_MINUTES, MIN_TIB_MINUTES), MAX_TIB_UPPER),
+            "baseline_tib_minutes": min(max(avg_tst + c["BUFFER_MINUTES"], c["MIN_TIB_MINUTES"]), c["MAX_TIB_UPPER"]),
             "avg_se": avg_se,
             "avg_tst_minutes": avg_tst,
             "established_at": datetime.now().isoformat(),

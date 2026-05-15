@@ -150,6 +150,7 @@ const pageTitles = {
   dashboard: '仪表盘', safety: '安全中心', quality: 'AI 质量监控',
   users: '用户列表', health: '服务器监控', retention: '留存分析',
   crisis: '🚨 危机告警',
+  abconfig: 'A/B 配置',
 };
 
 function showPage(name) {
@@ -161,7 +162,7 @@ function showPage(name) {
   document.getElementById('page-title').textContent = pageTitles[name] || name;
   const loaders = { dashboard: loadDashboard, safety: loadSafety, quality: loadQuality,
                      users: loadUsers, health: loadHealth, retention: loadRetention,
-                     crisis: loadCrisis };
+                     crisis: loadCrisis, abconfig: loadABConfig };
   if (loaders[name]) loaders[name](loaders[name] === loadDashboard ? 7 : 30);
 
   // 切到危机页面后，停止标题闪烁（视为"已读"）
@@ -968,6 +969,100 @@ function renderChart(id, option, emptyHTML) {
   chartInstances[id] = echarts.init(el);
   chartInstances[id].setOption(option);
 }
+
+// ========== A/B 配置面板 ==========
+async function loadABConfig() {
+  try {
+    const data = await fetchJSON(`${API_BASE}/ab_config`);
+    const srt = data.srt || {};
+    const prompt = data.prompt || {};
+    const tts = data.tts || {};
+    document.getElementById('ab-se-optimizing').value = srt.se_optimizing ?? 90;
+    document.getElementById('ab-se-stable').value = srt.se_stable ?? 85;
+    document.getElementById('ab-min-tib').value = srt.min_tib_hours ?? 4;
+    document.getElementById('ab-max-tib').value = srt.max_tib_hours ?? 8.5;
+    document.getElementById('ab-buffer').value = srt.buffer_minutes ?? 30;
+    document.getElementById('ab-expansion').value = srt.expansion_minutes ?? 15;
+
+    document.getElementById('ab-enable-rag').checked = prompt.enable_rag !== false;
+    document.getElementById('ab-anxiety-detect').checked = prompt.anxiety_detection_enabled !== false;
+    document.getElementById('ab-max-turns').value = prompt.max_context_turns ?? 10;
+    document.getElementById('ab-system-prompt').value = prompt.system_prompt || '';
+    document.getElementById('ab-prompt-len').textContent = (prompt.system_prompt || '').length;
+
+    document.getElementById('ab-tts-voice').value = tts.default_voice || 'female_warm';
+    document.getElementById('ab-tts-speed').value = tts.default_speed ?? 0.9;
+    document.getElementById('ab-tts-maxlen').value = tts.max_text_length ?? 500;
+
+    // 加载变更历史
+    const historyData = await fetchJSON(`${API_BASE}/ab_config/history?limit=20`);
+    const tbody = document.getElementById('ab-history-body');
+    const logs = historyData.history || [];
+    if (!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-gray-400 py-2">暂无变更记录</td></tr>';
+    } else {
+      tbody.innerHTML = logs.map(l => `
+        <tr class="border-b border-gray-100">
+          <td class="py-1 text-gray-500 text-xs">${(l.timestamp || '').slice(0, 16)}</td>
+          <td class="text-xs">${l.operator || 'admin'}</td>
+          <td class="text-xs text-gray-600">${Object.keys(l.changes || {}).join(', ') || '重置为默认'}</td>
+        </tr>
+      `).join('');
+    }
+  } catch(e) { toast('加载配置失败: ' + e.message, 'error'); }
+}
+
+async function saveABConfig() {
+  const payload = {
+    srt: {
+      se_optimizing: parseInt(document.getElementById('ab-se-optimizing').value),
+      se_stable: parseInt(document.getElementById('ab-se-stable').value),
+      min_tib_hours: parseFloat(document.getElementById('ab-min-tib').value),
+      max_tib_hours: parseFloat(document.getElementById('ab-max-tib').value),
+      buffer_minutes: parseInt(document.getElementById('ab-buffer').value),
+      expansion_minutes: parseInt(document.getElementById('ab-expansion').value),
+    },
+    prompt: {
+      enable_rag: document.getElementById('ab-enable-rag').checked,
+      anxiety_detection_enabled: document.getElementById('ab-anxiety-detect').checked,
+      max_context_turns: parseInt(document.getElementById('ab-max-turns').value),
+      system_prompt: document.getElementById('ab-system-prompt').value.trim() || null,
+    },
+    tts: {
+      default_voice: document.getElementById('ab-tts-voice').value,
+      default_speed: parseFloat(document.getElementById('ab-tts-speed').value),
+      max_text_length: parseInt(document.getElementById('ab-tts-maxlen').value),
+    },
+  };
+  try {
+    const r = await fetch(`${API_BASE}/ab_config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
+      body: JSON.stringify(payload),
+    });
+    if (r.ok) { toast('配置已保存', 'success'); loadABConfig(); }
+    else { const d = await r.json().catch(() => ({})); toast('保存失败: ' + (d.detail || '未知错误'), 'error'); }
+  } catch(e) { toast('保存失败: ' + e.message, 'error'); }
+}
+
+async function resetABConfig() {
+  if (!confirm('确定要重置为默认配置吗？')) return;
+  try {
+    const r = await fetch(`${API_BASE}/ab_config/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
+    });
+    if (r.ok) { toast('已重置为默认配置', 'success'); loadABConfig(); }
+    else { const d = await r.json().catch(() => ({})); toast('重置失败: ' + (d.detail || '未知错误'), 'error'); }
+  } catch(e) { toast('重置失败: ' + e.message, 'error'); }
+}
+
+// 实时字数统计
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'ab-system-prompt') {
+    document.getElementById('ab-prompt-len').textContent = e.target.value.length;
+  }
+});
 
 window.addEventListener('resize', () => Object.values(chartInstances).forEach(c => c?.resize()));
 document.addEventListener('DOMContentLoaded', checkAuth);
