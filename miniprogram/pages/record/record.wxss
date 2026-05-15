@@ -669,7 +669,8 @@
   line-height: 88rpx;
   background: #F5C869;
   color: #0D1B2A;
-  font-size: 30rpx;
+  /* 【2026-05-15】30→28rpx：与全局按钮字号档对齐（28 是主按钮标准） */
+  font-size: 28rpx;
   font-weight: 600;
   border-radius: 44rpx;
   text-align: center;
@@ -832,7 +833,8 @@
 .se-fair  { background: linear-gradient(to top, rgba(245,200,105,0.9),rgba(245,200,105,0.3)); }
 .se-poor  { background: linear-gradient(to top, rgba(232,132,107,0.9),rgba(232,132,107,0.3)); }
 .se-trend-day {
-  font-size: 18rpx; color: #8BA3B9;
+  /* 【2026-05-15】18→22rpx：周历下方日期太小，弱视/弱光看不清 */
+  font-size: 22rpx; color: #8BA3B9;
 }
 
 /* ---- SRT 区块 ---- */
