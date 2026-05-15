@@ -79,11 +79,24 @@ def _is_night_time(dt: datetime) -> bool:
     return hour >= 22 or hour < 6
 
 def _parse_session_id_timestamp(session_id: str):
+    """解析会话ID中的日期时间，支持两种格式:
+    - session_YYYY-MM-DD_13digits (带毫秒时间戳)
+    - session_YYYYMMDD (纯日期，实际应用中使用)
+    """
+    # 格式1: session_2026-05-15_1747290123456
     m = re.match(r"session_(\d{4}-\d{2}-\d{2})_(\d{13})", session_id)
     if m:
         try:
             unix_sec = int(m.group(2)) / 1000.0
             cst_dt = datetime.utcfromtimestamp(unix_sec) + timedelta(hours=8)
+            return cst_dt, cst_dt
+        except:
+            pass
+    # 格式2: session_20260515
+    m = re.match(r"session_(\d{4})(\d{2})(\d{2})", session_id)
+    if m:
+        try:
+            cst_dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
             return cst_dt, cst_dt
         except:
             pass
@@ -164,15 +177,9 @@ def _get_all_sessions(days: int = 30) -> List[Dict]:
                 if start_dt < cutoff:
                     continue
             else:
-                first_turn_ts = session_data[0].get("timestamp", "")
-                if first_turn_ts:
-                    try:
-                        st = datetime.fromisoformat(first_turn_ts.replace("Z", "+00:00")).replace(tzinfo=None)
-                        first_ts = first_turn_ts
-                        if st < cutoff:
-                            continue
-                    except:
-                        pass
+                # 消息数据中无 timestamp，回退到当天（Redis TTL=7天）
+                start_dt = datetime.now()
+                first_ts = start_dt.isoformat()
 
             sessions.append({
                 "user_id": openid,
@@ -201,6 +208,10 @@ def _get_session_detail(key: str) -> Optional[Dict]:
         openid = parts[2] if len(parts) >= 4 else "unknown"
         session_id = parts[3] if len(parts) >= 4 else key
         start_dt, last_dt = _parse_session_id_timestamp(session_id)
+        # 若解析不到日期，回退到当天（Redis TTL=7天，说明是近期会话）
+        if not start_dt:
+            start_dt = datetime.now()
+            last_dt = start_dt
         return {
             "user_id": openid,
             "session_id": session_id,
@@ -558,6 +569,37 @@ def _load_feedback_records(days: int = 30) -> List[Dict]:
         pass
     return records
 
+def _load_chat_quality_records(days: int = 30) -> List[Dict]:
+    """从 Redis chat:history 生成合成质量记录（无 evaluation/feedback 时的最后 fallback）"""
+    records = []
+    cutoff = datetime.now() - timedelta(days=days)
+    sessions = _get_all_sessions(days=days)
+    for s in sessions:
+        turns = s.get("turns", [])
+        if not turns:
+            continue
+        # 简单启发式：根据对话轮次和内容长度估算质量
+        turn_count = len(turns)
+        user_msgs = [t for t in turns if t.get("role") == "user"]
+        assistant_msgs = [t for t in turns if t.get("role") == "assistant"]
+        avg_assistant_len = sum(len(t.get("content", "")) for t in assistant_msgs) / max(len(assistant_msgs), 1)
+        # 轮次越多、回复越长，认为质量越高（粗略估计）
+        empathy = min(5, max(3, 3 + turn_count * 0.2))
+        tech = min(9, max(5, 5 + turn_count * 0.3 + avg_assistant_len / 200))
+        coherence = min(5, max(3, 3 + turn_count * 0.15))
+        rating = "🟢优秀" if empathy >= 4.5 and tech >= 7 else "🟡良好" if empathy >= 3.5 and tech >= 5 else "🟠需改进"
+        records.append({
+            "session_id": s.get("session_id", ""),
+            "timestamp": s.get("start_time", ""),
+            "auto_rating": rating,
+            "auto_empathy": round(empathy, 1),
+            "auto_technical": round(tech, 1),
+            "auto_coherence": round(coherence, 1),
+            "source": "chat_synthetic",
+            "turn_count": turn_count,
+        })
+    return records
+
 def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
     eval_records = _load_evaluation_records(days=days)
     source = "evaluation_tracking"
@@ -565,6 +607,10 @@ def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
     if not eval_records:
         eval_records = _load_feedback_records(days=days)
         source = "feedback"
+    # 若 feedback 也为空，从 chat:history 生成合成数据
+    if not eval_records:
+        eval_records = _load_chat_quality_records(days=days)
+        source = "chat_synthetic"
     if not eval_records:
         return {"message": "暂无数据", "source": None}
 
@@ -579,7 +625,7 @@ def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
                 rating_dist[k] += 1
                 break
 
-    # 失败模式统计（仅对 evaluation_tracking 数据做精细化分析）
+    # 失败模式统计
     failure_modes = defaultdict(int)
     if source == "evaluation_tracking":
         for rec in eval_records:
@@ -592,14 +638,18 @@ def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
             if rec.get("bias_empathy", 0) > 0.3: failure_modes["情绪理解偏差"] += 1
             if rec.get("bias_technical", 0) > 0.3: failure_modes["专业知识偏差"] += 1
             if empathy == 0 and tech == 0: failure_modes["评估异常"] += 1
-    else:
-        # feedback 来源的简化失败模式
+    elif source == "feedback":
         for rec in eval_records:
             rating = rec.get("auto_empathy", 5)
             if rating <= 2:
                 failure_modes["用户评分偏低"] += 1
             if rec.get("comment", "").strip():
                 failure_modes["用户留有文字反馈"] += 1
+    else:
+        # chat_synthetic 来源
+        for rec in eval_records:
+            if rec.get("turn_count", 0) <= 2:
+                failure_modes["对话轮次偏少"] += 1
 
     top_failures = sorted(failure_modes.items(), key=lambda x: x[1], reverse=True)[:10]
     top_failure_modes = [
@@ -914,46 +964,96 @@ def get_health_history(hours: int = 24) -> List[Dict]:
 
 # ==================== 留存分析 ====================
 
+def _extract_user_date_from_key(key: str, pattern_prefix: str) -> tuple:
+    """从 Redis key 中提取 user_id 和 date
+    支持: morning:{uid}:{YYYY-MM-DD}, sleep:diary:{uid}:{YYYY-MM-DD}, feedback:{uid}:{YYYYMMDD}
+    """
+    try:
+        parts = key.split(":")
+        if len(parts) >= 3:
+            uid = parts[-2] if pattern_prefix in ("morning", "sleep:diary") else parts[1]
+            date_str = parts[-1]
+            # 尝试解析 YYYY-MM-DD 或 YYYYMMDD
+            if len(date_str) == 8 and date_str.isdigit():
+                date_str = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+            datetime.strptime(date_str, "%Y-%m-%d")  # validate
+            return uid, date_str
+    except Exception:
+        pass
+    return None, None
+
 def get_retention_stats(days: int = 30) -> Dict[str, Any]:
     r = _get_redis()
-    user_sessions_by_date: Dict[str, Dict[str, int]] = {}
-    for key in r.scan_iter(match="chat:history:*", count=100):
-        detail = _get_session_detail(key)
-        if not detail or not detail.get("start_dt"):
-            continue
-        uid = detail.get("user_id", "unknown")
-        if uid == "unknown":
-            continue
-        date_str = detail["start_dt"].strftime("%Y-%m-%d")
-        if uid not in user_sessions_by_date:
-            user_sessions_by_date[uid] = {}
-        user_sessions_by_date[uid][date_str] = user_sessions_by_date[uid].get(date_str, 0) + 1
+    # 收集用户活跃日期，多数据源合并
+    user_activity: Dict[str, set] = {}  # uid -> set of date_str
 
+    # 1. chat:history (从 session_id 解析日期)
+    for key in r.scan_iter(match="chat:history:*", count=100):
+        try:
+            parts = key.split(":")
+            if len(parts) < 4:
+                continue
+            uid = parts[2]
+            session_id = parts[3]
+            start_dt, _ = _parse_session_id_timestamp(session_id)
+            if not start_dt:
+                # session_YYYYMMDD 格式回退
+                m = re.match(r"session_(\d{4})(\d{2})(\d{2})", session_id)
+                if m:
+                    start_dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            if start_dt:
+                date_str = start_dt.strftime("%Y-%m-%d")
+                user_activity.setdefault(uid, set()).add(date_str)
+        except Exception:
+            continue
+
+    # 2. morning:{uid}:{date}
+    for key in r.scan_iter(match="morning:*", count=100):
+        uid, date_str = _extract_user_date_from_key(key, "morning")
+        if uid and date_str:
+            user_activity.setdefault(uid, set()).add(date_str)
+
+    # 3. sleep:diary:{uid}:{date}
+    for key in r.scan_iter(match="sleep:diary:*", count=100):
+        uid, date_str = _extract_user_date_from_key(key, "sleep:diary")
+        if uid and date_str:
+            user_activity.setdefault(uid, set()).add(date_str)
+
+    # 4. feedback:{uid}:{date}
+    for key in r.scan_iter(match="feedback:*", count=100):
+        uid, date_str = _extract_user_date_from_key(key, "feedback")
+        if uid and date_str:
+            user_activity.setdefault(uid, set()).add(date_str)
+
+    # 过滤掉 unknown / anonymous 用户
+    user_activity = {uid: dates for uid, dates in user_activity.items()
+                     if uid not in ("unknown", "anonymous", "", None)}
+
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     date_range = [(datetime.now() - timedelta(days=days - 1 - i)).strftime("%Y-%m-%d") for i in range(days)]
 
     daily_stats = []
     for d in date_range:
-        new_users = sum(1 for uid, dates in user_sessions_by_date.items()
-                       if d in dates and sorted(dates.keys())[0] == d)
-        active_users = sum(1 for uid, dates in user_sessions_by_date.items() if d in dates)
+        active_users = sum(1 for uid, dates in user_activity.items() if d in dates)
+        new_users = sum(1 for uid, dates in user_activity.items()
+                       if d in dates and sorted(dates)[0] == d)
         daily_stats.append({"date": d, "new_users": new_users, "active_users": active_users})
 
-    # 计算 D1 / D7 留存率（基于最近有完整追踪期的日期）
+    # 计算 D1 / D7 留存率
     d1_rate = None
     d7_rate = None
     d1_details = []
     d7_details = []
-    today = datetime.now().date()
 
-    for uid, dates in user_sessions_by_date.items():
-        sorted_dates = sorted(dates.keys())
-        first_date = datetime.strptime(sorted_dates[0], "%Y-%m-%d").date()
-        # 只统计 first_date 在追踪窗口内且后续日期有足够追踪期的用户
-        if first_date >= today - timedelta(days=days):
-            d1_date = (first_date + timedelta(days=1)).strftime("%Y-%m-%d")
-            d7_date = (first_date + timedelta(days=7)).strftime("%Y-%m-%d")
-            d1_details.append(d1_date in dates)
-            d7_details.append(d7_date in dates)
+    for uid, dates in user_activity.items():
+        sorted_dates = sorted(dates)
+        if sorted_dates[0] < cutoff:
+            continue  # 首次活跃不在窗口内，无法计算留存
+        first_dt = datetime.strptime(sorted_dates[0], "%Y-%m-%d").date()
+        d1_str = (first_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+        d7_str = (first_dt + timedelta(days=7)).strftime("%Y-%m-%d")
+        d1_details.append(d1_str in dates)
+        d7_details.append(d7_str in dates)
 
     if d1_details:
         d1_rate = round(sum(d1_details) / len(d1_details) * 100, 1)
@@ -964,7 +1064,7 @@ def get_retention_stats(days: int = 30) -> Dict[str, Any]:
         "period_days": days,
         "daily_stats": daily_stats[-30:],
         "retention": {"d1": d1_rate, "d7": d7_rate},
-        "total_users": len(user_sessions_by_date),
+        "total_users": len(user_activity),
     }
 
 # ==================== 数据导出 ====================
