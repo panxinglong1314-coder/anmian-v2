@@ -31,7 +31,7 @@
     <!-- 模式切换（右上角浮层） -->
     <view class="sleep-header-actions">
       <view class="mode-toggle-pill" bindtap="toggleMode">
-        <text>{{mode === 'sleep' ? '🔤 文字模式' : '🌙 睡眠模式'}}</text>
+        <text>{{mode === 'sleep' ? '文字模式 ›' : '睡眠模式 ›'}}</text>
       </view>
     </view>
 
@@ -70,7 +70,9 @@
         <view class="sleep-btn-ring"></view>
         <view class="sleep-btn-ring r2"></view>
         <view class="sleep-btn-core">
-          <text class="sleep-btn-icon">{{sleepModeActive ? '🔴' : '🌙'}}</text>
+          <!-- 【2026-05-15】录音中 emoji 🔴 → 金色脉冲圆点（保留视觉 affordance，去警告红） -->
+          <view wx:if="{{sleepModeActive}}" class="sleep-btn-pulse-dot"></view>
+          <text wx:else class="sleep-btn-icon">🌙</text>
           <text class="sleep-btn-label">{{sleepModeActive ? '聆听中' : '开始睡眠'}}</text>
         </view>
       </view>

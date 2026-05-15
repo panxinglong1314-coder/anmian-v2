@@ -55,7 +55,7 @@
   background: rgba(36,52,71,0.85);
   border: 1rpx solid rgba(255,255,255,0.1);
   font-size: 22rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
@@ -130,7 +130,8 @@
 }
 
 .sleep-status {
-  font-size: 36rpx;
+  /* 【2026-05-15】36→40rpx：弱光环境下主信息更醒目 */
+  font-size: 40rpx;
   font-weight: 500;
   color: #EDE8DF;
   margin-bottom: 10rpx;
@@ -138,8 +139,9 @@
 }
 
 .sleep-hint {
-  font-size: 24rpx;
-  color: #9AABBF;
+  /* 【2026-05-15】24→26rpx：副标题在床上一臂距离也能看清 */
+  font-size: 26rpx;
+  color: var(--text-secondary);
   text-align: center;
   max-width: 440rpx;
   line-height: 1.5;
@@ -184,16 +186,16 @@
 .conv-item { display: flex; align-items: flex-start; gap: 12rpx; max-width: 80%; }
 .conv-user { align-self: flex-end; flex-direction: row-reverse; }
 .conv-assistant { align-self: flex-start; }
-.conv-role { font-size: 24rpx; color: #9AABBF; flex-shrink: 0; margin-top: 4rpx; width: 40rpx; text-align: center; }
+.conv-role { font-size: 24rpx; color: var(--text-secondary); flex-shrink: 0; margin-top: 4rpx; width: 40rpx; text-align: center; }
 .conv-text { font-size: 28rpx; color: #EDE8DF; line-height: 1.6; background: rgba(36,52,71,0.5); backdrop-filter: blur(12rpx); padding: 12rpx 18rpx; border-radius: 16rpx; border: 1rpx solid rgba(255,255,255,0.06); }
 
 /* 思考动画 */
 .conv-thinking { display: flex; align-items: center; gap: 10rpx; padding: 10rpx 16rpx; background: rgba(36,52,71,0.4); backdrop-filter: blur(12rpx); border-radius: 16rpx; border: 1rpx solid rgba(255,255,255,0.05); }
 .thinking-dots { display: flex; gap: 4rpx; align-items: center; }
-.dot { width: 8rpx; height: 8rpx; border-radius: 50%; background: #9AABBF; animation: dotBounce 1.4s ease-in-out infinite; }
+.dot { width: 8rpx; height: 8rpx; border-radius: 50%; background: var(--text-secondary); animation: dotBounce 1.4s ease-in-out infinite; }
 .dot:nth-child(2){animation-delay:0.2s} .dot:nth-child(3){animation-delay:0.4s}
 @keyframes dotBounce { 0%,80%,100%{transform:scale(1);opacity:0.4} 40%{transform:scale(1.3);opacity:1} }
-.thinking-label { font-size: 24rpx; color: #9AABBF; }
+.thinking-label { font-size: 24rpx; color: var(--text-secondary); }
 
 /* 声波可视化 */
 .sound-viz { position: fixed; bottom: calc(240rpx + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10rpx; z-index: 20; animation: fadeInUp 0.3s ease; }
@@ -212,7 +214,7 @@
 }
 .sound-chips { display: flex; gap: 10rpx; overflow-x: auto; padding: 4rpx 0; }
 .sound-chips::-webkit-scrollbar { display: none; }
-.sound-chip { padding: 8rpx 16rpx; border-radius: 999rpx; font-size: 22rpx; color: #9AABBF; background: rgba(36,52,71,0.6); border: 1rpx solid rgba(255,255,255,0.06); white-space: nowrap; flex-shrink: 0; transition: all 0.2s; cursor: pointer; }
+.sound-chip { padding: 8rpx 16rpx; border-radius: 999rpx; font-size: 22rpx; color: var(--text-secondary); background: rgba(36,52,71,0.6); border: 1rpx solid rgba(255,255,255,0.06); white-space: nowrap; flex-shrink: 0; transition: all 0.2s; cursor: pointer; }
 .sound-chip.active { background: rgba(245,200,105,0.15); border-color: rgba(245,200,105,0.3); color: #F5C869; }
 
 /* 睡眠按钮 */
@@ -234,7 +236,31 @@
 .sleep-btn.active .sleep-btn-core { background: linear-gradient(135deg, rgba(232,132,107,0.3),rgba(232,132,107,0.15)); border-color: rgba(232,132,107,0.5); box-shadow: 0 0 50rpx rgba(232,132,107,0.25),0 8rpx 32rpx rgba(0,0,0,0.4); }
 .sleep-btn-icon { font-size: 44rpx; }
 .sleep-btn-label { font-size: 22rpx; color: #EDE8DF; }
-.sleep-desc { font-size: 24rpx; color: #9AABBF; text-align: center; max-width: 360rpx; }
+
+/* 【2026-05-15】录音中圆点 — 取代 emoji 🔴
+   品牌金色脉冲，传达"我在听"而非"警告/录音中" */
+.sleep-btn-pulse-dot {
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 50%;
+  background: #F5C869;
+  box-shadow: 0 0 20rpx rgba(245, 200, 105, 0.8),
+              0 0 40rpx rgba(245, 200, 105, 0.4);
+  animation: pulseDot 1.4s ease-in-out infinite;
+}
+@keyframes pulseDot {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 16rpx rgba(245, 200, 105, 0.6),
+                0 0 32rpx rgba(245, 200, 105, 0.3);
+  }
+  50% {
+    transform: scale(1.18);
+    box-shadow: 0 0 28rpx rgba(245, 200, 105, 0.9),
+                0 0 56rpx rgba(245, 200, 105, 0.5);
+  }
+}
+.sleep-desc { font-size: 24rpx; color: var(--text-secondary); text-align: center; max-width: 360rpx; }
 
 /* ================================================
    文字模式
@@ -261,7 +287,7 @@
 }
 .chat-count-hint {
   font-size: 22rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
   background: rgba(36,52,71,0.5);
   padding: 4rpx 12rpx;
   border-radius: 999rpx;
@@ -285,7 +311,7 @@
   backdrop-filter: blur(12rpx);
   border: 1rpx solid rgba(255,255,255,0.1);
   font-size: 22rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
@@ -328,13 +354,13 @@
 .tts-bar { padding: 10rpx 24rpx 6rpx; background: rgba(13,27,42,0.8); backdrop-filter: blur(16rpx); border-top: 1rpx solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 16rpx; box-sizing: border-box; }
 .tts-track { flex: 1; height: 4rpx; background: rgba(36,52,71,0.8); border-radius: 2rpx; overflow: hidden; }
 .tts-fill { height: 100%; background: linear-gradient(90deg,#F5C869,rgba(245,200,105,0.5)); border-radius: 2rpx; transition: width 0.3s linear; box-shadow: 0 0 6rpx rgba(245,200,105,0.4); }
-.tts-time { font-size: 22rpx; color: #9AABBF; flex-shrink: 0; }
+.tts-time { font-size: 22rpx; color: var(--text-secondary); flex-shrink: 0; }
 
 /* 文字模式输入区 */
 .input-area { padding: 12rpx 24rpx 0; padding-bottom: calc(env(safe-area-inset-bottom) + 8rpx); background: rgba(13,27,42,0.95); backdrop-filter: blur(40rpx); border-top: 1rpx solid rgba(255,255,255,0.06); display: flex; flex-direction: column; gap: 12rpx; flex-shrink: 0; }
 .quick-chips { display: flex; gap: 10rpx; overflow-x: auto; padding-bottom: 4rpx; }
 .quick-chips::-webkit-scrollbar { display: none; }
-.quick-chip { padding: 8rpx 18rpx; border-radius: 999rpx; background: rgba(36,52,71,0.6); backdrop-filter: blur(12rpx); border: 1rpx solid rgba(255,255,255,0.08); font-size: 24rpx; color: #9AABBF; flex-shrink: 0; white-space: nowrap; }
+.quick-chip { padding: 8rpx 18rpx; border-radius: 999rpx; background: rgba(36,52,71,0.6); backdrop-filter: blur(12rpx); border: 1rpx solid rgba(255,255,255,0.08); font-size: 24rpx; color: var(--text-secondary); flex-shrink: 0; white-space: nowrap; }
 .input-row {
   display: flex;
   align-items: center;
@@ -374,7 +400,7 @@
 }
 .send-btn-text {
   font-size: 26rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
 }
 .send-btn.active .send-btn-text {
   color: #F5C869;
@@ -386,7 +412,7 @@
 .closure-overlay { position: fixed; inset: 0; background: rgba(13,27,42,0.85); backdrop-filter: blur(40rpx); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 32rpx; animation: fadeIn 0.4s ease; }
 @keyframes fadeIn { from{opacity:0} to{opacity:1} }
 .closure-back-btn { position: absolute; top: 48rpx; left: 32rpx; z-index: 201; padding: 16rpx 24rpx; border-radius: 999rpx; background: rgba(255,255,255,0.08); backdrop-filter: blur(12rpx); border: 1rpx solid rgba(255,255,255,0.1); }
-.closure-back-text { font-size: 26rpx; color: #9AABBF; }
+.closure-back-text { font-size: 26rpx; color: var(--text-secondary); }
 
 .closure-card {
   width: 100%; max-width: 520rpx;
@@ -402,7 +428,7 @@
 
 .closure-divider { height: 1rpx; background: linear-gradient(90deg,transparent,rgba(107,159,212,0.4),transparent); margin-bottom: 4rpx; }
 .closure-title { font-size: 34rpx; font-weight: 500; color: #F5C869; text-shadow: 0 0 12rpx rgba(245,200,105,0.35); }
-.closure-subtitle { font-size: 26rpx; color: #9AABBF; margin-top: -8rpx; }
+.closure-subtitle { font-size: 26rpx; color: var(--text-secondary); margin-top: -8rpx; }
 .closure-hint { font-size: 22rpx; color: rgba(139,163,185,0.5); text-align: center; margin-top: 20rpx; font-style: italic; }
 .closure-dimming .closure-card { animation: dimFade 2s ease forwards; }
 @keyframes dimFade { 0% { opacity: 1 } 100% { opacity: 0; transform: scale(0.95) } }
@@ -418,7 +444,7 @@
 .breathing-phase-name { font-size: 36rpx; font-weight: 500; color: #EDE8DF; text-shadow: 0 0 12rpx rgba(255,255,255,0.2); }
 .breathing-countdown { font-size: 48rpx; font-weight: 600; color: #F5C869; text-shadow: 0 0 16rpx rgba(245,200,105,0.4); margin-top: 4rpx; }
 .breath-tip { font-size: 24rpx; color: #7EC8A3; text-align: center; text-shadow: 0 0 8rpx rgba(126,200,163,0.3); }
-.breath-status { display: flex; flex-direction: column; align-items: center; gap: 8rpx; font-size: 24rpx; color: #9AABBF; }
+.breath-status { display: flex; flex-direction: column; align-items: center; gap: 8rpx; font-size: 24rpx; color: var(--text-secondary); }
 .breath-progress-bar { width: 100%; max-width: 300rpx; height: 4rpx; background: rgba(36,52,71,0.8); border-radius: 2rpx; overflow: hidden; }
 .breath-progress-fill { height: 100%; background: linear-gradient(90deg,rgba(126,200,163,0.8),rgba(126,200,163,0.5)); border-radius: 2rpx; transition: width 1s linear; }
 
@@ -431,7 +457,7 @@
 /* 关闭仪式按钮 */
 .closure-buttons { display: flex; gap: 12rpx; margin-top: 8rpx; }
 .closure-buttons button { flex: 1; padding: 22rpx; border-radius: 22rpx; font-size: 28rpx; text-align: center; border: none; cursor: pointer; transition: all 0.2s; }
-.btn-secondary { background: rgba(36,52,71,0.55); backdrop-filter: blur(16rpx); color: #9AABBF; border: 1rpx solid rgba(255,255,255,0.1); }
+.btn-secondary { background: rgba(36,52,71,0.55); backdrop-filter: blur(16rpx); color: var(--text-secondary); border: 1rpx solid rgba(255,255,255,0.1); }
 .btn-primary { background: linear-gradient(135deg,rgba(245,200,105,0.4),rgba(245,200,105,0.2)); backdrop-filter: blur(16rpx); color: #F5C869; border: 1rpx solid rgba(245,200,105,0.35); box-shadow: 0 0 20rpx rgba(245,200,105,0.2); font-weight: 500; }
 
 /* PMR 身体扫描 */
@@ -450,9 +476,9 @@
 .worry-prompt-card { width: 100%; background: rgba(36,52,71,0.95); border-radius: 28rpx; border: 1rpx solid rgba(245,200,105,0.2); padding: 40rpx 32rpx; display: flex; flex-direction: column; align-items: center; gap: 12rpx; animation: slideUp 0.4s cubic-bezier(0.34,1.56,0.64,1); box-shadow: 0 20rpx 60rpx rgba(0,0,0,0.5); }
 .worry-prompt-icon { font-size: 48rpx; }
 .worry-prompt-title { font-size: 32rpx; font-weight: 500; color: #EDE8DF; }
-.worry-prompt-sub { font-size: 24rpx; color: #9AABBF; text-align: center; line-height: 1.5; }
+.worry-prompt-sub { font-size: 24rpx; color: var(--text-secondary); text-align: center; line-height: 1.5; }
 .worry-prompt-btns { display: flex; gap: 16rpx; margin-top: 8rpx; width: 100%; }
-.worry-btn-skip { flex: 1; padding: 20rpx; border-radius: 20rpx; background: rgba(36,52,71,0.6); border: 1rpx solid rgba(255,255,255,0.1); color: #9AABBF; font-size: 26rpx; }
+.worry-btn-skip { flex: 1; padding: 20rpx; border-radius: 20rpx; background: rgba(36,52,71,0.6); border: 1rpx solid rgba(255,255,255,0.1); color: var(--text-secondary); font-size: 26rpx; }
 .worry-btn-capture { flex: 1; padding: 20rpx; border-radius: 20rpx; background: linear-gradient(135deg,rgba(245,200,105,0.4),rgba(245,200,105,0.2)); border: 1rpx solid rgba(245,200,105,0.35); color: #F5C869; font-size: 26rpx; font-weight: 500; box-shadow: 0 0 20rpx rgba(245,200,105,0.2); }
 
 /* 担忧捕获录音中 */
@@ -463,14 +489,14 @@
 @keyframes worryRing { 0%,100% { transform: scale(1); border-color: rgba(245,200,105,0.3) } 50% { transform: scale(1.05); border-color: rgba(245,200,105,0.6) } }
 @keyframes worryPulse { from { opacity: 0.5; transform: scale(0.95) } to { opacity: 1; transform: scale(1.05) } }
 .worry-capturing-title { font-size: 32rpx; font-weight: 500; color: #F5C869; }
-.worry-capturing-sub { font-size: 24rpx; color: #9AABBF; text-align: center; }
+.worry-capturing-sub { font-size: 24rpx; color: var(--text-secondary); text-align: center; }
 .worry-btn-done { margin-top: 16rpx; padding: 18rpx 48rpx; border-radius: 999rpx; background: rgba(36,52,71,0.6); border: 1rpx solid rgba(255,255,255,0.1); color: #EDE8DF; font-size: 26rpx; }
 
 /* ====== Step 1: 设定睡眠窗口 ====== */
 .step-indicator {
   text-align: center;
   font-size: 24rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
   margin-bottom: 16rpx;
 }
 .step-title {
@@ -483,7 +509,7 @@
 .step-subtitle {
   text-align: center;
   font-size: 28rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
   margin-bottom: 48rpx;
 }
 .time-picker-row {
@@ -503,7 +529,7 @@
 }
 .time-picker-label {
   font-size: 24rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
   margin-bottom: 16rpx;
 }
 .time-picker-value {
@@ -513,7 +539,7 @@
 }
 .time-picker-arrow {
   font-size: 40rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 .tib-display {
@@ -529,7 +555,7 @@
 }
 .tib-unit {
   font-size: 28rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
   display: block;
   margin-top: 8rpx;
 }
@@ -547,7 +573,7 @@
 .closure-skip {
   text-align: center;
   font-size: 28rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
   padding: 16rpx;
 }
 
@@ -577,7 +603,7 @@
   min-width: 100rpx;
 }
 .bar-btn-icon { font-size: 28rpx; }
-.bar-btn-label { font-size: 20rpx; color: #9AABBF; }
+.bar-btn-label { font-size: 20rpx; color: var(--text-secondary); }
 .worry-btn { border-color: rgba(245,200,105,0.2); }
 .worry-btn .bar-btn-icon { color: #F5C869; }
 .close-btn .bar-btn-icon { color: #F5C869; }
@@ -615,7 +641,7 @@
   animation: ring-pulse 1.5s infinite;
 }
 .mic-icon { font-size: 36rpx; }
-.mic-label { font-size: 20rpx; color: #9AABBF; }
+.mic-label { font-size: 20rpx; color: var(--text-secondary); }
 
 @keyframes mic-pulse {
   0%, 100% { transform: scale(1); }
@@ -663,7 +689,7 @@
   background: rgba(255,255,255,0.05);
   border-radius: 16rpx;
   font-size: 24rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
 }
 
 /* ===== Text Mode old styles removed ===== */
@@ -676,7 +702,7 @@
 .msg-user .msg-time { text-align: right; }
 .msg-loading {
   font-size: 26rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
   padding: 16rpx;
 }
 .input-bar {
@@ -710,7 +736,7 @@
   backdrop-filter: blur(12rpx);
   border: 1rpx solid rgba(255,255,255,0.1);
   font-size: 22rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
@@ -723,7 +749,7 @@
 }
 .quota-text {
   font-size: 22rpx;
-  color: #9AABBF;
+  color: var(--text-secondary);
 }
 
 /* 隐私协议弹层 */
