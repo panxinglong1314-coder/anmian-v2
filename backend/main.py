@@ -130,12 +130,57 @@ class UserRateLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class ApiStatsMiddleware(BaseHTTPMiddleware):
+    """API 调用统计中间件：自动追踪 LLM/ASR/TTS 响应时间"""
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if not path.startswith("/api/v1/"):
+            return await call_next(request)
+
+        # 映射端点到分类
+        category = "other"
+        if "/chat" in path:
+            category = "LLM"
+        elif "/asr" in path:
+            category = "ASR"
+        elif "/tts" in path:
+            category = "TTS"
+
+        start = time.time()
+        is_error = False
+        try:
+            response = await call_next(request)
+            if hasattr(response, "status_code") and response.status_code >= 500:
+                is_error = True
+            return response
+        except HTTPException as he:
+            if he.status_code >= 500:
+                is_error = True
+            raise
+        except Exception:
+            is_error = True
+            raise
+        finally:
+            try:
+                elapsed_ms = (time.time() - start) * 1000
+                _record_api_call(elapsed_ms, is_error=is_error, category=category)
+            except Exception:
+                pass
+
+
 # ==================== RAG / Session Logger（L2）============
 try:
     import sys
     sys.path.insert(0, str(__file__).rsplit('/', 1)[0])
     from rag_engine import init_rag, build_rag_index, build_rag_system_prompt, log_cbt_turn_with_rag, finalize_session, rag_index
-    from admin_routes import get_dashboard_stats, get_safety_events, get_quality_stats, get_user_list, get_user_detail, export_users_csv, export_safety_csv, export_evaluations_csv
+    from admin_routes import (
+        get_dashboard_stats, get_safety_events, get_quality_stats,
+        get_user_list, get_user_detail,
+        get_system_health, get_health_history, get_retention_stats,
+        export_users_csv, export_safety_csv, export_evaluations_csv,
+        _record_api_call,
+    )
     from session_logger import session_logger, LOG_DIR
     from dialogue_evaluator import dialogue_evaluator
     RAG_AVAILABLE = True
@@ -434,6 +479,7 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(AdminAuthMiddleware)
 app.add_middleware(UserRateLimitMiddleware)
+app.add_middleware(ApiStatsMiddleware)
 
 
 # ==================== Rate Limit Exception Handler ====================
@@ -4481,6 +4527,24 @@ async def admin_safety(days: int = Query(30, le=90), limit: int = Query(500, le=
 async def admin_quality(days: int = Query(30, le=90), limit: int = Query(500, le=2000)):
     """AI 质量监控统计"""
     return get_quality_stats(days=days, limit=limit)
+
+
+@app.get("/api/v1/admin/health")
+async def admin_health():
+    """服务器健康度监控"""
+    return get_system_health()
+
+
+@app.get("/api/v1/admin/health/history")
+async def admin_health_history(hours: int = Query(24, le=168)):
+    """健康度历史快照"""
+    return get_health_history(hours=hours)
+
+
+@app.get("/api/v1/admin/retention")
+async def admin_retention(days: int = Query(30, le=90)):
+    """用户留存分析"""
+    return get_retention_stats(days=days)
 
 
 @app.get("/api/v1/admin/users")

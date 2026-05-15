@@ -25,23 +25,54 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "") or None
 REDIS_DB = 0
 EVAL_TRACK_DIR = Path(__file__).parent.parent / "evaluation_tracking"
 
-# API调用统计（内存中，非持久化，生产环境建议用Redis）
-_api_stats = {
-    "total_requests": 0,
-    "total_errors": 0,
-    "response_times_ms": [],  # 最近200次响应时间
-    "last_reset": time.time(),
-    "categories": {
-        "LLM": {"requests": 0, "errors": 0, "times_ms": []},
-        "ASR": {"requests": 0, "errors": 0, "times_ms": []},
-        "TTS": {"requests": 0, "errors": 0, "times_ms": []},
-        "other": {"requests": 0, "errors": 0, "times_ms": []},
-    }
-}
-
 def _get_redis():
     return redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,
                        password=REDIS_PASSWORD, decode_responses=True)
+
+# API调用统计（优先从Redis加载，持久化 survives 重启）
+_API_STATS_KEY = "admin:api_stats"
+_API_STATS_TTL = 86400 * 7  # 保留7天
+
+def _load_api_stats() -> dict:
+    """从Redis加载API统计，若不存在则返回默认值"""
+    try:
+        r = _get_redis()
+        raw = r.get(_API_STATS_KEY)
+        if raw:
+            loaded = json.loads(raw)
+            # 确保结构完整
+            loaded.setdefault("total_requests", 0)
+            loaded.setdefault("total_errors", 0)
+            loaded.setdefault("response_times_ms", [])
+            loaded.setdefault("last_reset", time.time())
+            loaded.setdefault("categories", {})
+            for cat in ("LLM", "ASR", "TTS", "other"):
+                loaded["categories"].setdefault(cat, {"requests": 0, "errors": 0, "times_ms": []})
+            return loaded
+    except Exception:
+        pass
+    return {
+        "total_requests": 0,
+        "total_errors": 0,
+        "response_times_ms": [],
+        "last_reset": time.time(),
+        "categories": {
+            "LLM": {"requests": 0, "errors": 0, "times_ms": []},
+            "ASR": {"requests": 0, "errors": 0, "times_ms": []},
+            "TTS": {"requests": 0, "errors": 0, "times_ms": []},
+            "other": {"requests": 0, "errors": 0, "times_ms": []},
+        }
+    }
+
+def _save_api_stats():
+    """将API统计持久化到Redis"""
+    try:
+        r = _get_redis()
+        r.setex(_API_STATS_KEY, _API_STATS_TTL, json.dumps(_api_stats))
+    except Exception:
+        pass
+
+_api_stats = _load_api_stats()
 
 def _is_night_time(dt: datetime) -> bool:
     hour = dt.hour
@@ -68,7 +99,7 @@ def _build_cat_stats(cat: str) -> dict:
     }
 
 def _record_api_call(response_time_ms: float, is_error: bool = False, category: str = "other"):
-    """记录API调用统计"""
+    """记录API调用统计，并异步持久化到Redis"""
     _api_stats["total_requests"] += 1
     if is_error:
         _api_stats["total_errors"] += 1
@@ -82,6 +113,33 @@ def _record_api_call(response_time_ms: float, is_error: bool = False, category: 
     cat_data["times_ms"].append(response_time_ms)
     if len(cat_data["times_ms"]) > 200:
         cat_data["times_ms"] = cat_data["times_ms"][-200:]
+    # 每10次调用持久化一次，减少Redis写入压力
+    if _api_stats["total_requests"] % 10 == 0:
+        _save_api_stats()
+
+def _save_health_snapshot():
+    """保存健康快照到Redis历史列表（最多保留7天，每小时1条）"""
+    try:
+        r = _get_redis()
+        now = datetime.now()
+        # 检查本小时是否已记录
+        hour_key = now.strftime("%Y-%m-%d-%H")
+        if r.get(f"health:snapshot:{hour_key}"):
+            return
+        rt = _api_stats["response_times_ms"]
+        avg_rt = round(sum(rt)/len(rt), 1) if rt else 0
+        snapshot = {
+            "timestamp": now.isoformat(),
+            "total_requests": _api_stats["total_requests"],
+            "total_errors": _api_stats["total_errors"],
+            "avg_response_ms": avg_rt,
+            "redis_keys": r.dbsize(),
+        }
+        r.lpush("health:history", json.dumps(snapshot, ensure_ascii=False))
+        r.ltrim("health:history", 0, 24 * 7 - 1)  # 保留7天
+        r.setex(f"health:snapshot:{hour_key}", 3600, "1")
+    except Exception:
+        pass
 
 def _get_all_sessions(days: int = 30) -> List[Dict]:
     r = _get_redis()
@@ -462,14 +520,57 @@ FAILURE_SUGGESTIONS = {
     "评估异常": "建议检查评估日志，排查是否有异常会话导致评分失真",
 }
 
+def _load_feedback_records(days: int = 30) -> List[Dict]:
+    """从Redis feedback:* 加载用户反馈作为质量数据fallback"""
+    records = []
+    cutoff = datetime.now() - timedelta(days=days)
+    try:
+        r = _get_redis()
+        for key in r.scan_iter(match="feedback:*", count=100):
+            for item in r.lrange(key, 0, -1):
+                try:
+                    d = json.loads(item)
+                    ts = d.get("timestamp", "")
+                    if ts:
+                        try:
+                            t = datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=None)
+                            if t < cutoff:
+                                continue
+                        except:
+                            pass
+                    rating = d.get("rating")
+                    comment = d.get("comment", "")
+                    # 将1-5星评分映射为质量指标
+                    rec = {
+                        "session_id": d.get("session_id", ""),
+                        "timestamp": ts,
+                        "auto_rating": "🟢优秀" if rating == 5 else "🟡良好" if rating == 4 else "🟠需改进" if rating == 3 else "🔴不合格" if rating in (1, 2) else "",
+                        "auto_empathy": 5 if rating == 5 else 4 if rating == 4 else 2 if rating == 3 else 1 if rating in (1, 2) else None,
+                        "auto_technical": 9 if rating == 5 else 7 if rating == 4 else 4 if rating == 3 else 2 if rating in (1, 2) else None,
+                        "auto_coherence": 5 if rating == 5 else 4 if rating == 4 else 2 if rating == 3 else 1 if rating in (1, 2) else None,
+                        "source": "feedback",
+                        "comment": comment,
+                    }
+                    records.append(rec)
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return records
+
 def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
     eval_records = _load_evaluation_records(days=days)
+    source = "evaluation_tracking"
+    # 若 evaluation_tracking 为空，fallback 到 Redis feedback
     if not eval_records:
-        return {"message": "暂无数据"}
+        eval_records = _load_feedback_records(days=days)
+        source = "feedback"
+    if not eval_records:
+        return {"message": "暂无数据", "source": None}
 
-    empathy_scores = [r["auto_empathy"] for r in eval_records if "auto_empathy" in r]
-    tech_scores = [r["auto_technical"] for r in eval_records if "auto_technical" in r]
-    coherence_scores = [r["auto_coherence"] for r in eval_records if "auto_coherence" in r]
+    empathy_scores = [r["auto_empathy"] for r in eval_records if r.get("auto_empathy") is not None]
+    tech_scores = [r["auto_technical"] for r in eval_records if r.get("auto_technical") is not None]
+    coherence_scores = [r["auto_coherence"] for r in eval_records if r.get("auto_coherence") is not None]
 
     rating_dist = {"🟢优秀": 0, "🟡良好": 0, "🟠需改进": 0, "🔴不合格": 0}
     for r in eval_records:
@@ -478,18 +579,27 @@ def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
                 rating_dist[k] += 1
                 break
 
-    # 失败模式统计
+    # 失败模式统计（仅对 evaluation_tracking 数据做精细化分析）
     failure_modes = defaultdict(int)
-    for rec in eval_records:
-        empathy = rec.get("auto_empathy", 5)
-        tech = rec.get("auto_technical", 9)
-        coherence = rec.get("auto_coherence", 5)
-        if empathy < 3: failure_modes["共情不足"] += 1
-        if tech < 5: failure_modes["技术建议不准确"] += 1
-        if coherence < 3: failure_modes["回复不连贯"] += 1
-        if rec.get("bias_empathy", 0) > 0.3: failure_modes["情绪理解偏差"] += 1
-        if rec.get("bias_technical", 0) > 0.3: failure_modes["专业知识偏差"] += 1
-        if empathy == 0 and tech == 0: failure_modes["评估异常"] += 1
+    if source == "evaluation_tracking":
+        for rec in eval_records:
+            empathy = rec.get("auto_empathy", 5)
+            tech = rec.get("auto_technical", 9)
+            coherence = rec.get("auto_coherence", 5)
+            if empathy < 3: failure_modes["共情不足"] += 1
+            if tech < 5: failure_modes["技术建议不准确"] += 1
+            if coherence < 3: failure_modes["回复不连贯"] += 1
+            if rec.get("bias_empathy", 0) > 0.3: failure_modes["情绪理解偏差"] += 1
+            if rec.get("bias_technical", 0) > 0.3: failure_modes["专业知识偏差"] += 1
+            if empathy == 0 and tech == 0: failure_modes["评估异常"] += 1
+    else:
+        # feedback 来源的简化失败模式
+        for rec in eval_records:
+            rating = rec.get("auto_empathy", 5)
+            if rating <= 2:
+                failure_modes["用户评分偏低"] += 1
+            if rec.get("comment", "").strip():
+                failure_modes["用户留有文字反馈"] += 1
 
     top_failures = sorted(failure_modes.items(), key=lambda x: x[1], reverse=True)[:10]
     top_failure_modes = [
@@ -500,6 +610,7 @@ def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
     return {
         "period_days": days,
         "total_evaluated": len(eval_records),
+        "source": source,
         "empathy": {
             "mean": round(sum(empathy_scores) / len(empathy_scores), 1) if empathy_scores else 0,
             "distribution": {str(i): empathy_scores.count(i) for i in range(6)} if empathy_scores else {},
@@ -741,10 +852,13 @@ def get_system_health() -> Dict[str, Any]:
         if tot_req > 10 and tot_err/tot_req > 0.05: issues.append(f"API错误率高({tot_err}/{tot_req})")
         #elif tot_req == 0: issues.append("API请求量为0(可能未接入)")
 
-        # 6. 评估记录检查
-        if len(eval_records) == 0: issues.append("近30天无评估记录")
+        # 6. 评估/反馈记录检查（evaluation_tracking 或 feedback 任一有数据即可）
+        if len(eval_records) == 0 and len(_load_feedback_records(days=30)) == 0:
+            issues.append("近30天无评估/反馈记录")
 
         is_healthy = len(issues) == 0
+        # 保存健康快照（每小时最多1条）
+        _save_health_snapshot()
         return {
             "status": "healthy" if is_healthy else "unhealthy",
             "issues": issues,
@@ -808,6 +922,8 @@ def get_retention_stats(days: int = 30) -> Dict[str, Any]:
         if not detail or not detail.get("start_dt"):
             continue
         uid = detail.get("user_id", "unknown")
+        if uid == "unknown":
+            continue
         date_str = detail["start_dt"].strftime("%Y-%m-%d")
         if uid not in user_sessions_by_date:
             user_sessions_by_date[uid] = {}
@@ -822,10 +938,33 @@ def get_retention_stats(days: int = 30) -> Dict[str, Any]:
         active_users = sum(1 for uid, dates in user_sessions_by_date.items() if d in dates)
         daily_stats.append({"date": d, "new_users": new_users, "active_users": active_users})
 
+    # 计算 D1 / D7 留存率（基于最近有完整追踪期的日期）
+    d1_rate = None
+    d7_rate = None
+    d1_details = []
+    d7_details = []
+    today = datetime.now().date()
+
+    for uid, dates in user_sessions_by_date.items():
+        sorted_dates = sorted(dates.keys())
+        first_date = datetime.strptime(sorted_dates[0], "%Y-%m-%d").date()
+        # 只统计 first_date 在追踪窗口内且后续日期有足够追踪期的用户
+        if first_date >= today - timedelta(days=days):
+            d1_date = (first_date + timedelta(days=1)).strftime("%Y-%m-%d")
+            d7_date = (first_date + timedelta(days=7)).strftime("%Y-%m-%d")
+            d1_details.append(d1_date in dates)
+            d7_details.append(d7_date in dates)
+
+    if d1_details:
+        d1_rate = round(sum(d1_details) / len(d1_details) * 100, 1)
+    if d7_details:
+        d7_rate = round(sum(d7_details) / len(d7_details) * 100, 1)
+
     return {
         "period_days": days,
         "daily_stats": daily_stats[-30:],
-        "retention": {"d1": None, "d7": None},
+        "retention": {"d1": d1_rate, "d7": d7_rate},
+        "total_users": len(user_sessions_by_date),
     }
 
 # ==================== 数据导出 ====================
