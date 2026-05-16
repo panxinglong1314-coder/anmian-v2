@@ -55,6 +55,46 @@
   background: rgba(139, 163, 185, 0.15);
   flex-shrink: 0;
 }
+/* 头像选择按钮：去掉 button 默认样式，外观和 .avatar-wrap 一致 */
+.avatar-chooser {
+  width: 120rpx;
+  height: 120rpx;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  line-height: normal;
+  position: relative;
+  flex-shrink: 0;
+  display: block;
+}
+.avatar-chooser::after { border: none; }
+.avatar-chooser .avatar,
+.avatar-chooser .avatar-default {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 60rpx;
+  overflow: hidden;
+}
+/* 小相机角标（替代原本沉重的"点击修改"暗条） */
+.avatar-edit-hint {
+  position: absolute;
+  bottom: -4rpx;
+  right: -4rpx;
+  width: 40rpx;
+  height: 40rpx;
+  background: #F5C869;
+  color: #0D1B2A;
+  font-size: 18rpx;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3rpx solid #0D1B2A;
+  letter-spacing: 0;
+}
 .avatar {
   width: 120rpx;
   height: 120rpx;
@@ -73,10 +113,40 @@
   color: #F5C869;
 }
 .profile-info {
+  flex: 1;
   margin-left: 28rpx;
   display: flex;
   flex-direction: column;
+  min-width: 0;  /* 避免 input 撑爆容器 */
 }
+.profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 8rpx;
+}
+.profile-name-input {
+  flex: 1;
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #EDE8DF;
+  background: transparent;
+  border: none;
+  padding: 4rpx 0;
+  min-width: 0;
+}
+.profile-name-input::placeholder { color: rgba(139,163,185,0.5); font-weight: 500; }
+.profile-save-btn {
+  padding: 8rpx 22rpx;
+  background: rgba(245,200,105,0.18);
+  border: 1rpx solid rgba(245,200,105,0.4);
+  border-radius: 12rpx;
+  color: #F5C869;
+  font-size: 24rpx;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.profile-save-btn:active { opacity: 0.7; }
 .profile-name {
   font-size: 36rpx;
   font-weight: 600;
@@ -138,6 +208,194 @@
   padding: 14rpx 36rpx;
   border-radius: 12rpx;
   text-align: center;
+}
+
+/* ========== 区段标题（参考 Calm / Apple 健康分组风格） ========== */
+.section-heading {
+  margin: 36rpx 32rpx 12rpx;
+  font-size: 22rpx;
+  color: rgba(139,163,185,0.7);
+  letter-spacing: 3rpx;
+  text-transform: uppercase;
+}
+
+/* ========== 列表式设置卡片 ========== */
+.list-card {
+  padding: 0 !important;
+  overflow: hidden;
+}
+.list-row {
+  display: flex;
+  align-items: center;
+  padding: 26rpx 28rpx;
+  gap: 16rpx;
+  border-bottom: 1rpx solid rgba(139,163,185,0.08);
+  background: rgba(26,48,74,0.5);
+}
+.list-row:last-child { border-bottom: none; }
+.list-row:active { background: rgba(26,48,74,0.8); }
+.list-row-icon {
+  width: 40rpx;
+  height: 40rpx;
+  font-size: 32rpx;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.list-row-label {
+  flex: 1;
+  font-size: 28rpx;
+  color: #EDE8DF;
+}
+.list-row-value {
+  font-size: 24rpx;
+  color: #8BA3B9;
+  margin-right: 8rpx;
+}
+.list-row-arrow {
+  font-size: 32rpx;
+  color: rgba(139,163,185,0.5);
+  line-height: 1;
+}
+
+/* ========== 紧急联系人卡片 ========== */
+.emergency-card {
+  padding: 0;
+  overflow: hidden;
+}
+.emergency-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28rpx 28rpx;
+}
+.emergency-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+.emergency-icon { font-size: 32rpx; }
+.emergency-title {
+  font-size: 30rpx;
+  color: #EDE8DF;
+  font-weight: 500;
+}
+/* 紧凑标签：对称 padding 撑高度，line-height 锁定为 1 → 中文字符天然居中 */
+.emergency-status {
+  display: inline-block;
+  padding: 4rpx 14rpx 10rpx;  /* 上少下多 → 文字视觉上移 */
+  font-size: 22rpx;
+  line-height: 1;             /* 关键：移除浏览器默认 1.2 行高造成的下沉 */
+  border-radius: 999rpx;
+  letter-spacing: 0;
+  background: rgba(139,163,185,0.08);
+  border: 1rpx solid rgba(139,163,185,0.15);
+  color: #8BA3B9;
+  box-sizing: border-box;
+  vertical-align: middle;     /* 与同行的标题字保持基线对齐 */
+}
+/* 已设置：相同形状，绿色调表达 active 状态（类比 .relation-pill.active） */
+.emergency-status.set {
+  background: rgba(126,200,163,0.15);
+  border-color: rgba(126,200,163,0.4);
+  color: #7EC8A3;
+}
+.emergency-status.unset {
+  /* 默认即未设置色，无需额外覆盖 */
+}
+.emergency-toggle {
+  font-size: 24rpx;
+  color: #8BA3B9;
+}
+.emergency-body {
+  padding: 0 28rpx 28rpx;
+  border-top: 1rpx solid rgba(139,163,185,0.08);
+}
+.emergency-privacy {
+  display: flex;
+  align-items: center;       /* 修复：图标和文字水平居中对齐 */
+  gap: 14rpx;
+  margin: 20rpx 0 24rpx;
+  padding: 20rpx 22rpx;
+  background: rgba(107,159,212,0.10);
+  border: 1rpx solid rgba(107,159,212,0.20);
+  border-radius: 16rpx;
+}
+.emergency-privacy-icon {
+  font-size: 32rpx;
+  flex-shrink: 0;
+  line-height: 1;            /* 修复：移除 emoji 默认基线偏移 */
+  margin: 0;                 /* 不再下挂 */
+}
+.emergency-privacy-text {
+  flex: 1;
+  font-size: 24rpx;
+  color: #C0D0E0;
+  line-height: 1.55;
+}
+.relation-pills {
+  display: flex;
+  gap: 12rpx;
+  flex-wrap: wrap;
+  flex: 1;
+}
+.relation-pill {
+  padding: 8rpx 20rpx;
+  font-size: 24rpx;
+  border-radius: 999rpx;
+  background: rgba(139,163,185,0.08);
+  border: 1rpx solid rgba(139,163,185,0.15);
+  color: #8BA3B9;
+}
+.relation-pill.active {
+  background: rgba(245,200,105,0.15);
+  border-color: rgba(245,200,105,0.4);
+  color: #F5C869;
+}
+.emergency-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+  margin-top: 24rpx;
+  padding: 16rpx;
+  background: rgba(139,163,185,0.05);
+  border-radius: 12rpx;
+}
+.consent-checkbox {
+  width: 32rpx;
+  height: 32rpx;
+  border: 2rpx solid rgba(139,163,185,0.5);
+  border-radius: 6rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2rpx;
+  color: #0D1B2A;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+.consent-checkbox.checked {
+  background: #F5C869;
+  border-color: #F5C869;
+}
+.consent-label {
+  flex: 1;
+  font-size: 24rpx;
+  color: #C0D0E0;
+  line-height: 1.5;
+}
+.clear-btn {
+  background: transparent;
+  border: 1rpx solid rgba(232,132,107,0.4);
+  color: #E8846B;
+  font-size: 28rpx;
+  padding: 14rpx 28rpx;
+  border-radius: 12rpx;
+  text-align: center;
+  margin-left: 16rpx;
 }
 
 /* 退出登录 */

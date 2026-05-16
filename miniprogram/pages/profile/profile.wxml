@@ -1,18 +1,10 @@
 <!-- pages/profile/profile.wxml - 个人中心 -->
+<!-- 顶部标题由 WeChat 原生导航栏处理（profile.json 中 navigationBarTitleText 配置） -->
 <view class="page">
 
-  <!-- 导航栏 -->
-  <view class="nav-bar">
-    <view class="nav-back" bindtap="goBack">
-      <text class="nav-back-icon">‹</text>
-    </view>
-    <text class="nav-title">个人中心</text>
-    <view class="nav-placeholder"></view>
-  </view>
-
-  <!-- 用户信息卡片 -->
+  <!-- 用户信息卡片：头像 + 昵称输入 + 保存（合一） -->
   <view class="profile-card">
-    <view class="avatar-wrap">
+    <button class="avatar-chooser" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar" hover-class="none">
       <image
         wx:if="{{avatarUrl}}"
         class="avatar"
@@ -22,9 +14,20 @@
       <view wx:else class="avatar avatar-default">
         <text class="avatar-letter">{{userInfo.nickname ? userInfo.nickname[0] : '我'}}</text>
       </view>
-    </view>
+      <view class="avatar-edit-hint">✎</view>
+    </button>
     <view class="profile-info">
-      <text class="profile-name">{{userInfo.nickname || '未设置昵称'}}</text>
+      <view class="profile-name-row">
+        <input
+          class="profile-name-input"
+          type="nickname"
+          placeholder="点击设置昵称"
+          value="{{nickname}}"
+          bindinput="onNicknameInput"
+          bindblur="onNicknameBlur"
+        />
+        <view wx:if="{{nicknameDirty}}" class="profile-save-btn" bindtap="saveProfile">保存</view>
+      </view>
       <text class="profile-id">ID: {{userInfo.user_id || ''}}</text>
       <text wx:if="{{userInfo.created_at}}" class="profile-meta">
         加入于 {{userInfo.created_at.slice(0,10)}}
@@ -32,22 +35,92 @@
     </view>
   </view>
 
-  <!-- 编辑区域 -->
-  <view class="section-card">
-    <view class="form-row">
-      <text class="form-label">昵称</text>
-      <input
-        class="form-input"
-        type="nickname"
-        placeholder="输入昵称"
-        value="{{nickname}}"
-        bindinput="onNicknameInput"
-      />
-    </view>
-    <view class="form-action">
-      <view class="save-btn" bindtap="saveProfile">
-        <text>保存</text>
+  <!-- 区段标题：安全与隐私 -->
+  <view class="section-heading">
+    <text>安全与隐私</text>
+  </view>
+
+  <!-- 紧急联系人卡片 -->
+  <view class="section-card emergency-card">
+    <view class="emergency-header" bindtap="toggleEmergency">
+      <view class="emergency-title-row">
+        <text class="emergency-icon">🆘</text>
+        <text class="emergency-title">紧急联系人</text>
+        <text class="emergency-status {{emergencyContact.phone ? 'set' : 'unset'}}">
+          {{emergencyContact.phone ? '已设置' : '未设置'}}
+        </text>
       </view>
+      <text class="emergency-toggle">{{emergencyExpanded ? '收起' : '展开'}} {{emergencyExpanded ? '⌃' : '⌄'}}</text>
+    </view>
+
+    <view wx:if="{{emergencyExpanded}}" class="emergency-body">
+      <view class="emergency-privacy">
+        <text class="emergency-privacy-icon">🔒</text>
+        <text class="emergency-privacy-text">
+          仅在 AI 检测到严重危机信号（如自伤倾向）时，我们才会联系 TA。
+          平时绝不会打扰，绝不用于营销。你随时可以删除。
+        </text>
+      </view>
+
+      <view class="form-row">
+        <text class="form-label">姓名</text>
+        <input class="form-input" placeholder="例如：妈妈、王医生"
+          value="{{emergencyContact.name}}" bindinput="onEmergencyNameInput" maxlength="30" />
+      </view>
+      <view class="form-row">
+        <text class="form-label">手机号</text>
+        <input class="form-input" type="number" placeholder="11 位手机号"
+          value="{{emergencyContact.phone}}" bindinput="onEmergencyPhoneInput" maxlength="11" />
+      </view>
+      <view class="form-row">
+        <text class="form-label">关系</text>
+        <view class="relation-pills">
+          <view wx:for="{{relationOptions}}" wx:key="*this"
+            class="relation-pill {{emergencyContact.relation === item ? 'active' : ''}}"
+            data-relation="{{item}}" bindtap="onSelectRelation">{{item}}</view>
+        </view>
+      </view>
+
+      <view class="emergency-consent" bindtap="toggleConsent">
+        <view class="consent-checkbox {{emergencyContact.consent ? 'checked' : ''}}">
+          <text wx:if="{{emergencyContact.consent}}">✓</text>
+        </view>
+        <text class="consent-label">我同意在 AI 判定为严重危机时联系 TA，并已征得 TA 的同意</text>
+      </view>
+
+      <view class="form-action">
+        <view class="save-btn" bindtap="saveEmergencyContact">
+          <text>{{emergencyContact.phone ? '更新' : '保存'}}</text>
+        </view>
+        <view wx:if="{{emergencyContact.phone}}" class="clear-btn" bindtap="clearEmergencyContact">
+          <text>清除</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 区段标题：关于 -->
+  <view class="section-heading">
+    <text>关于</text>
+  </view>
+
+  <!-- 列表式设置项（隐私政策、用户协议、版本） -->
+  <view class="section-card list-card">
+    <view class="list-row" bindtap="openPrivacy">
+      <text class="list-row-icon">📜</text>
+      <text class="list-row-label">隐私政策</text>
+      <text class="list-row-arrow">›</text>
+    </view>
+    <view class="list-row" bindtap="openTerms">
+      <text class="list-row-icon">📋</text>
+      <text class="list-row-label">用户协议</text>
+      <text class="list-row-arrow">›</text>
+    </view>
+    <view class="list-row" bindtap="openAbout">
+      <text class="list-row-icon">🌙</text>
+      <text class="list-row-label">关于知眠</text>
+      <text class="list-row-value">v2.0</text>
+      <text class="list-row-arrow">›</text>
     </view>
   </view>
 

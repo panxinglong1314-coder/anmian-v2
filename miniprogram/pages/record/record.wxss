@@ -54,13 +54,12 @@
   white-space: nowrap;
 }
 .share-btn {
-  display: flex; align-items: center; gap: 8rpx;
-  padding: 10rpx 18rpx; border-radius: 999rpx;
+  display: flex; align-items: center;
+  padding: 10rpx 20rpx; border-radius: 999rpx;
   background: rgba(245,200,105,0.12);
   border: 1rpx solid rgba(245,200,105,0.2);
 }
-.share-icon { font-size: 24rpx; color: #F5C869; }
-.share-text { font-size: 22rpx; color: #F5C869; }
+.share-label { font-size: 24rpx; color: #F5C869; letter-spacing: 1rpx; }
 
 /* 可滚动内容区 */
 .record-content {
@@ -121,30 +120,13 @@
   letter-spacing: 1rpx;
 }
 
-/* 补打卡提示条（近 7 天无记录但有历史） */
-.catchup-banner {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  margin: 24rpx 0 0;
-  padding: 24rpx 28rpx;
-  background: linear-gradient(135deg, rgba(107,159,212,0.12), rgba(126,200,163,0.06));
-  border: 1rpx solid rgba(107,159,212,0.25);
-  border-radius: 20rpx;
+/* 长期断档变体：复用 .morning-prompt 全部布局，仅换色调（冷月色 vs 早晨金色） */
+.morning-prompt-catchup {
+  background: linear-gradient(135deg, rgba(107,159,212,0.14), rgba(107,159,212,0.06));
+  border-color: rgba(107,159,212,0.28);
 }
-.catchup-icon {
-  font-size: 36rpx;
-}
-.catchup-text {
-  flex: 1;
-  font-size: 26rpx;
-  color: #EDE8DF;
-  line-height: 1.4;
-}
-.catchup-cta {
-  font-size: 24rpx;
-  color: #7EC8A3;
-  font-weight: 500;
+.morning-prompt-catchup .morning-prompt-arrow {
+  color: rgba(107,159,212,0.7);
 }
 
 /* 只在连续使用上用金色，作为唯一主强调色 */
@@ -358,14 +340,19 @@
 }
 
 /* ================================================
-   担忧箱入口（纯文字行，带左侧圆点）
+   心事入口（与"洞察"行视觉同款，仅靠金色箭头暗示可点）
    ================================================ */
 .worry-entry {
   display: flex;
   align-items: center;
-  gap: 10rpx;
-  padding: 0;
-  margin: 0;
+  gap: 10rpx;                     /* 同 .insight-row */
+  padding: 0;                     /* 同 .insight-row */
+  margin: 10rpx 0 0 0;            /* 同 .insight-row */
+  border-radius: 8rpx;
+  transition: background 0.2s;
+}
+.worry-entry:active {
+  background: rgba(139,163,185,0.08);   /* 按下时整行变亮反馈 */
 }
 .worry-entry-dot {
   width: 8rpx;
@@ -384,16 +371,21 @@
   flex: 1;
   font-size: 24rpx;
   color: #8BA3B9;
-  line-height: 1;
+  line-height: 1;                  /* 同 .insight-text，避免行高差导致整行变高 */
+  transform: translateY(-5rpx);    /* 中文字符基线视觉上移，行高保持不变 */
 }
 .worry-entry-text.has-unread {
   color: #EDE8DF;
 }
 .worry-entry-arrow {
-  font-size: 24rpx;
-  color: rgba(139,163,185,0.4);
+  font-size: 24rpx;                /* 同文字字号，不撑行高 */
+  color: rgba(245,200,105,0.65);   /* 弱金色暗示"可点" */
   flex-shrink: 0;
   line-height: 1;
+  font-weight: 500;
+}
+.worry-entry-text.has-unread + .worry-entry-arrow {
+  color: rgba(245,200,105,0.9);    /* 有未读时箭头更亮 */
 }
 
 /* ================================================
@@ -522,6 +514,237 @@
 
 /* 空状态 */
 .empty-detail { font-size: 26rpx; color: #8BA3B9; text-align: center; padding: 64rpx 0; }
+
+/* ===========================
+   周报弹窗（叙事 + 数据 + CTA）
+   =========================== */
+.weekly-overlay {
+  position: fixed; inset: 0;
+  background: rgba(8,16,28,0.85);
+  display: flex; align-items: center; justify-content: center;
+  padding: 60rpx 40rpx;
+  z-index: 100;
+}
+.weekly-card {
+  position: relative;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: linear-gradient(160deg, #1A2A3F 0%, #0D1B2A 70%, #0A1422 100%);
+  border-radius: 32rpx;
+  padding: 56rpx 36rpx 36rpx;
+  box-shadow: 0 10rpx 60rpx rgba(0,0,0,0.5);
+  border: 1rpx solid rgba(245,200,105,0.15);
+}
+.weekly-close {
+  position: absolute;
+  top: 24rpx; right: 28rpx;
+  width: 56rpx; height: 56rpx;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32rpx;
+  color: rgba(139,163,185,0.7);
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+}
+.weekly-loading {
+  padding: 80rpx 0;
+  text-align: center;
+  color: #8BA3B9;
+  font-size: 26rpx;
+}
+.weekly-brand {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12rpx;
+  margin-bottom: 8rpx;
+}
+.weekly-moon { font-size: 40rpx; }
+.weekly-brand-name { font-size: 28rpx; color: #F5C869; letter-spacing: 2rpx; }
+.weekly-date-range {
+  text-align: center;
+  font-size: 22rpx;
+  color: rgba(139,163,185,0.7);
+  margin-bottom: 36rpx;
+  letter-spacing: 1rpx;
+}
+.weekly-stats {
+  display: flex;
+  justify-content: space-around;
+  padding: 24rpx 0;
+  margin-bottom: 32rpx;
+  background: rgba(36,52,71,0.4);
+  border-radius: 24rpx;
+  border: 1rpx solid rgba(255,255,255,0.04);
+}
+.weekly-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 6rpx;
+}
+.weekly-stat-num {
+  font-size: 44rpx;
+  font-weight: 600;
+  color: #F5C869;
+  font-family: -apple-system,'PingFang SC',serif;
+}
+.weekly-stat-lbl {
+  font-size: 20rpx;
+  color: #8BA3B9;
+  letter-spacing: 1rpx;
+}
+.weekly-narrative {
+  padding: 12rpx 12rpx 24rpx;
+  display: flex; flex-direction: column;
+  gap: 16rpx;
+}
+.weekly-line {
+  font-size: 30rpx;
+  line-height: 1.6;
+  color: #EDE8DF;
+  letter-spacing: 1rpx;
+}
+.weekly-line-spacer { height: 12rpx; }
+.weekly-triggers {
+  margin-top: 16rpx;
+  padding: 24rpx;
+  background: rgba(36,52,71,0.3);
+  border-radius: 20rpx;
+  border: 1rpx solid rgba(255,255,255,0.04);
+}
+.weekly-triggers-title {
+  display: block;
+  font-size: 22rpx;
+  color: #8BA3B9;
+  margin-bottom: 16rpx;
+  letter-spacing: 2rpx;
+}
+.weekly-trigger-list { display: flex; flex-direction: column; gap: 12rpx; }
+.weekly-trigger-item {
+  display: flex; align-items: center; gap: 16rpx;
+}
+.weekly-trigger-name {
+  width: 140rpx;
+  font-size: 24rpx;
+  color: #EDE8DF;
+  flex-shrink: 0;
+}
+.weekly-trigger-bar {
+  flex: 1;
+  height: 12rpx;
+  background: rgba(255,255,255,0.06);
+  border-radius: 999rpx;
+  overflow: hidden;
+}
+.weekly-trigger-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(245,200,105,0.5), rgba(245,200,105,0.9));
+  border-radius: 999rpx;
+}
+.weekly-trigger-count {
+  width: 60rpx;
+  text-align: right;
+  font-size: 22rpx;
+  color: #F5C869;
+}
+/* 必须以 .weekly-share-btn::after 覆盖微信 button 默认边框 */
+.weekly-share-btn {
+  margin-top: 32rpx;
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: linear-gradient(135deg, rgba(245,200,105,0.3), rgba(245,200,105,0.12));
+  border: 1rpx solid rgba(245,200,105,0.4);
+  color: #F5C869;
+  font-size: 28rpx;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.4;
+  width: 100%;
+  box-sizing: border-box;
+}
+.weekly-share-btn::after { border: none; }
+.weekly-share-hover {
+  background: linear-gradient(135deg, rgba(245,200,105,0.4), rgba(245,200,105,0.2)) !important;
+  opacity: 0.9;
+}
+.weekly-share-tip {
+  margin-top: 16rpx;
+  text-align: center;
+  font-size: 22rpx;
+  color: rgba(139,163,185,0.6);
+}
+
+/* 详情弹窗·完整空状态卡片 */
+.empty-detail-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40rpx 32rpx 32rpx;
+  gap: 16rpx;
+}
+.empty-detail-icon {
+  font-size: 88rpx;
+  margin-top: 24rpx;
+  opacity: 0.9;
+}
+.empty-detail-title {
+  font-size: 34rpx;
+  color: #EDE8DF;
+  font-weight: 500;
+  margin-top: 8rpx;
+}
+.empty-detail-desc {
+  font-size: 26rpx;
+  color: #8BA3B9;
+  text-align: center;
+  line-height: 1.5;
+  padding: 0 24rpx;
+}
+.empty-detail-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  width: 80%;
+  margin-top: 24rpx;
+  padding: 24rpx 32rpx;
+  background: linear-gradient(135deg, rgba(126,200,163,0.25), rgba(126,200,163,0.10));
+  border: 1rpx solid rgba(126,200,163,0.4);
+  border-radius: 24rpx;
+  color: #7EC8A3;
+  font-size: 28rpx;
+  font-weight: 500;
+}
+.empty-detail-btn-arrow {
+  font-size: 32rpx;
+  margin-left: 4rpx;
+}
+.empty-detail-tips {
+  width: 100%;
+  margin-top: 24rpx;
+  padding: 24rpx 28rpx;
+  background: rgba(36,52,71,0.4);
+  border: 1rpx solid rgba(255,255,255,0.06);
+  border-radius: 20rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+}
+.empty-detail-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 14rpx;
+}
+.empty-detail-tip-bullet {
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: rgba(139,163,185,0.6);
+  flex-shrink: 0;
+  margin-top: 14rpx;
+}
+.empty-detail-tip-text {
+  flex: 1;
+  font-size: 24rpx;
+  color: #8BA3B9;
+  line-height: 1.5;
+}
 
 /* 加载中 */
 .loading-mask {

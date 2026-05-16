@@ -234,7 +234,8 @@ def calculate_srt_recommendation(user_id: str) -> dict:
         }
 
     record_count = len(records)
-    avg_se = round(sum(r["se"] for r in records) / record_count, 1)
+    # SE 存储为 0-1 小数，转为百分比 0-100 与阈值/前端展示对齐
+    avg_se = round(sum(r["se"] for r in records) / record_count * 100, 1)
     avg_tst = round(sum(r.get("tst_minutes", 0) for r in records) / record_count)
 
     # 计算预估 TIB（用于学习期）
@@ -272,7 +273,8 @@ def calculate_srt_recommendation(user_id: str) -> dict:
     target_tib = min(max(avg_tst + c["BUFFER_MINUTES"], c["MIN_TIB_MINUTES"]), c["MAX_TIB_MINUTES"])
 
     # 检查是否连续 7 天都满足条件（用于扩展 TIB 的门槛）
-    all_meet_threshold = len(records) >= 7 and all(r["se"] >= c["SE_OPTIMIZING"] for r in records)
+    # SE 存储为 0-1，阈值是 0-100，比较时乘 100
+    all_meet_threshold = len(records) >= 7 and all(r["se"] * 100 >= c["SE_OPTIMIZING"] for r in records)
 
     if avg_se >= c["SE_OPTIMIZING"] and all_meet_threshold:
         new_tib = min(target_tib + c["EXPANSION_MINUTES"], c["MAX_TIB_MINUTES"])
@@ -359,7 +361,8 @@ def apply_srt_restriction(user_id: str, recommended_bed_time: str = None, recomm
     c = _get_srt_constants()
     records = get_last_n_sleep_records(user_id, 7)
     if records:
-        avg_se = round(sum(r["se"] for r in records) / len(records), 1)
+        # SE 存储为 0-1，转为百分比
+        avg_se = round(sum(r["se"] for r in records) / len(records) * 100, 1)
         avg_tst = round(sum(r.get("tst_minutes", 0) for r in records) / len(records))
         save_sleep_baseline(user_id, {
             "baseline_tib_minutes": min(max(avg_tst + c["BUFFER_MINUTES"], c["MIN_TIB_MINUTES"]), c["MAX_TIB_UPPER"]),

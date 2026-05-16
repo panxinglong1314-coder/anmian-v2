@@ -585,6 +585,108 @@ async def update_user_profile(req: UserProfileRequest, user: AuthUser = Depends(
         raise HTTPException(status_code=500, detail=f"保存失败: {e}")
 
 
+# ---------- 头像上传 ----------
+AVATARS_DIR = Path(__file__).parent.parent / "static" / "avatars"
+AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+
+@app.post("/api/v1/user/avatar")
+async def upload_user_avatar(file: UploadFile = File(...), user: AuthUser = Depends(get_current_user)):
+    """
+    用户上传头像（从 wx.chooseAvatar 拿到的本地 tempFilePath）。
+    存到 /static/avatars/{user_id}.jpg，同时写入 user_profile.avatar_url。
+    """
+    try:
+        user_id = user.user_id
+        # 限制：图片，且 <2MB
+        contents = await file.read()
+        if len(contents) > 2 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="头像过大（请 < 2MB）")
+        # 微信 chooseAvatar 默认 JPEG，保险起见统一存为 jpg
+        # 文件名带时间戳避免 CDN 缓存
+        ts = int(datetime.now().timestamp())
+        filename = f"{user_id}_{ts}.jpg"
+        file_path = AVATARS_DIR / filename
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        # 公开 URL（Nginx 直出 /static/）
+        avatar_url = f"https://sleepai.chat/static/avatars/{filename}"
+        # 写入 profile
+        key = f"user_profile:{user_id}"
+        existing = {}
+        raw = redis_client.get(key)
+        if raw:
+            existing = json.loads(raw)
+        existing["avatar_url"] = avatar_url
+        existing["updated_at"] = datetime.now().isoformat()
+        redis_client.set(key, json.dumps(existing, ensure_ascii=False), ex=365*24*3600)
+        return {"avatar_url": avatar_url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[upload_user_avatar error] {e}")
+        raise HTTPException(status_code=500, detail=f"上传失败: {e}")
+
+
+# ---------- 紧急联系人（危机干预用） ----------
+class EmergencyContactRequest(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    relation: Optional[str] = None  # 家人/朋友/医生/其他
+    consent: Optional[bool] = None  # 用户授权同意
+
+
+@app.get("/api/v1/user/emergency_contact")
+async def get_emergency_contact(user: AuthUser = Depends(get_current_user)):
+    """读取紧急联系人（CBT-I 危机干预用）"""
+    user_id = user.user_id
+    raw = redis_client.get(f"emergency_contact:{user_id}")
+    if raw:
+        try:
+            return json.loads(raw)
+        except Exception:
+            pass
+    return {"name": "", "phone": "", "relation": "", "consent": False}
+
+
+@app.post("/api/v1/user/emergency_contact")
+async def update_emergency_contact(req: EmergencyContactRequest, user: AuthUser = Depends(get_current_user)):
+    """
+    更新紧急联系人。仅在 AI 检测到严重危机信号时使用。
+    用户必须显式 consent=True 才会保存生效。
+    """
+    user_id = user.user_id
+    # 基础校验
+    name = (req.name or "").strip()[:30]
+    phone = (req.phone or "").strip()[:20]
+    relation = (req.relation or "").strip()[:20]
+    # 简单的手机号格式校验（11 位数字，不强制中国格式）
+    if phone and not phone.replace("-", "").replace(" ", "").replace("+", "").isdigit():
+        raise HTTPException(status_code=400, detail="手机号格式不正确")
+    if phone and len(phone.replace("-", "").replace(" ", "").replace("+", "")) < 7:
+        raise HTTPException(status_code=400, detail="手机号长度不足")
+    if name and not phone:
+        raise HTTPException(status_code=400, detail="请填写手机号")
+
+    data = {
+        "name": name,
+        "phone": phone,
+        "relation": relation,
+        "consent": bool(req.consent),
+        "updated_at": datetime.now().isoformat(),
+    }
+    # 用户没填写或没勾选 consent → 视为清除
+    if not name and not phone:
+        redis_client.delete(f"emergency_contact:{user_id}")
+        return {"name": "", "phone": "", "relation": "", "consent": False}
+
+    redis_client.set(
+        f"emergency_contact:{user_id}",
+        json.dumps(data, ensure_ascii=False),
+        ex=10 * 365 * 24 * 3600,  # 10 年保留
+    )
+    return data
+
+
 def _migrate_user_data(temp_id: str, real_id: str) -> int:
     """将 temp_id 的数据迁移到真实 user_id，返回迁移的键数"""
     migrated = 0
@@ -3814,6 +3916,140 @@ async def get_anxiety_weekly(user: AuthUser = Depends(get_current_user)):
 
     return {"user_id": user_id, "weekly": weekly}
 
+# ---------- 周报（叙事 + 数据，用于分享） ----------
+@app.get("/api/v1/report/weekly/{user_id}")
+async def get_weekly_report(user: AuthUser = Depends(get_current_user)):
+    """
+    生成近 7 天周报：数据 + 叙事文本，用于分享卡片/海报
+    数据来源：
+    - session_state:* → 会话数、放松练习次数、最严重焦虑
+    - user:memory:.triggers → 担忧领域分布
+    - sleep_diary:* → 打卡天数
+    - user:streak: → 连续使用天数
+    """
+    user_id = user.user_id
+    now = datetime.now()
+    week_start = (now - timedelta(days=6)).strftime("%Y-%m-%d")
+    week_end = now.strftime("%Y-%m-%d")
+
+    # 1) 扫描本周 sessions，统计会话数 / 放松练习 / 触发的 worry_topic
+    session_count = 0
+    relaxation_count = 0
+    worry_topic_counts: dict[str, int] = {}
+    closure_count = 0
+    try:
+        for i in range(7):
+            d = now - timedelta(days=i)
+            date_str = d.strftime("%Y-%m-%d")
+            pattern = f"session_state:{user_id}:session_{date_str}_*"
+            cursor = 0
+            while True:
+                cursor, keys = redis_client.scan(cursor, match=pattern, count=100)
+                for k in keys:
+                    raw = redis_client.get(k)
+                    if not raw:
+                        continue
+                    try:
+                        state = json.loads(raw)
+                        session_count += 1
+                        rc = int(state.get("relaxation_cycles_completed", 0) or 0)
+                        if rc > 0:
+                            relaxation_count += 1
+                        topic = state.get("worry_topic", "")
+                        if topic and topic != "general":
+                            worry_topic_counts[topic] = worry_topic_counts.get(topic, 0) + 1
+                        if state.get("phase") == "closure":
+                            closure_count += 1
+                    except Exception:
+                        continue
+                if cursor == 0:
+                    break
+    except Exception as e:
+        print(f"[weekly_report scan error] {e}")
+
+    # 2) 担忧领域分布（user:memory.triggers 是累计的全部，单独算本周需用 worry 记录）
+    memory = get_user_memory(user_id)
+    memory_triggers = memory.get("triggers", {}) or {}
+
+    # 优先用本周 session 的 worry_topic 分布；如果太少（< 2 次），补全 memory.triggers
+    if sum(worry_topic_counts.values()) >= 2:
+        trigger_source = worry_topic_counts
+    else:
+        trigger_source = memory_triggers
+
+    trigger_dist = []
+    for domain, count in sorted(trigger_source.items(), key=lambda kv: kv[1], reverse=True)[:4]:
+        trigger_dist.append({
+            "domain": domain,
+            "label": _label_domain(domain),
+            "count": count,
+        })
+
+    # 3) 打卡天数（近 7 天内填了几次日记）
+    diary_days = 0
+    for i in range(7):
+        date_str = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+        diary = get_sleep_diary(user_id, date_str)
+        if diary and diary.get("tst_minutes", 0) > 0:
+            diary_days += 1
+
+    # 4) 活跃天数（本周内有 session 的不同日期数）
+    active_days = min(7, session_count)  # 简单估算，至少有 session 的天数
+
+    # 5) 生成叙事文本（按数据填充模板）
+    narrative = []
+    if trigger_dist:
+        top_two = trigger_dist[:2]
+        for t in top_two:
+            phrasing = {
+                "work": f"这周，你说了 {t['count']} 次工作让你睡不着。",
+                "relationship": f"说了 {t['count']} 次感情/人际的事。",
+                "health": f"提到 {t['count']} 次健康担忧。",
+                "finance": f"被 {t['count']} 次财务的事缠住。",
+                "study": f"为 {t['count']} 次学业焦虑过。",
+                "family": f"说了 {t['count']} 次家里的事。",
+            }.get(t["domain"], f"提到 {t['count']} 次{t['label']}。")
+            narrative.append(phrasing)
+    elif session_count > 0:
+        narrative.append(f"这周，你和我聊了 {session_count} 次。")
+
+    if relaxation_count > 0:
+        narrative.append(f"做了 {relaxation_count} 次呼吸练习。")
+    if diary_days > 0:
+        narrative.append(f"完成了 {diary_days} 天睡眠打卡。")
+    if active_days > 0:
+        narrative.append(f"\n这周，你来了 {active_days} 天。")
+
+    # 情感收束（根据数据强度选不同句子）
+    if closure_count >= 3 or relaxation_count >= 3:
+        narrative.append("你在慢慢学会放下。")
+    elif session_count >= 5:
+        narrative.append("你在认真陪自己。")
+    elif diary_days >= 3:
+        narrative.append("规律的生活在帮你。")
+    elif session_count > 0 or diary_days > 0:
+        narrative.append("迈出第一步，已经很勇敢了。")
+    else:
+        narrative.append("这周还没开始记录，明天试试看？")
+
+    narrative.append("\n下周，继续陪你。🌙")
+
+    return {
+        "user_id": user_id,
+        "week_start": week_start,
+        "week_end": week_end,
+        "stats": {
+            "active_days": active_days,
+            "diary_days": diary_days,
+            "session_count": session_count,
+            "relaxation_count": relaxation_count,
+            "closure_count": closure_count,
+        },
+        "trigger_distribution": trigger_dist,
+        "narrative": narrative,
+    }
+
+
 # ---------- 担忧记录（CBT 担忧写下来）----------
 
 class WorryRecordRequest(BaseModel):
@@ -4513,14 +4749,15 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
         tst_values = [r["tst_minutes"] for r in records if r.get("tst_minutes", 0) > 0]
         quality_values = [r["sleep_quality"] for r in records if r.get("sleep_quality", 0) > 0]
         
-        avg_se = round(sum(se_values) / len(se_values), 1)
+        # SE 存储为 0-1 小数，统一转为百分比 0-100（与阈值/前端展示对齐）
+        avg_se = round(sum(se_values) / len(se_values) * 100, 1)
         avg_tst = round(sum(tst_values) / len(tst_values) / 60, 1) if tst_values else 0
         avg_quality = round(sum(quality_values) / len(quality_values), 1) if quality_values else 0
-        
-        # 计算趋势（最近3天 vs 之前4天）
+
+        # 计算趋势（最近3天 vs 之前4天）；recent_se / older_se 也用百分比
         if len(records) >= 5:
-            recent_se = sum([r["se"] for r in records[:3]]) / 3
-            older_se = sum([r["se"] for r in records[3:]]) / max(1, len(records) - 3)
+            recent_se = sum([r["se"] for r in records[:3]]) / 3 * 100
+            older_se = sum([r["se"] for r in records[3:]]) / max(1, len(records) - 3) * 100
             if recent_se > older_se + 3:
                 trend_direction = "improving"
                 trend_emoji = "📈"
@@ -4570,7 +4807,8 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
             if r:
                 trend.append({
                     "date": r["date"],
-                    "se": r["se"],
+                    # 转百分比，前端用 height: {{se}}% + 阈值 (>= 85 良) 判断颜色
+                    "se": round(r["se"] * 100, 1),
                     "tst_hours": round(r.get("tst_minutes", 0) / 60, 1),
                     "quality": r.get("sleep_quality", 0),
                     "planned_bed": r.get("planned_bed_time", "--:--"),

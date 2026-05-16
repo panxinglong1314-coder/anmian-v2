@@ -1,4 +1,4 @@
-/* pages/worries/worries.wxss */
+/* pages/worries/worries.wxss — UX 重设：心事页 */
 .page {
   min-height: 100vh;
   background: #0D1B2A;
@@ -6,85 +6,226 @@
   flex-direction: column;
 }
 
-.worries-header {
-  padding: 20rpx 24rpx 16rpx;
-  padding-top: calc(20rpx + env(safe-area-inset-top));
-  background: rgba(13,27,42,0.9);
-  backdrop-filter: blur(20rpx);
-  border-bottom: 1rpx solid rgba(255,255,255,0.06);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.header-title { font-size: 32rpx; font-weight: 600; color: #EDE8DF; }
-.header-action { font-size: 24rpx; color: #F5C869; }
-
 .worries-content {
-  flex: 1; padding: 24rpx;
-  padding-bottom: calc(60rpx + env(safe-area-inset-bottom));
+  flex: 1;
+  padding: 24rpx 28rpx;
+  padding-bottom: calc(80rpx + env(safe-area-inset-bottom));
 }
 
-/* 分类标签 */
+/* ========== 顶部摘要条 ========== */
+.summary-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 28rpx;
+  padding: 24rpx 28rpx;
+  background: linear-gradient(135deg, rgba(245,200,105,0.10), rgba(245,200,105,0.04));
+  border: 1rpx solid rgba(245,200,105,0.18);
+  border-radius: 20rpx;
+}
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  width: 100%;
+}
+.summary-num {
+  font-size: 60rpx;
+  font-weight: 600;
+  color: #F5C869;
+  line-height: 1;
+  letter-spacing: -1rpx;
+}
+.summary-lbl-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+.summary-lbl {
+  font-size: 28rpx;
+  color: #EDE8DF;
+  font-weight: 500;
+}
+.summary-sub {
+  font-size: 22rpx;
+  color: rgba(245,200,105,0.85);
+  line-height: 1.4;
+}
+
+/* ========== 分类标签（柔和） ========== */
 .filter-tabs {
-  display: flex; gap: 16rpx; margin-bottom: 24rpx;
-  overflow-x: auto; white-space: nowrap;
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 28rpx;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding: 4rpx 0;
 }
 .filter-tab {
-  font-size: 24rpx; color: #8BA3B9; padding: 8rpx 20rpx;
-  border-radius: 999rpx; border: 1rpx solid rgba(255,255,255,0.08);
+  font-size: 24rpx;
+  color: #8BA3B9;
+  padding: 8rpx 22rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
   flex-shrink: 0;
+  letter-spacing: 1rpx;
 }
 .filter-tab.active {
-  color: #F5C869; border-color: rgba(245,200,105,0.3);
-  background: rgba(245,200,105,0.08);
+  color: #F5C869;
+  border-color: rgba(245,200,105,0.4);
+  background: rgba(245,200,105,0.10);
+  font-weight: 500;
 }
 
-/* 空状态 */
+/* ========== 空状态 ========== */
 .empty-state {
-  display: flex; flex-direction: column; align-items: center;
-  padding: 120rpx 40rpx; text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 120rpx 40rpx;
+  text-align: center;
+  gap: 16rpx;
 }
-.empty-title { font-size: 32rpx; font-weight: 600; color: #EDE8DF; margin-bottom: 16rpx; }
-.empty-desc { font-size: 26rpx; color: #8BA3B9; line-height: 1.6; }
+.empty-emoji { font-size: 80rpx; line-height: 1; margin-bottom: 12rpx; opacity: 0.85; }
+.empty-title { font-size: 32rpx; font-weight: 500; color: #EDE8DF; }
+.empty-desc { font-size: 26rpx; color: #8BA3B9; line-height: 1.6; padding: 0 24rpx; }
 
-/* 担忧项 */
-.worry-item {
-  background: rgba(36,52,71,0.5); border-radius: 16rpx;
+/* ========== 心事卡片 ========== */
+.worry-card {
+  background: rgba(36,52,71,0.45);
+  border: 1rpx solid rgba(255,255,255,0.06);
+  border-radius: 20rpx;
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  transition: opacity 0.2s, border-color 0.2s;
+}
+/* ≥3 天未放下：金色描边提示"适合回看了" */
+.worry-card.card-reviewable {
+  border-color: rgba(245,200,105,0.25);
+  background: linear-gradient(135deg, rgba(245,200,105,0.04), rgba(36,52,71,0.45));
+}
+/* 已放下：整体淡出，但保留可读性 */
+.worry-card.card-released { opacity: 0.55; }
+
+.worry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+.worry-type-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6rpx;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  line-height: 1;
+}
+.worry-type-emoji { font-size: 22rpx; line-height: 1; }
+.worry-type-text { letter-spacing: 1rpx; }
+.worry-type-vent {
+  background: rgba(107,159,212,0.12);
+  color: #7AB0DD;
+  border: 1rpx solid rgba(107,159,212,0.25);
+}
+.worry-type-action {
+  background: rgba(126,200,163,0.12);
+  color: #7EC8A3;
+  border: 1rpx solid rgba(126,200,163,0.25);
+}
+.worry-type-ruminate {
+  background: rgba(245,200,105,0.10);
+  color: #E0B860;
+  border: 1rpx solid rgba(245,200,105,0.22);
+}
+.worry-time {
+  font-size: 22rpx;
+  color: #8BA3B9;
+  flex-shrink: 0;
+}
+.worry-time.time-highlight {
+  color: #F5C869;
+  font-weight: 500;
+}
+
+.worry-text {
+  font-size: 30rpx;
+  color: #EDE8DF;
+  line-height: 1.55;
+  display: block;
+  letter-spacing: 0.5rpx;
+}
+
+.worry-review-hint {
+  padding: 14rpx 18rpx;
+  background: rgba(245,200,105,0.06);
+  border-left: 4rpx solid rgba(245,200,105,0.6);
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  color: rgba(245,200,105,0.9);
+  line-height: 1.55;
+}
+
+.worry-cta-row {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 4rpx;
+}
+.worry-cta {
+  flex: 1;
+  text-align: center;
+  font-size: 26rpx;
+  padding: 18rpx 0;
+  border-radius: 14rpx;
+  transition: opacity 0.15s, background 0.15s;
+}
+.worry-cta:active { opacity: 0.7; }
+.worry-cta-secondary {
+  background: rgba(255,255,255,0.04);
+  color: #8BA3B9;
   border: 1rpx solid rgba(255,255,255,0.08);
-  margin-bottom: 16rpx; overflow: hidden;
 }
-.worry-item.reviewed { opacity: 0.6; }
-.worry-main {
-  display: flex; align-items: flex-start; gap: 16rpx;
-  padding: 20rpx;
+.worry-cta-primary {
+  background: linear-gradient(135deg, rgba(126,200,163,0.20), rgba(126,200,163,0.10));
+  color: #7EC8A3;
+  border: 1rpx solid rgba(126,200,163,0.35);
+  font-weight: 500;
 }
-.worry-status { padding-top: 6rpx; flex-shrink: 0; }
-.worry-dot { width: 8rpx; height: 8rpx; border-radius: 50%; }
-.dot-unread { background: #F5C869; }
-.dot-read { background: rgba(139,163,185,0.4); }
-.worry-body { flex: 1; min-width: 0; }
-.worry-text { font-size: 28rpx; color: #EDE8DF; line-height: 1.5; display: block; margin-bottom: 8rpx; }
-.worry-meta { display: flex; gap: 16rpx; }
-.worry-type { font-size: 20rpx; color: #5B9BD5; }
-.worry-date { font-size: 20rpx; color: #8BA3B9; }
-.worry-arrow { font-size: 24rpx; color: #8BA3B9; flex-shrink: 0; padding-top: 4rpx; }
 
-/* 展开操作 */
-.worry-actions {
-  display: flex; gap: 16rpx; padding: 0 20rpx 20rpx 44rpx;
-  border-top: 1rpx solid rgba(255,255,255,0.06);
-  padding-top: 16rpx;
+/* ========== CBT 提示卡（底部） ========== */
+.cbt-card {
+  margin-top: 36rpx;
+  padding: 28rpx 32rpx;
+  background: rgba(126,200,163,0.06);
+  border: 1rpx solid rgba(126,200,163,0.18);
+  border-radius: 20rpx;
+  position: relative;
 }
-.worry-btn {
-  font-size: 24rpx; color: #8BA3B9; padding: 10rpx 24rpx;
-  border-radius: 999rpx; border: 1rpx solid rgba(255,255,255,0.1);
+.cbt-quote {
+  position: absolute;
+  top: 8rpx;
+  left: 18rpx;
+  font-size: 72rpx;
+  color: rgba(126,200,163,0.20);
+  font-family: serif;
+  line-height: 1;
 }
-.worry-btn.primary { color: #F5C869; border-color: rgba(245,200,105,0.25); }
-
-/* CBT 提示 */
-.cbt-tip {
-  margin-top: 24rpx; padding: 20rpx;
-  background: rgba(126,200,163,0.08); border-radius: 16rpx;
-  border: 1rpx solid rgba(126,200,163,0.15);
+.cbt-text {
+  display: block;
+  font-size: 26rpx;
+  color: #C0D0E0;
+  line-height: 1.7;
+  padding-left: 8rpx;
 }
-.cbt-tip-text { font-size: 24rpx; color: #7EC8A3; line-height: 1.5; }
+.cbt-source {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 22rpx;
+  color: rgba(126,200,163,0.7);
+  text-align: right;
+  letter-spacing: 1rpx;
+}

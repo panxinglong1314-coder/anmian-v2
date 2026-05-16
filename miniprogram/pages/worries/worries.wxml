@@ -1,52 +1,82 @@
 <!-- pages/worries/worries.wxml -->
+<!-- 顶部"心事"标题由 WeChat 原生导航栏处理 -->
 <view class="page">
-
-  <view class="worries-header">
-    <text class="header-title">担忧箱</text>
-    <text wx:if="{{worryList.length > 0}}" class="header-action" bindtap="markAllRead">全部标记已读</text>
-  </view>
 
   <scroll-view class="worries-content" scroll-y="true">
 
-    <!-- 分类标签 -->
+    <!-- 顶部摘要条（信息密度 + 治愈感） -->
+    <view wx:if="{{worryList.length > 0}}" class="summary-bar">
+      <view class="summary-row">
+        <view class="summary-num">{{worryList.length}}</view>
+        <view class="summary-lbl-col">
+          <text class="summary-lbl">件心事在这里</text>
+          <text wx:if="{{reviewableCount > 0}}" class="summary-sub">
+            · 其中 {{reviewableCount}} 件适合今天回看了 🌅
+          </text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 分类标签（柔和措辞） -->
     <view class="filter-tabs" wx:if="{{worryList.length > 0}}">
-      <text class="filter-tab {{filter === 'all' ? 'active' : ''}}" bindtap="setFilter" data-filter="all">全部</text>
-      <text class="filter-tab {{filter === 'vent' ? 'active' : ''}}" bindtap="setFilter" data-filter="vent">倾诉型</text>
-      <text class="filter-tab {{filter === 'action' ? 'active' : ''}}" bindtap="setFilter" data-filter="action">行动型</text>
-      <text class="filter-tab {{filter === 'ruminate' ? 'active' : ''}}" bindtap="setFilter" data-filter="ruminate">反刍型</text>
+      <text class="filter-tab {{filter === 'all' ? 'active' : ''}}"
+        bindtap="setFilter" data-filter="all">全部</text>
+      <text class="filter-tab {{filter === 'vent' ? 'active' : ''}}"
+        bindtap="setFilter" data-filter="vent">想倾诉</text>
+      <text class="filter-tab {{filter === 'action' ? 'active' : ''}}"
+        bindtap="setFilter" data-filter="action">想行动</text>
+      <text class="filter-tab {{filter === 'ruminate' ? 'active' : ''}}"
+        bindtap="setFilter" data-filter="ruminate">想不通</text>
     </view>
 
-    <!-- 空状态 -->
+    <!-- 空状态：治愈型语言 -->
     <view wx:if="{{worryList.length === 0 && !isLoading}}" class="empty-state">
-      <text class="empty-title">暂无担忧记录</text>
-      <text class="empty-desc">在「今晚聊聊」里说出你的担忧，我会帮你记下来</text>
+      <text class="empty-emoji">🌿</text>
+      <text class="empty-title">今晚没有需要写下的事</text>
+      <text class="empty-desc">想到什么打扰你睡觉的事，就去「今晚聊聊」说给我听</text>
     </view>
 
-    <!-- 担忧列表 -->
-    <view wx:for="{{filteredList}}" wx:key="id" class="worry-item {{item.reviewed ? 'reviewed' : ''}}">
-      <view class="worry-main" bindtap="toggleExpand" data-index="{{index}}">
-        <view class="worry-status">
-          <view class="worry-dot {{item.reviewed ? 'dot-read' : 'dot-unread'}}"></view>
+    <!-- 心事卡片：信息完整可见，CTA 常驻 -->
+    <view wx:for="{{filteredList}}" wx:key="id"
+      class="worry-card {{item.reviewed ? 'card-released' : ''}} {{item.daysAgo >= 3 && !item.reviewed ? 'card-reviewable' : ''}}">
+
+      <!-- 头部：类型小标签 + 时间 -->
+      <view class="worry-header">
+        <view class="worry-type-tag worry-type-{{item.type}}">
+          <text class="worry-type-emoji">{{item.typeEmoji}}</text>
+          <text class="worry-type-text">{{item.typeLabel}}</text>
         </view>
-        <view class="worry-body">
-          <text class="worry-text">{{item.text}}</text>
-          <view class="worry-meta">
-            <text class="worry-type">{{item.type === 'vent' ? '倾诉型' : item.type === 'action' ? '行动型' : '反刍型'}}</text>
-            <text class="worry-date">{{item.dateStr}}</text>
-          </view>
-        </view>
-        <text class="worry-arrow">{{item.expanded ? '▾' : '▸'}}</text>
+        <text class="worry-time {{item.daysAgo >= 3 && !item.reviewed ? 'time-highlight' : ''}}">
+          {{item.timeLabel}}
+        </text>
       </view>
 
-      <view wx:if="{{item.expanded}}" class="worry-actions">
-        <text class="worry-btn primary" bindtap="markRead" data-id="{{item.id}}">{{item.reviewed ? '标记未读' : '标记已读'}}</text>
-        <text class="worry-btn" bindtap="revisit" data-text="{{item.text}}">再说几句</text>
+      <!-- 主体文字 -->
+      <text class="worry-text">{{item.text}}</text>
+
+      <!-- 回看提示（≥3 天且未放下时显示） -->
+      <view wx:if="{{item.daysAgo >= 3 && !item.reviewed}}" class="worry-review-hint">
+        <text>💡 当时担心的事，现在真的发生了吗？</text>
+      </view>
+
+      <!-- CTA 常驻 -->
+      <view class="worry-cta-row">
+        <view class="worry-cta worry-cta-secondary"
+          bindtap="revisit" data-text="{{item.text}}">
+          <text>跟 AI 再聊聊</text>
+        </view>
+        <view class="worry-cta worry-cta-primary"
+          bindtap="markRead" data-id="{{item.id}}">
+          <text>{{item.reviewed ? '我还想留着' : '✓  已放下'}}</text>
+        </view>
       </view>
     </view>
 
-    <!-- CBT 提示 -->
-    <view wx:if="{{worryList.length > 0}}" class="cbt-tip">
-      <text class="cbt-tip-text">担忧写下后，明天再看，会发现很多担忧其实不会发生</text>
+    <!-- CBT 提示（移到底部，措辞强化"放下"） -->
+    <view wx:if="{{worryList.length > 0}}" class="cbt-card">
+      <text class="cbt-quote">"</text>
+      <text class="cbt-text">研究表明，80% 的担忧第二天回看时已不再重要。{'\n'}写下来的那一刻，疗愈就开始了。</text>
+      <text class="cbt-source">— CBT-I（认知行为失眠疗法）</text>
     </view>
 
   </scroll-view>

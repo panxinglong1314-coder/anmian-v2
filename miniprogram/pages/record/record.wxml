@@ -22,9 +22,8 @@
       <text class="header-nickname">{{userInfo.nickname || '我'}}</text>
     </view>
     <text class="header-title">我的记录</text>
-    <view class="share-btn" bindtap="onShare">
-      <text class="share-icon">分享</text>
-      <text class="share-text">周报</text>
+    <view class="share-btn" bindtap="openWeeklyReport">
+      <text class="share-label">分享周报</text>
     </view>
   </view>
 
@@ -34,6 +33,13 @@
     <view wx:if="{{showMorningCheckPrompt}}" class="morning-prompt" bindtap="openMorningCheck">
       <text class="morning-prompt-icon">🌅</text>
       <text class="morning-prompt-text">早安，昨晚睡得怎么样？花1分钟记录一下</text>
+      <text class="morning-prompt-arrow">›</text>
+    </view>
+
+    <!-- ===== 长期断档补打卡提示条（近 7 天 0 记录但有历史） ===== -->
+    <view wx:if="{{showCatchupBanner}}" class="morning-prompt morning-prompt-catchup" bindtap="openMorningCheck">
+      <text class="morning-prompt-icon">🌙</text>
+      <text class="morning-prompt-text">最近 7 天还没记录·上次{{catchupAgoLabel}}</text>
       <text class="morning-prompt-arrow">›</text>
     </view>
 
@@ -58,12 +64,6 @@
         </view>
       </view>
 
-      <!-- 近 7 天没记录但有历史 → 温和补打卡提示 -->
-      <view wx:if="{{showCatchupBanner}}" class="catchup-banner" bindtap="openMorningCheck">
-        <text class="catchup-icon">🌙</text>
-        <text class="catchup-text">最近 7 天还没记录·上次{{catchupAgoLabel}}</text>
-        <text class="catchup-cta">补一晚 ›</text>
-      </view>
 
       <!-- 洞察文字（轻量纯文字行） -->
       <view wx:if="{{insight}}" class="insight-row">
@@ -71,11 +71,11 @@
         <text class="insight-text">{{insight}}</text>
       </view>
 
-      <!-- 担忧箱入口（纯文字行） -->
+      <!-- 心事在这里（CBT-I：写下 = 已完成动作，不是 todo） -->
       <view class="worry-entry" bindtap="goToWorryBox">
         <view class="worry-entry-dot {{unreviewedCount > 0 ? '' : 'dot-empty'}}"></view>
         <text class="worry-entry-text {{unreviewedCount > 0 ? 'has-unread' : ''}}">
-          {{unreviewedCount > 0 ? '担忧箱 ' + unreviewedCount + '条待处理' : '担忧箱'}}
+          {{unreviewedCount > 0 ? '心事在这里 · ' + unreviewedCount + ' 件被你写下来了' : '今晚没有心事打扰你'}}
         </text>
         <text class="worry-entry-arrow">›</text>
       </view>
@@ -131,7 +131,7 @@
     <view class="section-card">
       <view class="section-header">
         <text class="section-title">本周睡眠</text>
-        <text class="section-period">近7天柱图</text>
+        <text class="section-period">近7天</text>
       </view>
       <view class="sleep-bars">
         <view wx:for="{{weeklySleep}}" wx:key="index" class="sleep-bar-col">
@@ -191,6 +191,77 @@
             data-index="{{index}}"
           >{{item}}</view>
         </view>
+      </block>
+    </view>
+  </view>
+
+  <!-- ================================================
+       周报弹窗（有传播性的叙事 + 数据）
+       ================================================ -->
+  <view wx:if="{{showWeeklyReport}}" class="weekly-overlay" bindtap="closeWeeklyReport">
+    <view class="weekly-card" catchtap="stopProp">
+      <view class="weekly-close" bindtap="closeWeeklyReport">✕</view>
+
+      <view wx:if="{{weeklyReportLoading}}" class="weekly-loading">
+        <text>生成中...</text>
+      </view>
+
+      <block wx:elif="{{weeklyReport}}">
+        <view class="weekly-brand">
+          <text class="weekly-moon">🌙</text>
+          <text class="weekly-brand-name">知眠 · 本周陪你</text>
+        </view>
+
+        <view class="weekly-date-range">
+          <text>{{weeklyReport.week_start}} → {{weeklyReport.week_end}}</text>
+        </view>
+
+        <!-- 数据卡：4 个核心数字 -->
+        <view class="weekly-stats">
+          <view class="weekly-stat">
+            <text class="weekly-stat-num">{{weeklyReport.stats.active_days || 0}}</text>
+            <text class="weekly-stat-lbl">陪伴天</text>
+          </view>
+          <view class="weekly-stat">
+            <text class="weekly-stat-num">{{weeklyReport.stats.session_count || 0}}</text>
+            <text class="weekly-stat-lbl">对话</text>
+          </view>
+          <view class="weekly-stat">
+            <text class="weekly-stat-num">{{weeklyReport.stats.relaxation_count || 0}}</text>
+            <text class="weekly-stat-lbl">呼吸练习</text>
+          </view>
+          <view class="weekly-stat">
+            <text class="weekly-stat-num">{{weeklyReport.stats.diary_days || 0}}</text>
+            <text class="weekly-stat-lbl">睡眠打卡</text>
+          </view>
+        </view>
+
+        <!-- 叙事文本（每一行单独一段，留白呼吸） -->
+        <view class="weekly-narrative">
+          <view wx:for="{{weeklyReport.narrative}}" wx:key="index" class="weekly-line {{item === '' ? 'weekly-line-spacer' : ''}}">
+            <text>{{item}}</text>
+          </view>
+        </view>
+
+        <!-- 担忧 top -->
+        <view wx:if="{{weeklyReport.trigger_distribution.length > 0}}" class="weekly-triggers">
+          <text class="weekly-triggers-title">这周陪你最久的几件事</text>
+          <view class="weekly-trigger-list">
+            <view wx:for="{{weeklyReport.trigger_distribution}}" wx:key="domain" class="weekly-trigger-item">
+              <text class="weekly-trigger-name">{{item.label}}</text>
+              <view class="weekly-trigger-bar">
+                <view class="weekly-trigger-fill" style="width: {{item.count * 30 > 100 ? 100 : item.count * 30}}%"></view>
+              </view>
+              <text class="weekly-trigger-count">{{item.count}}</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- CTA：直接触发微信分享（必须用 button + open-type="share"） -->
+        <button class="weekly-share-btn" open-type="share" hover-class="weekly-share-hover">
+          分享给朋友
+        </button>
+        <view class="weekly-share-tip">想发朋友圈？点右上角 ··· 选择「分享到朋友圈」</view>
       </block>
     </view>
   </view>
@@ -280,8 +351,31 @@
           <view class="rec-text">{{sleepDashboard.recommendation.general_advice}}</view>
         </view>
 
-        <view wx:if="{{!sleepDashboard.hasData}}" class="empty-detail">
-          <text>开始记录睡眠，获得个性化分析</text>
+        <!-- 空状态：完整引导界面（图标+标题+说明+CTA+科普） -->
+        <view wx:if="{{!sleepDashboard.hasData}}" class="empty-detail-card">
+          <view class="empty-detail-icon">🌙</view>
+          <view class="empty-detail-title">还没有睡眠数据</view>
+          <view class="empty-detail-desc">完成今早打卡，即可看到睡眠效率、趋势和个性化建议</view>
+
+          <view class="empty-detail-btn" bindtap="startMorningFromDashboard">
+            <text>开始今早打卡</text>
+            <text class="empty-detail-btn-arrow">›</text>
+          </view>
+
+          <view class="empty-detail-tips">
+            <view class="empty-detail-tip">
+              <text class="empty-detail-tip-bullet"></text>
+              <text class="empty-detail-tip-text">每天 1 分钟，记录入睡、起床、夜醒</text>
+            </view>
+            <view class="empty-detail-tip">
+              <text class="empty-detail-tip-bullet"></text>
+              <text class="empty-detail-tip-text">连续 7 天后，AI 会给出 CBT-I 个性化睡眠窗口</text>
+            </view>
+            <view class="empty-detail-tip">
+              <text class="empty-detail-tip-bullet"></text>
+              <text class="empty-detail-tip-text">睡眠效率 = 实际睡眠时长 / 卧床时长，目标 ≥ 85%</text>
+            </view>
+          </view>
         </view>
       </scroll-view>
     </view>

@@ -130,6 +130,11 @@ Page({
     restrictionPhaseClass: '',
     planStats: null,
 
+    // 周报弹窗（叙事 + 数据 + CTA 分享）
+    showWeeklyReport: false,
+    weeklyReportLoading: false,
+    weeklyReport: null,
+
     // 月度报告（由 generateReportData 从后端填充；分享时使用）
     reportMonth: '',
     showReport: false,
@@ -208,7 +213,7 @@ Page({
         _apiReq(`${API}/api/v1/sleep/records/${userId}?limit=7`),
         _apiReq(`${API}/api/v1/memory/${userId}`),
         _apiReq(`${API}/api/v1/worries/${userId}?limit=20`),
-        _apiReq(`${API}/api/v1/sleep/dashboard?user_id=${userId}&days=30`),
+        _apiReq(`${API}/api/v1/sleep/dashboard?user_id=${userId}&days=7`),
         _apiReq(`${API}/api/v1/sleep/restriction?user_id=${userId}`),
         _apiReq(`${API}/api/v1/anxiety/weekly/${userId}`),
       ])
@@ -503,6 +508,12 @@ hideSleepDashboard() {
     this.setData({ showSleepDashboard: false })
   },
 
+  // 空状态 CTA：关闭弹窗 + 打开晨间打卡
+  startMorningFromDashboard() {
+    this.setData({ showSleepDashboard: false })
+    setTimeout(() => this.openMorningCheck(), 200)
+  },
+
   // 判断某 ISO 时间戳是否是今天
   _isToday(isoString) {
     if (!isoString) return false
@@ -683,41 +694,70 @@ hideSleepDashboard() {
 
   // ========== 分享 ==========
   initShare() {
-    // 启用分享
-    wx.showShareMenu({ withShareTicket: true })
+    // 启用分享给朋友 + 朋友圈两个入口
+    wx.showShareMenu({
+      withShareTicket: true,
+      menus: ['shareAppMessage', 'shareTimeline']
+    })
   },
 
   onShareAppMessage() {
-    const { reportData, reportMonth } = this.data
+    const wr = this.data.weeklyReport || {}
+    const stats = wr.stats || {}
+    if (stats.active_days || stats.diary_days || stats.session_count) {
+      return {
+        title: `这周，我来了 ${stats.active_days || 0} 天 🌙`,
+        path: '/pages/record/record',
+        imageUrl: '',
+      }
+    }
+    // 兜底
     return {
-      title: `🌙 ${reportMonth}焦虑报告出炉了`,
-      desc: `本月记录${reportData.totalDays}天，主要焦虑源：${reportData.topConcern}。` +
-            `快来看看我的月度心理健康报告！`,
+      title: '🌙 知眠 · 帮你和失眠好好告别',
       path: '/pages/record/record',
-      imageUrl: '', // 可选：生成海报图
     }
   },
 
   onShareTimeline() {
-    // 分享到朋友圈
-    const { reportData, reportMonth } = this.data
-    return {
-      title: `🌙 ${reportMonth}焦虑报告 | ${reportData.topConcern}为主要焦虑源`,
-      query: `from=timeline&user_id=${app.globalData.userId}`,
+    const wr = this.data.weeklyReport || {}
+    const stats = wr.stats || {}
+    if (stats.active_days) {
+      return {
+        title: `本周陪伴 ${stats.active_days} 天 · 知眠周报 🌙`,
+      }
     }
+    return { title: '🌙 知眠 · 睡前安心一刻' }
   },
 
   async onShare() {
-    // 主动分享面板
-    wx.showShareMenu({ withShareTicket: true })
-    wx.showModal({
-      title: '分享到',
-      confirmText: '分享周报',
-      cancelText: '取消',
-      success: () => {
-        // 触发小程序内分享
+    // 老入口保留兼容
+    this.openWeeklyReport()
+  },
+
+  // ========== 周报弹窗（有传播性的叙事 + 数据） ==========
+  async openWeeklyReport() {
+    const userId = app.globalData.userId
+    this.setData({ showWeeklyReport: true, weeklyReportLoading: true })
+    try {
+      const res = await _apiReq(`${API}/api/v1/report/weekly/${userId}`)
+      if (res.statusCode === 200 && res.data) {
+        this.setData({
+          weeklyReport: res.data,
+          weeklyReportLoading: false,
+        })
+      } else {
+        wx.showToast({ title: '加载失败', icon: 'none' })
+        this.setData({ showWeeklyReport: false, weeklyReportLoading: false })
       }
-    })
+    } catch (e) {
+      console.error('[weeklyReport]', e)
+      wx.showToast({ title: '网络错误', icon: 'none' })
+      this.setData({ showWeeklyReport: false, weeklyReportLoading: false })
+    }
+  },
+
+  closeWeeklyReport() {
+    this.setData({ showWeeklyReport: false })
   },
 
   // ========== Morning Check-in ==========
