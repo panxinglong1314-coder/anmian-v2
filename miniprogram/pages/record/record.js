@@ -481,11 +481,9 @@ Page({
       return
     }
     wx.showLoading({ title: '应用中...' })
-    const app = getApp()
-    wx.request({
-      url: app.globalData.baseUrl + '/api/v1/srt/apply',
+    app.authRequest({
+      url: `${API}/api/v1/srt/apply`,
       method: 'POST',
-      header: { Authorization: 'Bearer ' + app.globalData.token },
       success: (res) => {
         wx.hideLoading()
         if (res.data.status === 'ok') {

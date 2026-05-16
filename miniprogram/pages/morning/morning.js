@@ -146,7 +146,7 @@ Page({
       return
     }
 
-    wx.request({
+    app.authRequest({
       url: `${API}/api/v1/morning/check`,
       method: 'GET',
       data: { user_id: userId },
@@ -301,7 +301,7 @@ Page({
 
     // 上报后端
     const userId = app.globalData.userId
-    wx.request({
+    app.authRequest({
       url: `${API}/api/v1/morning/submit`,
       method: 'POST',
       header: { 'Content-Type': 'application/json' },
@@ -340,7 +340,7 @@ Page({
   _speakText(text, onEnd) {
     if (this._ttsTimer) clearInterval(this._ttsTimer)
 
-    wx.request({
+    app.authRequest({
       url: `${API}/api/v1/tts?text=${encodeURIComponent(text.slice(0, 500))}&voice=${TTS_VOICE}&speed=${TTS_SPEED}`,
       method: 'POST',
       responseType: 'arraybuffer',

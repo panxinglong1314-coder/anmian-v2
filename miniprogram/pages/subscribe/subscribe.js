@@ -63,16 +63,18 @@ Page({
     if (planType === 'core') currentPlanName = '核心 Pro'
 
     if (app.globalData.userId) {
-      wx.request({
+      // ⚠️ 必须用 app.authRequest 携带 JWT，否则 401
+      app.authRequest({
         url: `${app.globalData.apiBaseUrl}/api/v1/subscription/${app.globalData.userId}`,
         success: res => {
-          if (res.statusCode === 200 && res.data.is_active) {
+          if (res.statusCode === 200 && res.data && res.data.is_active) {
             this.setData({
               isPremium: true,
               expireDate: res.data.expire_date || '',
             })
           }
-        }
+        },
+        fail: err => console.warn('[checkSubscription] fail:', err)
       })
     }
 
