@@ -2168,53 +2168,84 @@ Page({
   },
 
   // ================================================
-  // 白噪音（从后端 /stream 获取，写入本地后播放）
+  // 白噪音（点击即播：本地缓存→直接流式 URL，零等待）
   // ================================================
   playSound(e) {
     const soundId = e.currentTarget.dataset.id
     if (this.data.currentSound === soundId) {
       innerAudioContext.stop()
       this.setData({ currentSound: null })
+      // 同时取消后台下载，避免冒出 timeout
+      if (this._soundDownloadTask && this._soundDownloadTask.abort) {
+        try { this._soundDownloadTask.abort() } catch(e){}
+        this._soundDownloadTask = null
+      }
       return
     }
-    app.authRequest({
-      url: `${API}/api/v1/sounds/${soundId}/stream`,
-      method: 'GET',
-      responseType: 'arraybuffer',
+    // 切换到新音源时，取消上一首的后台下载
+    if (this._soundDownloadTask && this._soundDownloadTask.abort) {
+      try { this._soundDownloadTask.abort() } catch(e){}
+      this._soundDownloadTask = null
+    }
+
+    const fs = wx.getFileSystemManager()
+    // 缓存版本号：升级音源时 bump，自动失效旧缓存
+    const SOUND_CACHE_VER = 'v2_20260516'
+    const filePath = `${wx.env.USER_DATA_PATH}/sound_${soundId}_${SOUND_CACHE_VER}.mp3`
+
+    // 清理老版本缓存（异步，不阻塞）
+    if (!this._soundCacheCleaned) {
+      this._soundCacheCleaned = true
+      try {
+        const files = fs.readdirSync(wx.env.USER_DATA_PATH)
+        files.forEach(f => {
+          if (f.startsWith('sound_') && !f.endsWith(`_${SOUND_CACHE_VER}.mp3`)) {
+            try { fs.unlinkSync(`${wx.env.USER_DATA_PATH}/${f}`) } catch(e){}
+          }
+        })
+      } catch(e) { console.warn('[Sound] clean old cache failed:', e) }
+    }
+
+    const playFrom = (src) => {
+      innerAudioContext.stop()
+      // 清理 TTS 遗留的回调，避免干扰白噪声
+      try { innerAudioContext.offError && innerAudioContext.offError() } catch(e){}
+      try { innerAudioContext.offEnded && innerAudioContext.offEnded() } catch(e){}
+      innerAudioContext.src = src
+      innerAudioContext.loop = true
+      innerAudioContext.volume = 0.6
+      innerAudioContext.play()
+      this.setData({ currentSound: soundId })
+    }
+
+    // 1) 本地有缓存 → 立刻播放（毫秒级）
+    try {
+      fs.accessSync(filePath)
+      playFrom(filePath)
+      return
+    } catch (e) { /* 无缓存，走流式 */ }
+
+    // 2) 无缓存 → 直接用 HTTPS 静态地址流式播放（WeChat 边下边播），同时后台下载缓存供下次秒开
+    const streamUrl = `https://sleepai.chat/static/sounds/${soundId}.mp3`
+    playFrom(streamUrl)
+
+    // 后台缓存：不阻塞播放，失败静默（不影响播放体验）
+    const dl = wx.downloadFile({
+      url: streamUrl,
+      timeout: 120000,  // 大文件 12MB，给足 2 分钟
       success: (res) => {
-        if (res.statusCode === 200 && res.data) {
-          const fs = wx.getFileSystemManager()
-          const filePath = `${wx.env.USER_DATA_PATH}/sound_${soundId}.mp3`
-          fs.writeFile({
+        if (res.statusCode === 200 && res.tempFilePath) {
+          fs.saveFile({
+            tempFilePath: res.tempFilePath,
             filePath,
-            data: res.data,
-            encoding: 'binary',
-            success: () => {
-              innerAudioContext.stop()
-              // 清理 TTS 遗留的回调，避免干扰白噪声
-              try { innerAudioContext.offError && innerAudioContext.offError() } catch(e){}
-              try { innerAudioContext.offEnded && innerAudioContext.offEnded() } catch(e){}
-              innerAudioContext.src = filePath
-              innerAudioContext.loop = true
-              innerAudioContext.volume = 0.6
-              innerAudioContext.play()
-              this.setData({ currentSound: soundId })
-            },
-            fail: (err) => {
-              console.error('[Sound] write failed:', err)
-              wx.showToast({ title: '音频加载失败', icon: 'none' })
-            }
+            fail: (err) => console.warn('[Sound] cache saveFile failed:', err)
           })
-        } else {
-          console.error('[Sound] bad response:', res.statusCode)
-          wx.showToast({ title: '音频获取失败', icon: 'none' })
         }
       },
-      fail: (err) => {
-        console.error('[Sound] request failed:', err)
-        wx.showToast({ title: '网络错误', icon: 'none' })
-      }
+      fail: (err) => console.warn('[Sound] background cache failed (silent):', err && err.errMsg)
     })
+    // 用户切换或关闭时中断后台下载，避免无谓的 timeout 报错
+    this._soundDownloadTask = dl
   },
 
   // ================================================
