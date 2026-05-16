@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import List, Optional, AsyncGenerator
 from contextlib import asynccontextmanager
 from enum import Enum
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query, WebSocket, WebSocketDisconnect, Depends, Header, Body, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query, WebSocket, WebSocketDisconnect, Depends, Header, Body, Request, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse, Response, FileResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -4058,52 +4058,222 @@ class WorryRecordRequest(BaseModel):
     session_id: Optional[str] = None
 
 
+async def _classify_worry_async(user_id: str, timestamp_ms: int, worry_text: str):
+    """
+    后台任务：用 DeepSeek 给担忧分类 type + domain，然后更新 Redis。
+    永远不阻塞用户主流程；LLM 失败时静默保留 pending。
+    """
+    print(f"[_classify_worry_async START] user={user_id} ts={timestamp_ms} text={worry_text[:30]}")
+    try:
+        classify_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "你是 CBT-I 心理学专家。分类用户写下的担忧。"
+                    "type 必须是以下三种之一：\n"
+                    "- vent：倾诉型，纯粹想表达情绪、没有明确解决目标\n"
+                    "- action：行动型，包含一个具体可操作的事情或决定\n"
+                    "- ruminate：反刍型，反复想同一件事，钻牛角尖，无法停止\n"
+                    "domain 是担忧领域，必须是以下之一：\n"
+                    "work（工作）/ relationship（人际感情）/ family（家庭）/ "
+                    "health（健康）/ finance（财务）/ study（学业）/ "
+                    "future（未来规划）/ self（自我评价）/ general（其它）\n"
+                    "只返回 JSON：{\"type\":\"...\",\"domain\":\"...\"}"
+                )
+            },
+            {"role": "user", "content": f"担忧内容：{worry_text}"}
+        ]
+        result_text = ""
+        # stream=True 才能让 deepseek_chat 内部的 SSE 解析生效（实测 stream=False 会返回空）
+        async for chunk in deepseek_chat(classify_messages, stream=True):
+            result_text += chunk
+        print(f"[_classify_worry_async] LLM raw result: {result_text[:200]}")
+        import re as _re
+        worry_type = None
+        domain = None
+        m2 = _re.search(r'"type"\s*:\s*"(\w+)"', result_text)
+        m3 = _re.search(r'"domain"\s*:\s*"(\w+)"', result_text)
+        if m2 and m2.group(1).lower() in ("vent", "action", "ruminate"):
+            worry_type = m2.group(1).lower()
+        if m3 and m3.group(1).lower() in ("work", "relationship", "family", "health", "finance", "study", "future", "self", "general"):
+            domain = m3.group(1).lower()
+        if not worry_type and not domain:
+            return  # LLM 啥都没返回，保留 pending
+        # 更新单条记录
+        key = f"worry:{user_id}:{timestamp_ms}"
+        raw = redis_client.get(key)
+        if raw:
+            rec = json.loads(raw)
+            if worry_type:
+                rec["type"] = worry_type
+            if domain:
+                rec["domain"] = domain
+                rec["triggers"] = [domain] if domain != "general" else []
+            redis_client.set(key, json.dumps(rec, ensure_ascii=False))
+            # 同步更新 worry_list:{uid} 中的对应条目（用 recorded_at 匹配）
+            try:
+                list_key = f"worry_list:{user_id}"
+                raw_list = redis_client.lrange(list_key, 0, 99)
+                updated_list = []
+                for r_str in raw_list:
+                    try:
+                        r = json.loads(r_str)
+                        if r.get("recorded_at") == rec.get("recorded_at") and r.get("worry_text") == rec.get("worry_text"):
+                            updated_list.append(json.dumps(rec, ensure_ascii=False))
+                        else:
+                            updated_list.append(r_str)
+                    except Exception:
+                        updated_list.append(r_str)
+                # 用 pipeline 原子重写整个 list
+                pipe = redis_client.pipeline()
+                pipe.delete(list_key)
+                if updated_list:
+                    pipe.rpush(list_key, *updated_list)
+                pipe.execute()
+            except Exception as e:
+                print(f"[_classify_worry_async list update error] {e}")
+            # 更新 user:memory.triggers
+            if domain and domain != "general":
+                mem_key = f"user:memory:{user_id}"
+                mem = get_user_memory(user_id)
+                trigger_counts = mem.get("triggers", {}) or {}
+                trigger_counts[domain] = trigger_counts.get(domain, 0) + 1
+                mem["triggers"] = trigger_counts
+                redis_client.set(mem_key, json.dumps(mem, ensure_ascii=False))
+            print(f"[_classify_worry_async] {user_id} -> type={worry_type} domain={domain}")
+    except Exception as e:
+        print(f"[_classify_worry_async error] {e}")
+
+
 @app.post("/api/v1/worry")
-async def create_worry(req: WorryRecordRequest, user: AuthUser = Depends(get_current_user)):
+async def create_worry(req: WorryRecordRequest, background_tasks: BackgroundTasks, user: AuthUser = Depends(get_current_user)):
     user_id = user.user_id
-    """记录一条担忧，自动提取关键词并更新用户记忆"""
-    import re
-    from datetime import datetime
+    """
+    记录一条担忧（异步分类版）：
+    1. crisis 内容立即触发紧急告警 + 不当作普通担忧存
+    2. 24 小时内同文本去重
+    3. 用 fallback 规则关键词快速分类（用户立即拿到结果）
+    4. BackgroundTasks 异步调 DeepSeek 升级分类（写入 Redis）
+    """
+    from datetime import datetime, timedelta
 
-    # 提取关键词（简单规则）
-    triggers = []
-    worry_lower = req.worry_text.lower()
-    trigger_map = {
-        "工作": ["工作", "上班", "加班", "老板", "同事", "职场"],
-        "人际": ["人际", "朋友", "家人", "关系", "别人怎么想", "社交"],
-        "未来": ["未来", "以后", "人生", "方向", "选择", "不确定"],
-        "健康": ["身体", "健康", "生病", "医院", "检查"],
-        "睡眠": ["睡不着", "失眠", "睡眠", "困", "休息"],
-        "感情": ["感情", "恋爱", "分手", "喜欢", "TA", "另一半"],
-        "学习": ["考试", "学习", "成绩", "考研", "升学", "毕业"],
+    worry_text = (req.worry_text or "").strip()
+    if not worry_text:
+        raise HTTPException(status_code=400, detail="担忧内容为空")
+    if len(worry_text) > 500:
+        worry_text = worry_text[:500]
+
+    # ─── (1) 危机内容检测 ────────────────────────────────────
+    crisis_triggered = False
+    try:
+        analyzer = get_emotion_analyzer()
+        crisis_result = analyzer._detect_crisis(worry_text)
+        if crisis_result.get("level") in ("severe", "high"):
+            crisis_triggered = True
+            session_id = req.session_id or ""
+            try:
+                emit_crisis_alert(
+                    user_id=user_id,
+                    session_id=session_id,
+                    level=crisis_result.get("level", "severe"),
+                    types=crisis_result.get("types", []),
+                    message=worry_text,
+                    extra={"source": "worry_capture"},
+                )
+            except Exception as e:
+                print(f"[create_worry crisis_alert error] {e}")
+    except Exception as e:
+        print(f"[create_worry crisis detect error] {e}")
+
+    # 危机内容：不存为普通担忧，返回标记让前端弹紧急资源
+    if crisis_triggered:
+        return {
+            "status": "crisis",
+            "crisis_level": crisis_result.get("level"),
+            "crisis_types": crisis_result.get("types", []),
+            "message": "检测到你可能正在经历强烈的痛苦。请知道你不是一个人——如果有伤害自己的想法，请立即拨打 400-161-9995（24h 心理援助热线）。",
+            "hotlines": [
+                {"name": "全国心理援助热线", "phone": "400-161-9995"},
+                {"name": "北京心理危机研究", "phone": "010-82951332"},
+            ],
+        }
+
+    # ─── (2) 24 小时内同文本去重 ─────────────────────────────
+    list_key = f"worry_list:{user_id}"
+    try:
+        raw_existing = redis_client.lrange(list_key, 0, 30)
+        cutoff = (datetime.now() - timedelta(hours=24)).isoformat()
+        for r_str in raw_existing:
+            try:
+                r = json.loads(r_str)
+                if r.get("recorded_at", "") >= cutoff and r.get("worry_text") == worry_text:
+                    # 找到 24 小时内的相同担忧 → 直接返回，不创建新记录
+                    return {"status": "duplicate", "record": r}
+            except Exception:
+                continue
+    except Exception as e:
+        print(f"[create_worry dedup error] {e}")
+
+    # ─── (3) Fallback 规则分类：用户立刻拿到 type/domain，后台再 LLM 升级 ──
+    worry_type = "vent"   # 默认倾诉型
+    domain = "general"
+    if any(k in worry_text for k in ["反复", "一直在想", "停不下来", "胡思乱想", "控制不住", "钻牛角尖", "反复想"]):
+        worry_type = "ruminate"
+    elif any(k in worry_text for k in ["明天", "下周", "决定", "去做", "怎么办", "要不要", "需要", "应该"]):
+        worry_type = "action"
+    domain_map = {
+        "work": ["工作", "上班", "加班", "老板", "同事", "职场", "辞职", "汇报", "项目", "KPI", "领导"],
+        "relationship": ["朋友", "社交", "感情", "恋爱", "分手", "喜欢", "另一半", "对象", "女朋友", "男朋友", "吵架"],
+        "family": ["父母", "家人", "妈妈", "爸爸", "家里", "婆婆", "公婆", "孩子", "育儿"],
+        "health": ["身体", "健康", "生病", "医院", "检查", "化验", "癌", "肿瘤", "疼痛", "体检"],
+        "finance": ["钱", "钱不够", "贷款", "房贷", "房租", "工资", "失业", "破产", "投资", "经济"],
+        "study": ["考试", "考研", "升学", "毕业", "成绩", "学习", "论文", "导师"],
+        "future": ["未来", "以后", "人生", "方向", "选择", "不确定", "迷茫"],
+        "self": ["自己", "我不行", "我不好", "废物", "失败", "比不上"],
     }
-    for category, keywords in trigger_map.items():
-        if any(k in worry_lower for k in keywords):
-            triggers.append(category)
+    for d_key, kws in domain_map.items():
+        if any(k in worry_text for k in kws):
+            domain = d_key
+            break
 
+    # ─── (4) 老的"triggers"字段保持向后兼容（前端可能有用） ──
+    triggers = [domain] if domain != "general" else []
+
+    # ─── (5) 创建记录 ────────────────────────────────────────
     record = {
         "user_id": user_id,
-        "worry_text": req.worry_text,
-        "triggers": triggers,
+        "worry_text": worry_text,
+        "type": worry_type,           # ✅ 新：用于前端筛选
+        "domain": domain,             # ✅ 新：领域分类
+        "triggers": triggers,         # ✅ 兼容字段
         "session_id": req.session_id,
         "recorded_at": datetime.now().isoformat(),
         "reviewed": False,
     }
 
-    key = f"worry:{user_id}:{int(datetime.now().timestamp() * 1000)}"
+    timestamp_ms = int(datetime.now().timestamp() * 1000)
+    key = f"worry:{user_id}:{timestamp_ms}"
     redis_client.set(key, json.dumps(record, ensure_ascii=False))
+    # 暴露 id 供前端 PATCH /api/v1/worry/{id} 使用
+    record["id"] = f"{user_id}:{timestamp_ms}"
 
-    list_key = f"worry_list:{user_id}"
     redis_client.lpush(list_key, json.dumps(record, ensure_ascii=False))
     redis_client.ltrim(list_key, 0, 99)
 
-    mem_key = f"memory:{user_id}"
+    # ─── (6) 同步更新 user:memory.triggers（按 domain，不是中文标签）──
+    mem_key = f"user:memory:{user_id}"
     mem = get_user_memory(user_id)
-    trigger_counts = mem.get("triggers", {})
-    for t in triggers:
-        trigger_counts[t] = trigger_counts.get(t, 0) + 1
+    trigger_counts = mem.get("triggers", {}) or {}
+    if domain and domain != "general":
+        trigger_counts[domain] = trigger_counts.get(domain, 0) + 1
     mem["triggers"] = trigger_counts
     redis_client.set(mem_key, json.dumps(mem, ensure_ascii=False))
+
+    # ─── (7) 后台 LLM 分类升级（用 FastAPI BackgroundTasks 保证响应后才执行）──
+    try:
+        background_tasks.add_task(_classify_worry_async, user_id, timestamp_ms, worry_text)
+    except Exception as e:
+        print(f"[create_worry background task error] {e}")
 
     return {"status": "ok", "record": record}
 
@@ -5325,6 +5495,7 @@ from services.crisis_alert import (
     ack_alert as _crisis_ack,
     get_event as _crisis_event,
     get_stats as _crisis_stats,
+    emit_crisis_alert,
 )
 
 

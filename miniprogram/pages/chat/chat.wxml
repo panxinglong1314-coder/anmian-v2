@@ -237,10 +237,11 @@
       <view class="worry-prompt-icon">📝</view>
       <view class="worry-prompt-title">说出来，我帮你记</view>
       <view class="worry-prompt-sub">不需要想清楚，简单说出来就好</view>
-      <view class="worry-prompt-sub">我会帮你记着，明天17:00专门看它</view>
+      <view class="worry-prompt-sub">写下来 = 大脑可以放下了 🌿</view>
       <view class="worry-prompt-btns">
         <button class="worry-btn-skip" bindtap="dismissWorryPrompt">不用了</button>
-        <button class="worry-btn-capture" bindtap="startWorryCapture">说出来</button>
+        <button wx:if="{{mode === 'text'}}" class="worry-btn-capture" bindtap="openWorryTextEditor">写下来</button>
+        <button wx:else class="worry-btn-capture" bindtap="startWorryCapture">说出来</button>
       </view>
     </view>
   </view>
@@ -254,6 +255,41 @@
       <view class="worry-capturing-title">我在听你说...</view>
       <view class="worry-capturing-sub">说不清楚也没关系，想到什么就说什么</view>
       <button class="worry-btn-done" bindtap="dismissWorryPrompt">说完啦</button>
+    </view>
+  </view>
+
+  <!-- 文字模式：编辑担忧文本（P3 + P2.2 编辑窗口） -->
+  <view wx:if="{{worryEditorActive}}" class="worry-editor-overlay" bindtap="cancelWorryEditor">
+    <view class="worry-editor-card" catchtap="stopProp">
+      <view class="worry-editor-title">写下让你睡不着的事</view>
+      <view class="worry-editor-sub">最多 200 字，明天回来再看会有新发现</view>
+      <textarea
+        class="worry-editor-input"
+        value="{{worryEditorText}}"
+        bindinput="onWorryEditorInput"
+        placeholder="想到什么打你扰睡觉的，就直接写下来…"
+        maxlength="200"
+        auto-height="{{true}}"
+        focus="{{true}}"
+      />
+      <view class="worry-editor-meta">{{(worryEditorText || '').length}}/200</view>
+      <view class="worry-editor-btns">
+        <button class="worry-btn-skip" bindtap="cancelWorryEditor">取消</button>
+        <button class="worry-btn-capture" bindtap="submitWorryEditor">收好</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 写完担忧后：让用户选继续聊或准备睡（P2 不强制 closure） -->
+  <view wx:if="{{showPostWorryChoice}}" class="post-worry-overlay" bindtap="onPostWorryClose">
+    <view class="post-worry-card" catchtap="stopProp">
+      <view class="post-worry-icon">🌿</view>
+      <view class="post-worry-title">已经收好了</view>
+      <view class="post-worry-sub">想多说几句，还是准备睡了？</view>
+      <view class="post-worry-btns">
+        <button class="post-worry-btn-continue" bindtap="onPostWorryContinue">再聊几句</button>
+        <button class="post-worry-btn-sleep" bindtap="onPostWorryClose">准备睡了</button>
+      </view>
     </view>
   </view>
 

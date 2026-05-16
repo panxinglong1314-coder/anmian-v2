@@ -492,6 +492,97 @@
 .worry-capturing-sub { font-size: 24rpx; color: #8BA3B9; text-align: center; }
 .worry-btn-done { margin-top: 16rpx; padding: 18rpx 48rpx; border-radius: 999rpx; background: rgba(36,52,71,0.6); border: 1rpx solid rgba(255,255,255,0.1); color: #EDE8DF; font-size: 26rpx; }
 
+/* 文字模式：担忧编辑器（P3） */
+.worry-editor-overlay {
+  position: fixed; inset: 0;
+  background: rgba(13,27,42,0.7);
+  backdrop-filter: blur(16rpx);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 260; padding: 40rpx;
+}
+.worry-editor-card {
+  width: 100%;
+  background: rgba(36,52,71,0.97);
+  border-radius: 28rpx;
+  border: 1rpx solid rgba(245,200,105,0.2);
+  padding: 36rpx 32rpx 28rpx;
+  display: flex; flex-direction: column;
+  gap: 14rpx;
+  animation: slideUp 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow: 0 20rpx 60rpx rgba(0,0,0,0.5);
+}
+.worry-editor-title {
+  font-size: 30rpx;
+  font-weight: 500;
+  color: #EDE8DF;
+  text-align: center;
+}
+.worry-editor-sub {
+  font-size: 22rpx;
+  color: #8BA3B9;
+  text-align: center;
+  margin-bottom: 4rpx;
+}
+.worry-editor-input {
+  width: 100%;
+  min-height: 200rpx;
+  padding: 20rpx;
+  background: rgba(13,27,42,0.6);
+  border: 1rpx solid rgba(255,255,255,0.08);
+  border-radius: 18rpx;
+  font-size: 28rpx;
+  color: #EDE8DF;
+  line-height: 1.55;
+  box-sizing: border-box;
+}
+.worry-editor-meta {
+  font-size: 20rpx;
+  color: rgba(139,163,185,0.6);
+  text-align: right;
+  margin-top: -4rpx;
+}
+.worry-editor-btns {
+  display: flex; gap: 16rpx; margin-top: 8rpx;
+}
+.worry-editor-btns .worry-btn-skip,
+.worry-editor-btns .worry-btn-capture { flex: 1; }
+
+/* 写完担忧后选择浮层（P2：不强制 closure） */
+.post-worry-overlay {
+  position: fixed; inset: 0;
+  background: rgba(13,27,42,0.6);
+  backdrop-filter: blur(16rpx);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 250; padding: 40rpx;
+}
+.post-worry-card {
+  width: 100%;
+  background: rgba(36,52,71,0.95);
+  border-radius: 28rpx;
+  border: 1rpx solid rgba(126,200,163,0.25);
+  padding: 40rpx 32rpx;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 16rpx;
+  animation: slideUp 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow: 0 20rpx 60rpx rgba(0,0,0,0.5);
+}
+.post-worry-icon { font-size: 56rpx; line-height: 1; }
+.post-worry-title { font-size: 32rpx; font-weight: 500; color: #EDE8DF; }
+.post-worry-sub { font-size: 24rpx; color: #8BA3B9; text-align: center; line-height: 1.5; }
+.post-worry-btns { display: flex; gap: 16rpx; margin-top: 12rpx; width: 100%; }
+.post-worry-btn-continue {
+  flex: 1; padding: 20rpx; border-radius: 20rpx;
+  background: rgba(36,52,71,0.6);
+  border: 1rpx solid rgba(255,255,255,0.1);
+  color: #EDE8DF; font-size: 26rpx;
+}
+.post-worry-btn-sleep {
+  flex: 1; padding: 20rpx; border-radius: 20rpx;
+  background: linear-gradient(135deg, rgba(126,200,163,0.35), rgba(126,200,163,0.15));
+  border: 1rpx solid rgba(126,200,163,0.4);
+  color: #7EC8A3; font-size: 26rpx; font-weight: 500;
+}
+
 /* ====== Step 1: 设定睡眠窗口 ====== */
 .step-indicator {
   text-align: center;

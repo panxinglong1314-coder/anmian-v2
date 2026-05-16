@@ -142,6 +142,9 @@ Page({
     worryCaptureActive: false,
     worryCaptureTimer: null,
     worryPendingText: '',   // 用户刚说的担忧内容
+    showPostWorryChoice: false, // P2: 写完担忧后，让用户选继续聊或准备睡
+    worryEditorActive: false,   // P3: 文字模式担忧编辑器
+    worryEditorText: '',
 
     // 白噪音
     currentSound: null,
@@ -957,9 +960,26 @@ Page({
     const userId = app.globalData.userId || ''
     const sessionId = app.globalData.sessionId || ''
 
-    // ─── 担忧关键词检测（立刻触发，不等 AI 回复）───
-    const worryKeywords = ['脑子停不下来', '一直在想', '反复担心', '胡思乱想', '控制不住', '睡不着脑子里', '一直想', '反复想', '停不下来', '想太多']
-    const isWorry = worryKeywords.some(k => text.includes(k))
+    // ─── 担忧关键词检测（P1 扩展：反刍 + 具体场景 + 情绪词）───
+    const ruminateKeywords = ['脑子停不下来', '一直在想', '反复担心', '胡思乱想', '控制不住', '睡不着脑子里', '一直想', '反复想', '停不下来', '想太多', '钻牛角尖']
+    const scenarioKeywords = [
+      // 工作压力
+      '明天要', '汇报', '老板', '领导', '加班', '上班', 'KPI', '项目', '辞职', '失业',
+      // 人际/感情
+      '吵架', '分手', '冷战', '不理我', '不喜欢我', '前任', '相亲', '社交',
+      // 家庭
+      '父母', '婆婆', '公婆', '孩子', '育儿', '管教',
+      // 健康
+      '检查报告', '化验', '体检', '医院', '不舒服', '生病',
+      // 财务
+      '钱不够', '房贷', '房租', '工资', '欠款',
+      // 学业
+      '考试', '挂科', '考研', '导师', '论文',
+      // 自我评价/情绪
+      '我不行', '我不好', '废物', '失败', '比不上', '搞砸了', '后悔', '焦虑', '担心', '害怕'
+    ]
+    const allKeywords = ruminateKeywords.concat(scenarioKeywords)
+    const isWorry = allKeywords.some(k => text.includes(k))
     if (isWorry) {
       this.setData({ worryPendingText: text })
       const t = setTimeout(() => this.setData({ showWorryPrompt: false }), 8000)
@@ -2391,14 +2411,13 @@ Page({
     })
   },
 
-  // 担忧保存到后端 + AI 确认
+  // 担忧保存到后端 + AI 确认（P0/P2 优化版）
   async saveWorry(worryText) {
     const userId = app.globalData.userId || ''
     const sessionId = app.globalData.sessionId || ''
-
-    // 存后端
+    let resp = null
     try {
-      await app.authRequest({
+      resp = await app.authRequest({
         url: `${API}/api/v1/worry`,
         method: 'POST',
         header: { 'Content-Type': 'application/json' },
@@ -2408,8 +2427,39 @@ Page({
       console.error('[SaveWorry Error]', e)
     }
 
-    // AI 确认（通过 MiniMax TTS）
-    const confirmText = `我记下了："${worryText.slice(0, 50)}"。明天17:00，我们再一起看看。现在，把这件事交给我，安心睡吧。晚安🌙`
+    // ─── 危机内容：弹紧急资源对话框，不当作普通担忧处理 ───
+    if (resp && resp.data && resp.data.status === 'crisis') {
+      this.setData({
+        worryCaptureActive: false,
+        worryPendingText: '',
+        showWorryPrompt: false,
+      })
+      const hotlines = (resp.data.hotlines || []).map(h => `${h.name}: ${h.phone}`).join('\n')
+      wx.showModal({
+        title: '我在这里 🌙',
+        content: `${resp.data.message}\n\n${hotlines}`,
+        confirmText: '我知道了',
+        cancelText: '联系紧急联系人',
+        success: (r) => {
+          if (r.cancel) {
+            // 跳转个人中心紧急联系人
+            wx.navigateTo({ url: '/pages/profile/profile' })
+          }
+        },
+      })
+      try { wx.vibrateShort({ type: 'medium' }) } catch (e) {}
+      return
+    }
+
+    // ─── 同担忧 24h 内已存在：温和提示，不重复保存 ───
+    if (resp && resp.data && resp.data.status === 'duplicate') {
+      wx.showToast({ title: '今天已经写过这条了', icon: 'none', duration: 2000 })
+    }
+
+    // ─── 正常保存：触觉反馈 + AI 温和确认（删除"明天17:00"假承诺）───
+    try { wx.vibrateShort({ type: 'light' }) } catch (e) {}
+
+    const confirmText = `已经替你收好了："${worryText.slice(0, 50)}"${worryText.length > 50 ? '...' : ''}。等你想起来，可以随时回看 🌿`
 
     const newLog = [...this.data.conversationLog, { role: 'assistant', text: confirmText }]
     this.setData({
@@ -2417,12 +2467,55 @@ Page({
       worryCaptureActive: false,
       worryPendingText: '',
       showWorryPrompt: false,
+      showPostWorryChoice: true,   // ✅ P2: 不强制关闭，让用户选择
     })
-    // 播放确认 TTS
     this._playTTS(confirmText, true)
 
-    // ─── 担忧捕获完成 → 立即进入关闭仪式 ───
-    setTimeout(() => this.triggerClosure(), 3000)
+    // 12 秒后用户没选，默认柔和地引导睡觉（不强制 closure 仪式，给个温和过渡）
+    if (this._postWorryAutoTimer) clearTimeout(this._postWorryAutoTimer)
+    this._postWorryAutoTimer = setTimeout(() => {
+      if (this.data.showPostWorryChoice) {
+        this.setData({ showPostWorryChoice: false })
+        this.triggerClosure()  // 12s 无选择 = 用户已经放下 = 进入关闭仪式
+      }
+    }, 12000)
+  },
+
+  // ====== 文字模式：担忧编辑器（P3） ======
+  openWorryTextEditor() {
+    // 预填用户刚说过的那段文字
+    this.setData({
+      showWorryPrompt: false,
+      worryEditorActive: true,
+      worryEditorText: this.data.worryPendingText || '',
+    })
+  },
+  onWorryEditorInput(e) {
+    this.setData({ worryEditorText: e.detail.value })
+  },
+  cancelWorryEditor() {
+    this.setData({ worryEditorActive: false, worryEditorText: '' })
+  },
+  submitWorryEditor() {
+    const text = (this.data.worryEditorText || '').trim()
+    if (!text) {
+      wx.showToast({ title: '写点什么再保存', icon: 'none' })
+      return
+    }
+    this.setData({ worryEditorActive: false, worryEditorText: '' })
+    this.saveWorry(text)
+  },
+
+  // 写完担忧后：用户选「继续聊」 vs「准备睡」
+  onPostWorryContinue() {
+    if (this._postWorryAutoTimer) clearTimeout(this._postWorryAutoTimer)
+    this.setData({ showPostWorryChoice: false })
+    // 继续聊：什么都不做，让用户自然继续对话
+  },
+  onPostWorryClose() {
+    if (this._postWorryAutoTimer) clearTimeout(this._postWorryAutoTimer)
+    this.setData({ showPostWorryChoice: false })
+    this.triggerClosure()
   },
 
   // 忽略担忧提示
