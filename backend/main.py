@@ -3734,6 +3734,13 @@ async def get_sleep_records(user: AuthUser = Depends(get_current_user), limit: i
             "total_minutes": sleep_stats["total_minutes"],
             "total_records": sleep_stats["total_records"],
             "latest_score": sleep_stats["latest_score"],
+            "latest_score_date": sleep_stats["latest_score_date"],
+            # 近 7 天分项（用于卡片显示与"补打卡"提示条触发）
+            "recent_7d_records": sleep_stats["recent_7d_records"],
+            "recent_7d_avg_hours": sleep_stats["recent_7d_avg_hours"],
+            "recent_7d_latest_score": sleep_stats["recent_7d_latest_score"],
+            # 连续填睡眠日记的天数（CBT-I 依从性指标，与 app 打开次数区分）
+            "diary_streak_days": sleep_stats["diary_streak_days"],
         }
     }
 
@@ -3743,6 +3750,69 @@ async def get_memory(user: AuthUser = Depends(get_current_user)):
     user_id = user.user_id
     mem = get_user_memory(user_id)
     return {"memory": mem}
+
+# ---------- 焦虑趋势（近 7 天） ----------
+@app.get("/api/v1/anxiety/weekly/{user_id}")
+async def get_anxiety_weekly(user: AuthUser = Depends(get_current_user)):
+    """
+    返回用户近 7 天每日焦虑趋势
+    数据源：session_state:{user_id}:session_{date}_* 中的 anxiety_level
+    映射：normal=1, mild=3, moderate=5, severe=7（无会话 → score=0, level=empty）
+    """
+    user_id = user.user_id
+    level_score_map = {"normal": 1, "mild": 3, "moderate": 5, "severe": 7}
+    # 按严重程度排序，每日取最严重的那次
+    severity_order = {"normal": 0, "mild": 1, "moderate": 2, "severe": 3}
+    # Python: Mon=0..Sun=6；中文：一/二/三/四/五/六/日
+    day_names_zh = ["一", "二", "三", "四", "五", "六", "日"]
+
+    weekly = []
+    today = datetime.now()
+    for i in range(6, -1, -1):  # 6 天前 → 今天，升序
+        d = today - timedelta(days=i)
+        date_str = d.strftime("%Y-%m-%d")
+        day_zh = day_names_zh[d.weekday()]
+
+        # 用 SCAN 找当天所有 session_state
+        pattern = f"session_state:{user_id}:session_{date_str}_*"
+        worst_level = None
+        try:
+            cursor = 0
+            while True:
+                cursor, keys = redis_client.scan(cursor, match=pattern, count=100)
+                for k in keys:
+                    raw = redis_client.get(k)
+                    if not raw:
+                        continue
+                    try:
+                        state = json.loads(raw)
+                        lvl = state.get("anxiety_level")
+                        if lvl in severity_order:
+                            if worst_level is None or severity_order[lvl] > severity_order[worst_level]:
+                                worst_level = lvl
+                    except Exception:
+                        continue
+                if cursor == 0:
+                    break
+        except Exception as e:
+            print(f"[anxiety_weekly scan error] {e}")
+
+        if worst_level:
+            weekly.append({
+                "date": date_str,
+                "day": day_zh,
+                "score": level_score_map[worst_level],
+                "level": worst_level,
+            })
+        else:
+            weekly.append({
+                "date": date_str,
+                "day": day_zh,
+                "score": 0,
+                "level": "empty",
+            })
+
+    return {"user_id": user_id, "weekly": weekly}
 
 # ---------- 担忧记录（CBT 担忧写下来）----------
 

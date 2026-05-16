@@ -63,11 +63,14 @@ def save_sleep_diary(user_id: str, date: str, diary: dict):
 
 
 def get_user_sleep_stats(user_id: str) -> dict:
-    """获取用户睡眠统计：总时长(分钟)、记录数、最新综合评分"""
+    """获取用户睡眠统计：90 天累计 + 近 7 天分项"""
     total_minutes = 0
     total_records = 0
     latest_score = 0
     latest_score_date = ""
+    recent_7d_minutes = 0
+    recent_7d_records = 0
+    recent_7d_latest_score = 0  # 近 7 天最新分（如果有）
     try:
         for i in range(90):
             date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
@@ -83,11 +86,42 @@ def get_user_sleep_stats(user_id: str) -> dict:
                 if score > 0 and date > latest_score_date:
                     latest_score = score
                     latest_score_date = date
+                # 近 7 天专属统计
+                if i < 7:
+                    recent_7d_minutes += diary.get("tst_minutes", 0)
+                    recent_7d_records += 1
+                    if score > 0 and recent_7d_latest_score == 0:
+                        recent_7d_latest_score = score
     except Exception as e:
         print(f"[get_user_sleep_stats error] {e}")
+    recent_7d_avg_hours = round(recent_7d_minutes / recent_7d_records / 60, 1) if recent_7d_records > 0 else 0
+
+    # 连续填日记的天数（从今天/昨天往前回溯，遇到第一个无日记的日子就停）
+    diary_streak_days = 0
+    try:
+        # 允许从今天或昨天开始（用户可能还没填今天）
+        start_i = 0
+        # 如果今天没填，但昨天填了，从昨天起算
+        today_diary = get_sleep_diary(user_id, datetime.now().strftime("%Y-%m-%d"))
+        if not (today_diary and today_diary.get("tst_minutes", 0) > 0):
+            start_i = 1
+        for i in range(start_i, 90):
+            date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+            diary = get_sleep_diary(user_id, date)
+            if diary and diary.get("tst_minutes", 0) > 0:
+                diary_streak_days += 1
+            else:
+                break
+    except Exception as e:
+        print(f"[diary_streak_days error] {e}")
+
     return {
         "total_minutes": total_minutes,
         "total_records": total_records,
         "latest_score": latest_score,
         "latest_score_date": latest_score_date,
+        "recent_7d_records": recent_7d_records,
+        "recent_7d_avg_hours": recent_7d_avg_hours,
+        "recent_7d_latest_score": recent_7d_latest_score,
+        "diary_streak_days": diary_streak_days,
     }

@@ -113,6 +113,39 @@
   color: #8BA3B9;
   margin-top: 4rpx;
 }
+/* "X 天前" 新鲜度小字（仅当卡片显示历史旧分时出现） */
+.stat-stale {
+  font-size: 18rpx;
+  color: rgba(139,163,185,0.6);
+  margin-top: 4rpx;
+  letter-spacing: 1rpx;
+}
+
+/* 补打卡提示条（近 7 天无记录但有历史） */
+.catchup-banner {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin: 24rpx 0 0;
+  padding: 24rpx 28rpx;
+  background: linear-gradient(135deg, rgba(107,159,212,0.12), rgba(126,200,163,0.06));
+  border: 1rpx solid rgba(107,159,212,0.25);
+  border-radius: 20rpx;
+}
+.catchup-icon {
+  font-size: 36rpx;
+}
+.catchup-text {
+  flex: 1;
+  font-size: 26rpx;
+  color: #EDE8DF;
+  line-height: 1.4;
+}
+.catchup-cta {
+  font-size: 24rpx;
+  color: #7EC8A3;
+  font-weight: 500;
+}
 
 /* 只在连续使用上用金色，作为唯一主强调色 */
 .stat-card.gold .stat-value {

@@ -29,8 +29,8 @@ Page({
   data: {
     isLoading: false,  // 页面加载状态
 
-    // 统计数据
-    stats: { streak: 7, total: 21 },
+    // 统计数据（页面加载后由 loadData 从后端 /api/v1/sleep/records 填充）
+    stats: { streak: 0, total: 0 },
 
     // Morning Check-in
     showMorningCheckPrompt: false,
@@ -59,16 +59,24 @@ Page({
     sleepLabels: ['很差', '较差', '一般', '较好', '很好'],
     sleepScore: '--',
     sleepScoreColor: '#8BA3B9',
+    // 新鲜度标签（"X 天前" 或 ""）
+    scoreAgoLabel: '',
+    showScoreAge: false,
+    // "近 7 天没记录但有历史"时的补打卡提示
+    showCatchupBanner: false,
+    catchupAgoLabel: '',
     sleepData: { bedTime: '--:--', wakeTime: '--:--', duration: '--' },
-    weeklySleep: [
-      { day: '一', hours: 6.5, quality: 'fair' },
-      { day: '二', hours: 7.2, quality: 'good' },
-      { day: '三', hours: 5.8, quality: 'poor' },
-      { day: '四', hours: 7.0, quality: 'good' },
-      { day: '五', hours: 6.2, quality: 'fair' },
-      { day: '六', hours: 8.0, quality: 'good' },
-      { day: '日', hours: 8.5, quality: 'good' },
-    ],
+    // 初始化为 7 天空数据：今天往前 6 天 → 今天，全 empty（无记录的日期不显示颜色）
+    weeklySleep: (() => {
+      const days = ['日', '一', '二', '三', '四', '五', '六']
+      const arr = []
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        arr.push({ day: days[d.getDay()], hours: 0, quality: 'empty', se: 0 })
+      }
+      return arr
+    })(),
 
     // 睡眠效率仪表盘
     showSleepDashboard: false,
@@ -105,17 +113,9 @@ Page({
       srtPhaseColor: '#8BA3B9',
     },
 
-    // 焦虑趋势
-    weekly: [
-      { day: '一', score: 3, level: 'mild' },
-      { day: '二', score: 5, level: 'moderate' },
-      { day: '三', score: 2, level: 'mild' },
-      { day: '四', score: 6, level: 'moderate' },
-      { day: '五', score: 4, level: 'mild' },
-      { day: '六', score: 1, level: 'normal' },
-      { day: '日', score: 1, level: 'normal' },
-    ],
-    insight: '整体呈下降趋势，周末明显好转 🌙',
+    // 焦虑趋势（暂未接入后端 API；空数组让 _generateInsight 直接返回，避免假洞察）
+    weekly: [],
+    insight: '',
 
     // 担忧箱
     worryBoxExpanded: false,
@@ -130,25 +130,20 @@ Page({
     restrictionPhaseClass: '',
     planStats: null,
 
-    // 月度报告
+    // 月度报告（由 generateReportData 从后端填充；分享时使用）
     reportMonth: '',
     showReport: false,
     reportData: {
-      totalDays: 12,
-      totalChats: 18,
-      avgAnxiety: '2.3',
-      topConcern: '工作',
-      trend: '↓ 改善中',
-      concerns: [
-        { name: '工作', count: 8, percent: 80 },
-        { name: '人际', count: 5, percent: 50 },
-        { name: '未来', count: 3, percent: 30 },
-        { name: '健康', count: 2, percent: 20 },
-      ],
-      thisWeekTrend: 'down',
-      thisWeekScore: '2.1',
-      lastWeekScore: '3.4',
-      aiSummary: '这个月你记录了12天，有18次对话。工作是你主要的焦虑来源，但相比上周，焦虑水平整体下降了37%。好消息是周末的焦虑明显低于工作日——说明休息对你的效果很明显。继续坚持睡前对话，它正在帮你建立更好的睡眠习惯。🌙',
+      totalDays: 0,
+      totalChats: 0,
+      avgAnxiety: '--',
+      topConcern: '待积累',
+      trend: '',
+      concerns: [],
+      thisWeekTrend: '',
+      thisWeekScore: '--',
+      lastWeekScore: '--',
+      aiSummary: '',
     },
   },
 
@@ -159,6 +154,8 @@ Page({
     this.checkSleepRating()
     this.initShare()
     this.checkMorningStatus()
+    // 预生成月度报告数据，确保分享时拿到真实数字
+    this.generateReportData()
   },
 
   onShow() {
@@ -207,12 +204,13 @@ Page({
     console.log('[Record] loadData start, userId=', userId)
     if (!silent) this.setData({ isLoading: true })
     try {
-      const [recordsRes, memoryRes, worriesRes, dashboardRes, restrictionRes] = await Promise.all([
+      const [recordsRes, memoryRes, worriesRes, dashboardRes, restrictionRes, anxietyRes] = await Promise.all([
         _apiReq(`${API}/api/v1/sleep/records/${userId}?limit=7`),
         _apiReq(`${API}/api/v1/memory/${userId}`),
         _apiReq(`${API}/api/v1/worries/${userId}?limit=20`),
-        _apiReq(`${API}/api/v1/sleep/dashboard?user_id=${userId}&days=7`),
+        _apiReq(`${API}/api/v1/sleep/dashboard?user_id=${userId}&days=30`),
         _apiReq(`${API}/api/v1/sleep/restriction?user_id=${userId}`),
+        _apiReq(`${API}/api/v1/anxiety/weekly/${userId}`),
       ])
 
       console.log('[Record] recordsRes', recordsRes.statusCode, recordsRes.data?.stats)
@@ -223,24 +221,57 @@ Page({
         const streak = d.stats?.streak_days || 0
         const totalMinutes = d.stats?.total_minutes || 0
         const totalRecords = d.stats?.total_records || 0
-        const latestScore = d.stats?.latest_score || 0
-        // 平均每天睡眠时长（小时），保留1位小数
-        const hoursPerDay = totalRecords > 0 ? Math.round(totalMinutes / totalRecords / 60 * 10) / 10 : 0
+        // —— 新逻辑：卡片优先显示「近 7 天」数据；无近 7 天数据则显示 -- + 补打卡提示
+        const recent7dAvgHours = d.stats?.recent_7d_avg_hours || 0
+        const recent7dRecords = d.stats?.recent_7d_records || 0
+        const recent7dLatestScore = d.stats?.recent_7d_latest_score || 0
+        const latestScoreDate = d.stats?.latest_score_date || ''
+        const latestScore = d.stats?.latest_score || 0  // 90 天最新
+
+        // "睡眠"卡：用近 7 天均值；无则显示 0
+        const cardHours = recent7dAvgHours
+
+        // "睡眠分"卡：近 7 天有分用近 7 天，否则用历史最新（标记为旧）
+        const cardScore = recent7dLatestScore > 0 ? recent7dLatestScore : latestScore
         let sleepScoreColor = '#8BA3B9'
-        if (latestScore >= 80) sleepScoreColor = '#7EC8A3'
-        else if (latestScore >= 60) sleepScoreColor = '#F5C869'
-        else if (latestScore > 0) sleepScoreColor = '#E8846B'
+        if (cardScore >= 80) sleepScoreColor = '#7EC8A3'
+        else if (cardScore >= 60) sleepScoreColor = '#F5C869'
+        else if (cardScore > 0) sleepScoreColor = '#E8846B'
+
+        // 距离最近一次评分的天数
+        let scoreAgoDays = 0
+        let scoreAgoLabel = ''
+        if (latestScoreDate) {
+          const lastDate = new Date(latestScoreDate)
+          const today = new Date(); today.setHours(0,0,0,0)
+          lastDate.setHours(0,0,0,0)
+          scoreAgoDays = Math.round((today - lastDate) / 86400000)
+          if (scoreAgoDays === 0) scoreAgoLabel = '今天'
+          else if (scoreAgoDays === 1) scoreAgoLabel = '昨天'
+          else if (scoreAgoDays > 1) scoreAgoLabel = `${scoreAgoDays} 天前`
+        }
+        // 仅当近 7 天没新分 + 历史有旧分时，显示新鲜度标签
+        const showScoreAge = recent7dLatestScore <= 0 && latestScore > 0
+
+        // 补打卡提示条：近 7 天没记录 + 有历史记录（说明是 lapse，不是新人）
+        const showCatchupBanner = recent7dRecords === 0 && totalRecords > 0
+
+        // "睡眠窗口" 打卡进度专用：weekly = 近 7 天填了几次日记；streak = 连续填日记天数
+        const diaryStreakDays = d.stats?.diary_streak_days || 0
         this.setData({
-          'stats.total': hoursPerDay,
+          'stats.total': cardHours,
           'stats.streak': streak,
-          // 空状态也显示 0/7，不打断用户预期
-          planStats: { weekly, target: 7, streak },
-          // 检查今日是否已记录睡眠（records 按日期倒序，第一条是今天则已记录）
+          planStats: { weekly: recent7dRecords, target: 7, streak: diaryStreakDays },
           todayDiaryWritten: records.length > 0 && this._isToday(records[0].recorded_at),
-          // 最新综合睡眠评分(0-100)
-          sleepScore: latestScore > 0 ? latestScore : '--',
+          sleepScore: cardScore > 0 ? cardScore : '--',
           sleepScoreColor,
-          sleepRating: latestScore > 0 ? Math.min(5, Math.max(1, Math.ceil(latestScore / 20))) : 0,
+          sleepRating: cardScore > 0 ? Math.min(5, Math.max(1, Math.ceil(cardScore / 20))) : 0,
+          scoreAgoLabel,
+          showScoreAge,
+          showCatchupBanner,
+          catchupAgoLabel: scoreAgoLabel,  // 提示条复用 "X 天前"
+          // 互斥：长期断档 banner 出现时，吞掉早安 prompt（即使早晨）
+          showMorningCheckPrompt: showCatchupBanner ? false : this.data.showMorningCheckPrompt,
         })
         console.log('[Record] planStats set', { weekly, target: 7, streak })
       }
@@ -260,6 +291,10 @@ Page({
       console.log('[Record] dashboardRes', dashboardRes.statusCode, dashboardRes.data?.has_data)
       if (dashboardRes.statusCode === 200 && dashboardRes.data) {
         this.updateSleepDashboard(dashboardRes.data)
+      }
+      console.log('[Record] anxietyRes', anxietyRes.statusCode, anxietyRes.data?.weekly?.length)
+      if (anxietyRes.statusCode === 200 && anxietyRes.data && Array.isArray(anxietyRes.data.weekly)) {
+        this.setData({ weekly: anxietyRes.data.weekly })
       }
       console.log('[Record] restrictionRes', restrictionRes.statusCode, restrictionRes.data?.phase)
       if (restrictionRes.statusCode === 200 && restrictionRes.data && restrictionRes.data.phase) {
@@ -332,34 +367,54 @@ Page({
 
   // 更新睡眠效率仪表盘
   updateSleepDashboard(data) {
+    // 构建 7 天空骨架（今天往前 6 天到今天，按日期升序）
+    const buildEmptyWeek = () => {
+      const days = ['日', '一', '二', '三', '四', '五', '六']
+      const arr = []
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        const yyyy = d.getFullYear()
+        const mm = String(d.getMonth() + 1).padStart(2, '0')
+        const dd = String(d.getDate()).padStart(2, '0')
+        arr.push({
+          day: days[d.getDay()],
+          hours: 0,
+          quality: 'empty',
+          se: 0,
+          date: `${yyyy}-${mm}-${dd}`
+        })
+      }
+      return arr
+    }
+
     if (!data.has_data) {
+      // 无记录：清空仪表盘 + 7 天柱图归零（不显示颜色）
       this.setData({
         'sleepDashboard.hasData': false,
-        'sleepDashboard.stats': null
+        'sleepDashboard.stats': null,
+        'sleepDashboard.trend': [],
+        weeklySleep: buildEmptyWeek()
       })
       return
     }
 
     // 更新睡眠追踪数据
     const trend = data.trend || []
-    const weeklySleep = trend.slice(0, 7).map((r, idx) => {
-      const days = ['日', '一', '二', '三', '四', '五', '六']
-      const date = new Date(r.date)
-      const dayName = days[date.getDay()]
-      let quality = 'empty'
-      if (r.se > 0) {
-        if (r.se >= 85) quality = 'good'
-        else if (r.se < 70) quality = 'poor'
-        else quality = 'fair'
+    // 始终渲染 7 天骨架（今天往前推），有记录的日期叠加真实数据
+    const weeklySleep = buildEmptyWeek()
+    const trendByDate = {}
+    trend.forEach(r => { if (r.date) trendByDate[r.date] = r })
+    weeklySleep.forEach(slot => {
+      const r = trendByDate[slot.date]
+      if (r && r.se > 0) {
+        slot.hours = r.tst_hours || 0
+        slot.se = r.se
+        if (r.se >= 85) slot.quality = 'good'
+        else if (r.se < 70) slot.quality = 'poor'
+        else slot.quality = 'fair'
       }
-      return {
-        day: dayName,
-        hours: r.tst_hours || 0,
-        quality: quality,
-        se: r.se,
-        date: r.date
-      }
-    }).reverse()
+    })
 
     // 更新最新睡眠数据
     const latest = trend[0] || {}
@@ -382,7 +437,7 @@ Page({
       'sleepDashboard.trendEmoji': data.trend_emoji,
       'sleepDashboard.srt': data.srt || null,
       'sleepDashboard.srtPhaseColor': srtPhaseColor,
-      'weeklySleep': weeklySleep.length > 0 ? weeklySleep : this.data.weeklySleep,
+      'weeklySleep': weeklySleep,
       'sleepData': {
         bedTime: latest.actual_bed || latest.planned_bed || '--:--',
         wakeTime: latest.planned_bed ? this.calculateWakeTime(latest.planned_bed, data.stats?.avg_tst_hours) : '--:--',
@@ -677,7 +732,10 @@ hideSleepDashboard() {
         url: `${API}/api/v1/morning/check?user_id=${app.globalData.userId}`,
       })
       if (res.statusCode === 200 && !res.data.completed) {
-        this.setData({ showMorningCheckPrompt: true })
+        // 互斥：若 catchup banner 已显示（长期断档），不再显示"早安"prompt，避免双重打扰
+        if (!this.data.showCatchupBanner) {
+          this.setData({ showMorningCheckPrompt: true })
+        }
       }
     } catch(e) {}
   },

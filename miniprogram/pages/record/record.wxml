@@ -54,7 +54,15 @@
           <view class="stat-value" style="color: {{sleepScoreColor}}">{{sleepScore || '--'}}</view>
           <view class="stat-unit">分</view>
           <view class="stat-label">睡眠分</view>
+          <view wx:if="{{showScoreAge}}" class="stat-stale">{{scoreAgoLabel}}</view>
         </view>
+      </view>
+
+      <!-- 近 7 天没记录但有历史 → 温和补打卡提示 -->
+      <view wx:if="{{showCatchupBanner}}" class="catchup-banner" bindtap="openMorningCheck">
+        <text class="catchup-icon">🌙</text>
+        <text class="catchup-text">最近 7 天还没记录·上次{{catchupAgoLabel}}</text>
+        <text class="catchup-cta">补一晚 ›</text>
       </view>
 
       <!-- 洞察文字（轻量纯文字行） -->
@@ -123,7 +131,7 @@
     <view class="section-card">
       <view class="section-header">
         <text class="section-title">本周睡眠</text>
-        <text class="section-period">近7天</text>
+        <text class="section-period">近7天柱图</text>
       </view>
       <view class="sleep-bars">
         <view wx:for="{{weeklySleep}}" wx:key="index" class="sleep-bar-col">
