@@ -4919,15 +4919,18 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
         tst_values = [r["tst_minutes"] for r in records if r.get("tst_minutes", 0) > 0]
         quality_values = [r["sleep_quality"] for r in records if r.get("sleep_quality", 0) > 0]
         
-        # SE 存储为 0-1 小数，统一转为百分比 0-100（与阈值/前端展示对齐）
-        avg_se = round(sum(se_values) / len(se_values) * 100, 1)
+        # SE 单位兼容：小数（0.85）/ 百分比（85）两种存储格式都接受
+        def _se_to_pct(v):
+            v = float(v or 0)
+            return v * 100 if 0 < v <= 1.0 else v
+        avg_se = round(sum(_se_to_pct(v) for v in se_values) / len(se_values), 1)
         avg_tst = round(sum(tst_values) / len(tst_values) / 60, 1) if tst_values else 0
         avg_quality = round(sum(quality_values) / len(quality_values), 1) if quality_values else 0
 
         # 计算趋势（最近3天 vs 之前4天）；recent_se / older_se 也用百分比
         if len(records) >= 5:
-            recent_se = sum([r["se"] for r in records[:3]]) / 3 * 100
-            older_se = sum([r["se"] for r in records[3:]]) / max(1, len(records) - 3) * 100
+            recent_se = sum(_se_to_pct(r["se"]) for r in records[:3]) / 3
+            older_se = sum(_se_to_pct(r["se"]) for r in records[3:]) / max(1, len(records) - 3)
             if recent_se > older_se + 3:
                 trend_direction = "improving"
                 trend_emoji = "📈"
@@ -4977,8 +4980,8 @@ async def sleep_dashboard(user: AuthUser = Depends(get_current_user), days: int 
             if r:
                 trend.append({
                     "date": r["date"],
-                    # 转百分比，前端用 height: {{se}}% + 阈值 (>= 85 良) 判断颜色
-                    "se": round(r["se"] * 100, 1),
+                    # 转百分比，单位兼容（小数/百分比都接受）
+                    "se": round(_se_to_pct(r["se"]), 1),
                     "tst_hours": round(r.get("tst_minutes", 0) / 60, 1),
                     "quality": r.get("sleep_quality", 0),
                     "planned_bed": r.get("planned_bed_time", "--:--"),

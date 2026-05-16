@@ -638,29 +638,62 @@ class CBTManager:
                     return self._build_response("text", "嗯，我在。继续说。", state)
 
             # ===== 反刍检测 =====
+            # P1 fix: 4 次连续反刍 → 不直接 CLOSURE，先走 RELAXATION 用身体技术打断认知循环
             if self.emotion_detector.detect_rumination(conversation_history, user_message):
                 state.consecutive_rumination += 1
-                if state.consecutive_rumination >= 4:
-                    state.phase = SessionPhase.CLOSURE
-                    return self._closure_response(state, user_message, worry_category)
+                if state.consecutive_rumination >= 4 and state.phase not in [
+                    SessionPhase.RELAXATION_INDUCTION, SessionPhase.CLOSURE
+                ]:
+                    state.phase = SessionPhase.RELAXATION_INDUCTION
+                    state.turns_in_phase = 0   # P0 fix: phase 切换必须 reset
+                    state.relaxation_technique = "pmr_tiny"  # 反刍优先用身体锚定
+                    state.consecutive_rumination = 0  # 进入放松后清零
+                    return self._relaxation_response(state)
             else:
                 state.consecutive_rumination = 0
 
-            # ===== 担忧处理（至少聊2轮后才进入担忧捕获） =====
-            if anxiety_level in [AnxietyLevel.MILD, AnxietyLevel.MODERATE] and state.phase == SessionPhase.ASSESSMENT:
-                if not state.worry_expressed and state.total_turns >= 2:
-                    state.worry_topic = domain
+            # ===== 担忧处理（P0 fix: 放宽进入条件） =====
+            # 旧逻辑过严：必须 anxiety_level in [MILD, MODERATE]，导致 NORMAL 但有担忧的用户永远进不了
+            # 新逻辑：在 ASSESSMENT 阶段，且任一条件触发即可进入 WORRY_CAPTURE
+            if state.phase == SessionPhase.ASSESSMENT and not state.worry_expressed:
+                enter_worry = False
+                if anxiety_level in [AnxietyLevel.MILD, AnxietyLevel.MODERATE, AnxietyLevel.SEVERE]:
+                    enter_worry = True  # 有焦虑迹象
+                elif domain and domain != "general":
+                    enter_worry = True  # 检测到具体担忧领域
+                elif state.consecutive_rumination > 0:
+                    enter_worry = True  # 有反刍倾向
+                elif state.total_turns >= 3:
+                    enter_worry = True  # 多轮后用户还在 ASSESSMENT，主动推进
+                if enter_worry:
+                    state.worry_topic = domain if (domain and domain != "general") else state.worry_topic
                     state.phase = SessionPhase.WORRY_CAPTURE
+                    state.turns_in_phase = 0   # P0 fix
                     return self._worry_capture_response(state, user_message)
-            
+
             # ===== 认知重构触发 =====
             distortion = self.emotion_detector.detect_distortion(user_message)
             if distortion and state.phase in [SessionPhase.WORRY_CAPTURE, SessionPhase.COGNITIVE_RESTRUCTURING]:
                 state.detected_distortion_id = distortion["id"]
-                state.phase = SessionPhase.COGNITIVE_RESTRUCTURING
+                if state.phase != SessionPhase.COGNITIVE_RESTRUCTURING:
+                    state.phase = SessionPhase.COGNITIVE_RESTRUCTURING
+                    state.turns_in_phase = 0   # P0 fix
                 # 记录逻辑链（苏格拉底追问用）
                 state.logical_chain.append(user_message)
                 return self._cognitive_restructure_response(state, distortion)
+
+            # ===== P1 fix: COGNITIVE 兜底 —— WORRY_CAPTURE 跑了 2 轮还没匹配到 distortion =====
+            # 让 LLM 用通用 Socratic 追问，而不是傻等关键词命中
+            if (state.phase == SessionPhase.WORRY_CAPTURE
+                and state.turns_in_phase >= 2
+                and not state.detected_distortion_id):
+                state.detected_distortion_id = "generic_worry"
+                state.phase = SessionPhase.COGNITIVE_RESTRUCTURING
+                state.turns_in_phase = 0   # P0 fix
+                state.logical_chain.append(user_message)
+                return self._cognitive_restructure_response(
+                    state, {"id": "generic_worry", "name": "general_worry"}
+                )
 
             # ===== 放松诱导（动态阈值：基于用户历史平均焦虑消退轮数）=====
             # 从用户档案读取个性化阈值，无历史数据则回退到默认4轮
@@ -670,12 +703,13 @@ class CBTManager:
                 if avg_recovery > 0:
                     # 允许在平均值的 0.8~1.2 倍范围内波动，最少2轮最多6轮
                     personalized_relax_threshold = max(2, min(6, round(avg_recovery * 0.9)))
-            
+
             if state.phase in [SessionPhase.WORRY_CAPTURE, SessionPhase.COGNITIVE_RESTRUCTURING]:
                 if state.turns_in_phase >= personalized_relax_threshold:
                     state.phase = SessionPhase.RELAXATION_INDUCTION
+                    state.turns_in_phase = 0   # P0 fix
                     state.relaxation_technique = self._select_relaxation_technique(
-                        anxiety_level, worry_category=worry_category, 
+                        anxiety_level, worry_category=worry_category,
                         user_style=state.user_style, scenario=state.detected_scenario
                     )
                     return self._relaxation_response(state)
@@ -687,15 +721,46 @@ class CBTManager:
                 avg_recovery = profile.get("avg_anxiety_recovery_turns", 0.0)
                 if avg_recovery > 0:
                     personalized_close_threshold = max(3, min(8, round(avg_recovery + 1)))
-            
+
+            # 进阶优化：在 RELAXATION 阶段，按技术总轮数决定何时结束
+            # 不再用 personalized_close_threshold (太短，会截掉 PMR/呼吸引导)
+            if state.phase == SessionPhase.RELAXATION_INDUCTION and state.relaxation_technique:
+                technique_threshold = self._technique_total_turns(state.relaxation_technique)
+                # 用技术总长 + 1 (留点缓冲让 outro 播完)
+                close_threshold_for_phase = technique_threshold + 1
+            else:
+                close_threshold_for_phase = personalized_close_threshold
+
             should_close = (
-                state.total_turns >= 10 or
-                state.turns_in_phase >= personalized_close_threshold or
-                (anxiety_level == AnxietyLevel.NORMAL and state.emotional_momentum == EmotionalMomentum.IMPROVING and state.total_turns >= 8)
+                state.total_turns >= 20 or                                       # 硬上限放宽到 20（容纳 PMR_short 12+ 步）
+                state.turns_in_phase >= close_threshold_for_phase or
+                (anxiety_level == AnxietyLevel.NORMAL and state.emotional_momentum == EmotionalMomentum.IMPROVING and state.total_turns >= 10)
             )
-            
+
+            # P1 fix: 阶段保护 —— 只有从 RELAXATION/ASSESSMENT/CLOSURE 才能进 CLOSURE
+            # 防止 WORRY_CAPTURE / COGNITIVE 直接跳过 RELAXATION 强制关闭
+            allowed_close_from = {
+                SessionPhase.RELAXATION_INDUCTION,
+                SessionPhase.ASSESSMENT,
+                SessionPhase.CLOSURE,
+                SessionPhase.NORMAL_CHAT,
+            }
+            if should_close and state.phase not in allowed_close_from:
+                # 强制经过 RELAXATION 再关闭
+                if state.total_turns >= 20:  # 仅硬上限触发时强制推进，否则让当前阶段继续
+                    state.phase = SessionPhase.RELAXATION_INDUCTION
+                    state.turns_in_phase = 0
+                    state.relaxation_technique = self._select_relaxation_technique(
+                        anxiety_level, worry_category=worry_category,
+                        user_style=state.user_style, scenario=state.detected_scenario
+                    )
+                    return self._relaxation_response(state)
+                # 否则吞掉 should_close，让当前阶段继续
+                should_close = False
+
             if should_close and state.phase != SessionPhase.CLOSURE:
                 state.phase = SessionPhase.CLOSURE
+                state.turns_in_phase = 0   # P0 fix（虽然 CLOSURE 是 terminal，保持一致性）
                 # ── L4: 设置档案更新标记（由调用方在会话结束时异步处理）────────
                 response = self._closure_response(state, user_message, worry_category)
                 response["_meta"] = {
@@ -737,11 +802,14 @@ class CBTManager:
             self._save_state(state)
 
     def _worry_capture_response(self, state: SessionState, user_message: str) -> Dict[str, Any]:
-        """担忧捕获阶段的响应——由 LLM 动态生成，此处仅更新状态"""
-        if state.turns_in_phase == 1:
-            state.worry_expressed = True
-        elif state.turns_in_phase == 3:
-            state.worry_write_confirmed = True
+        """担忧捕获阶段的响应——由 LLM 动态生成，此处仅更新状态
+
+        注意：本方法只在 WORRY_CAPTURE phase 入口被调用一次（process_message line 654 / cognitive fallback）。
+        后续在 WORRY_CAPTURE 阶段的轮次由 _continue_phase_response 处理。
+        """
+        # P0 fix 配套：turns_in_phase 在 phase 切换时已 reset 为 0，故进入此方法时一定是 0
+        # 进入即视为"用户已表达担忧"
+        state.worry_expressed = True
         return self._build_response("text", "[worry_capture]", state)
 
     def _estimate_technique_effectiveness(self, state: SessionState) -> float:
@@ -840,34 +908,79 @@ class CBTManager:
             return "pmr_short"  # 默认选短版
         return "pmr_short"  # 包括 NORMAL
 
+    def _technique_total_turns(self, technique: str, regions_count: int = 0) -> int:
+        """
+        每个放松技术应该跑的总轮数（用于 should_close 阶段保护）
+        让每个技术能完整播完，不被通用阈值截断
+        """
+        if technique == "478":
+            return 6                # intro + 4 cycles + outro
+        if technique == "box_breathing":
+            return 7                # intro + 5 phases + outro
+        if technique == "diaphragmatic":
+            return 6                # intro + 4 phases + outro
+        if technique == "paradoxical_intention":
+            return 5
+        if technique == "body_scan":
+            return 9                # intro + ~7 parts + outro
+        if technique == "open_awareness":
+            return 7
+        if technique == "loving_kindness":
+            return 7
+        if technique == "pmr_tiny":
+            return 6                # intro + 2 regions × 2 phases + outro
+        if technique == "pmr_short":
+            return 12               # intro + 5 regions × 2 phases + outro
+        if technique == "full_body":
+            return 16               # intro + 14 regions(合并) + outro 上限
+        return 6                    # 默认
+
     def _relaxation_response(self, state: SessionState) -> Dict[str, Any]:
         """放松诱导响应"""
         technique = state.relaxation_technique or "breathing"
         
         if technique == "478":
+            # 4-7-8 呼吸：每条消息 = 1 个完整循环（吸气4s + 屏息7s + 呼气8s）
+            # 共 4 轮（default_cycles），消息流：intro → 第1轮 → 第2轮 → 第3轮 → 第4轮 → outro
             script = BREATHING_SCRIPTS.get("478", {})
-            if "intro_script" in script and state.relaxation_cycles_completed == 0:
-                content = script["intro_script"]
-            elif state.relaxation_cycles_completed < 4:
-                cycle = state.relaxation_cycles_completed + 1
-                instructions = script.get("instructions", [])
-                if instructions:
-                    phase = instructions[state.relaxation_cycles_completed % 3]
-                    content = f"第{cycle}轮：{phase['physical_guide']}"
-                else:
-                    content = "继续呼吸引导..."
+            instructions = script.get("instructions", [])  # 3 个 phase: inhale/hold/exhale
+            cycle = state.relaxation_cycles_completed
+
+            if cycle == 0:
+                content = script.get("intro_script", "让我们做 4-7-8 呼吸。吸气 4 秒，屏住 7 秒，呼气 8 秒，做 4 轮。")
+            elif cycle <= 4:
+                # 简短引导（~3-4s TTS），剩下交给屏幕上的球 + 倒计时精确计时（19s/轮）
+                # 不再朗读 95 字长段落（会比 19s 动画长 8s，对不齐）
+                content = f"第 {cycle} 轮，跟着光，慢慢呼吸。"
+            elif cycle == 5:
+                content = script.get("outro_script", "很好，4 轮完成了。").format(n=4)
             else:
-                content = script.get("outro_script", "很好，我们进入下一个阶段。").format(n=4)
-            
+                content = "现在，让呼吸自然，闭上眼睛..."
+
             state.relaxation_cycles_completed += 1
-            
-            if state.relaxation_cycles_completed >= 4:
-                return self._build_response("text", "好，我们继续保持这个节奏。现在，轻轻地闭上眼睛...", state)
-            
+            # 同步语音元数据：4-7-8 每条消息 = 1 个完整循环，19s 总长（4+7+8）
+            if cycle == 0:
+                duration_ms, pause_ms, breath_phase = 8000, 2000, "intro"
+            elif 1 <= cycle <= 4:
+                duration_ms, pause_ms, breath_phase = 19000, 1500, "cycle"  # 一轮 19s + 留 1.5s 喘息
+            else:
+                duration_ms, pause_ms, breath_phase = 5000, 2000, "outro"
             return {
                 "response_type": "breathing",
                 "content": content,
-                "breathing_data": script.get("instructions", [])[state.relaxation_cycles_completed % 3] if state.relaxation_cycles_completed < 4 else None,
+                "breathing_data": {
+                    "type": "478",
+                    "phase": breath_phase,
+                    "cycle": cycle,
+                    "total_cycles": 4,
+                    "inhale_seconds": 4,
+                    "hold_seconds": 7,
+                    "exhale_seconds": 8,
+                },
+                "duration_ms": duration_ms,
+                "pause_after_ms": pause_ms,
+                "step_current": cycle + 1,
+                "step_total": 6,
                 "tts_params": self.TTS_PARAMS_BY_ANXIETY[state.anxiety_level],
                 "state_update": _serialize_state(state),
                 "next_phase": SessionPhase.RELAXATION_INDUCTION.value,
@@ -971,12 +1084,13 @@ class CBTManager:
             }
 
         elif technique == "box_breathing":
+            # FIX: phase_idx 从 0 开始；之前 cycle=1 → idx=1 跳过了"吸气"第一步
             script = BREATHING_SCRIPTS.get("box_breathing", {})
             instructions = script.get("instructions", [])
             if state.relaxation_cycles_completed == 0:
                 content = script.get("intro_script", "我们来做一个方形呼吸法。每一步4秒，像画一个正方形。准备好了吗？")
-            elif state.relaxation_cycles_completed < 6:  # 默认6个循环
-                phase_idx = state.relaxation_cycles_completed % 4
+            elif state.relaxation_cycles_completed < 6:
+                phase_idx = (state.relaxation_cycles_completed - 1) % 4
                 phase_names = ["吸气", "屏息", "呼气", "暂停"]
                 phase = instructions[phase_idx] if phase_idx < len(instructions) else instructions[0]
                 content = f"{phase_names[phase_idx]}：{phase.get('physical_guide', '')}"
@@ -994,12 +1108,13 @@ class CBTManager:
             }
 
         elif technique == "diaphragmatic":
+            # FIX: phase_idx 从 0 开始；之前 cycle=1 → idx=1 跳过了第一步
             script = BREATHING_SCRIPTS.get("diaphragmatic", {})
             instructions = script.get("instructions", [])
             if state.relaxation_cycles_completed == 0:
                 content = script.get("intro_script", "我们来学习腹式呼吸——最自然的呼吸方式。把手放在腹部，感受它的起伏。")
             elif state.relaxation_cycles_completed < 5:
-                phase_idx = state.relaxation_cycles_completed % 2
+                phase_idx = (state.relaxation_cycles_completed - 1) % 2
                 phase = instructions[phase_idx] if phase_idx < len(instructions) else instructions[0]
                 content = phase.get("physical_guide", "继续呼吸...")
             else:
@@ -1018,45 +1133,80 @@ class CBTManager:
         elif technique in ("pmr", "pmr_short", "pmr_tiny"):
             # 自动选择 PMR 版本
             pmr_version = technique if technique != "pmr" else self._select_pmr_version(state.anxiety_level)
-            
-            if pmr_version == "pmr_tiny":
-                script_tiny = PMR_SCRIPTS.get("pmr_tiny", {})
-                regions = script_tiny.get("regions", [])
-                intro = script_tiny.get("intro_script", "我们做一个最快版本的放松。只需要90秒。躺好，开始。")
-                outro = script_tiny.get("outro_script", "好。你做到了。现在，让放松的感觉继续蔓延。不需要做任何事，只需要闭眼。")
-                mid = "很好。再来一轮，感受对比。"
-            elif pmr_version == "pmr_short":
-                script_short = PMR_SCRIPTS.get("pmr_short", {})
-                regions = script_short.get("regions", [])
-                intro = script_short.get("intro_script", "我们做一个3分钟的快速放松。只有5个部位。躺好，我们开始。")
-                outro = script_short.get("outro_script", "很好。现在，整个人比练习前更沉更暖了。记住这个感觉。现在，让呼吸完全自然。不需要做任何事，晚安。")
-                mid = script_short.get("mid_script", "很好。无论有多少放松，它都是真实的。再来一轮，感受对比。")
-            else:
-                # full_body（默认）
-                script_full = PMR_SCRIPTS.get("full_body", {})
-                regions = script_full.get("sequence", [])
-                intro = script_full.get("intro_script", "我们来做一个身体扫描放松...")
-                outro = "很好，全身都放松了。现在，让你的呼吸变得自然..."
-                mid = "很好，继续感受这个放松的感觉..."
 
-            if state.relaxation_cycles_completed == 0:
-                content = intro
-            elif state.relaxation_cycles_completed < len(regions):
-                region_data = regions[state.relaxation_cycles_completed]
-                content = f"现在，{region_data['tense_instruction']}"
-                # 加入放松引导
-                content += f"\n\n{region_data['relax_instruction']}"
-            elif state.relaxation_cycles_completed == len(regions):
-                content = outro
+            if pmr_version == "pmr_tiny":
+                script_data = PMR_SCRIPTS.get("pmr_tiny", {})
+                intro = script_data.get("intro_script", "我们做一个最快版本的放松。只需要90秒。躺好，开始。")
+                outro = script_data.get("outro_script", "好。让放松的感觉继续蔓延。闭上眼睛。")
+            elif pmr_version == "pmr_short":
+                script_data = PMR_SCRIPTS.get("pmr_short", {})
+                intro = script_data.get("intro_script", "我们做一个3分钟快速放松。5个部位。躺好。")
+                outro = script_data.get("outro_script", "整个人比练习前更沉更暖了。让呼吸完全自然。晚安。")
             else:
-                content = "现在，让呼吸完全自然，不需要控制。你的身体已经完全沉入休息了。"
+                script_data = PMR_SCRIPTS.get("full_body", {})
+                intro = script_data.get("intro_script", "我们做一个完整的身体扫描放松。")
+                outro = "全身都放松了。让呼吸变得自然。"
+            regions = script_data.get("regions") or script_data.get("sequence") or []
+
+            # 同步语音播放：每个部位拆成 tense + relax 两条独立消息
+            # 时间轴：intro(0) → region[0].tense(1) → region[0].relax(2) → region[1].tense(3) → ...
+            cycle = state.relaxation_cycles_completed
+            tense_relax_per_region = 2  # 每个 region 占 2 条消息
+            # 总消息数：intro(1) + N×2 + outro(1)
+            outro_idx = 1 + len(regions) * tense_relax_per_region
+
+            pmr_phase = None       # tense / relax / intro / outro
+            curr_region_name = ""
+            pause_ms = 1500        # 默认相邻消息间停顿
+            duration_ms = 5000     # 该 phase 视觉/动画建议时长
+
+            if cycle == 0:
+                content = intro
+                pmr_phase = "intro"
+                duration_ms = 6000
+                pause_ms = 2000
+            elif cycle < outro_idx:
+                region_idx = (cycle - 1) // tense_relax_per_region
+                sub = (cycle - 1) % tense_relax_per_region
+                if 0 <= region_idx < len(regions):
+                    region_data = regions[region_idx]
+                    curr_region_name = region_data.get("region", "")
+                    region_dur = int(region_data.get("duration_seconds", 30))
+                    if sub == 0:
+                        # 紧张阶段：~5-7秒
+                        content = region_data.get("tense_instruction", "用力收紧...保持...")
+                        pmr_phase = "tense"
+                        duration_ms = min(7000, region_dur * 1000 // 3)
+                        pause_ms = 1500
+                    else:
+                        # 放松阶段：~10-15秒
+                        content = region_data.get("relax_instruction", "完全放松...感受...")
+                        pmr_phase = "relax"
+                        duration_ms = max(8000, region_dur * 1000 * 2 // 3)
+                        pause_ms = 2500
+                else:
+                    content = "继续放松..."
+                    pmr_phase = "relax"
+            elif cycle == outro_idx:
+                content = outro
+                pmr_phase = "outro"
+                duration_ms = 6000
+                pause_ms = 3000
+            else:
+                content = "现在，让呼吸完全自然，身体已经沉入休息。"
+                pmr_phase = "outro"
 
             state.relaxation_cycles_completed += 1
             return {
                 "response_type": "pmr",
                 "content": content,
                 "pmr_version": pmr_version,
-                "pmr_region": regions[state.relaxation_cycles_completed - 1].get("region", "") if state.relaxation_cycles_completed <= len(regions) else "全身",
+                "pmr_region": curr_region_name,
+                "pmr_phase": pmr_phase,                # 新：前端用来切换 tense/relax 视觉
+                "duration_ms": duration_ms,            # 新：建议视觉动画时长
+                "pause_after_ms": pause_ms,            # 新：前端可在 TTS 播完后等这么久再走下一条
+                "step_current": cycle + 1,
+                "step_total": outro_idx + 1,
                 "tts_params": self.TTS_PARAMS_BY_ANXIETY[state.anxiety_level],
                 "state_update": _serialize_state(state),
                 "next_phase": SessionPhase.RELAXATION_INDUCTION.value,

@@ -134,6 +134,19 @@ Page({
     pmrTip: '放松每一个部位...',
     pmrTimer: null,
     _pmrActive: false,
+    // 放松同步面板（PMR / 呼吸引导，JS 倒计时精确驱动）
+    relaxSync: {
+      active: false,
+      phase: '',          // intro / tense / relax / outro / cycle
+      region: '',         // 身体部位（PMR）
+      label: '',          // 大字提示："用力" / "放松" / "跟着光呼吸"
+      orbState: 'idle',   // idle/inhale/hold/exhale/tense/relax — 驱动球的 CSS transform
+      subPhase: '',       // 当前子阶段中文："吸气" / "屏息" / "呼气"
+      countdown: 0,       // 球里的倒计时数字
+      progressPct: 0,
+      stepCurrent: 0,
+      stepTotal: 0,
+    },
     _autoCloseTimer: null,
     _dimming: false,
 
@@ -145,6 +158,7 @@ Page({
     showPostWorryChoice: false, // P2: 写完担忧后，让用户选继续聊或准备睡
     worryEditorActive: false,   // P3: 文字模式担忧编辑器
     worryEditorText: '',
+    worryEditorTextLen: 0,
 
     // 白噪音
     currentSound: null,
@@ -954,7 +968,9 @@ Page({
     })
   },
 
-  async _sendToAI(text, fromSleep = true) {
+  async _sendToAI(text, fromSleep = true, opts = {}) {
+    // opts.silent: 静默推进（放松阶段自动推进用）—— 不计入 conversationLog、不触发担忧检测
+    const silent = !!opts.silent
     // 任何交互都重置陪伴计时器
     this._resetCompanionTimer()
     const userId = app.globalData.userId || ''
@@ -979,7 +995,8 @@ Page({
       '我不行', '我不好', '废物', '失败', '比不上', '搞砸了', '后悔', '焦虑', '担心', '害怕'
     ]
     const allKeywords = ruminateKeywords.concat(scenarioKeywords)
-    const isWorry = allKeywords.some(k => text.includes(k))
+    // 静默推进时跳过担忧检测（避免自动推进的 marker 触发担忧弹窗）
+    const isWorry = !silent && allKeywords.some(k => text.includes(k))
     if (isWorry) {
       this.setData({ worryPendingText: text })
       const t = setTimeout(() => this.setData({ showWorryPrompt: false }), 8000)
@@ -991,13 +1008,14 @@ Page({
     const round = (this.data.conversationRound || 0) + 1
     this.setData({ conversationRound: round })
 
-    const log = [...this.data.conversationLog, { role: 'user', text }]
+    // 静默推进不加用户气泡（不污染对话记录）
+    const log = silent ? this.data.conversationLog : [...this.data.conversationLog, { role: 'user', text }]
     this.setData({
-      conversationLog: fromSleep ? log : this.data.conversationLog,
+      conversationLog: (fromSleep && !silent) ? log : this.data.conversationLog,
       isAIResponding: true,
-      isLoading: !fromSleep,
-      statusText: '正在思考...',
-      statusHint: fromSleep ? '收到，请稍等' : ''
+      isLoading: !fromSleep && !silent,
+      statusText: silent ? this.data.statusText : '正在思考...',
+      statusHint: silent ? this.data.statusHint : (fromSleep ? '收到，请稍等' : '')
     })
 
     // 文字模式先显示用户消息
@@ -1155,6 +1173,8 @@ Page({
           // CBT 阶段状态（用于进度条 UI）
           if (data.event === 'cbt_state') {
             const phase = data.data
+            // ── 放松同步面板：PMR / 呼吸引导 ──
+            this._updateRelaxSync(phase)
             const label = phase.phase_label || ''
             const hint = phase.phase_hint || ''
             const stepIndex = phase.step_index !== undefined ? phase.step_index : -1
@@ -1533,6 +1553,10 @@ Page({
     if (this._breathCountdownTimer) clearInterval(this._breathCountdownTimer)
     if (this._breathPhaseTimer) clearTimeout(this._breathPhaseTimer)
     if (this._companionTimer) clearTimeout(this._companionTimer)
+    if (this._relaxTimer) { clearInterval(this._relaxTimer); this._relaxTimer = null }
+    if (this._relaxAdvanceTimer) { clearTimeout(this._relaxAdvanceTimer); this._relaxAdvanceTimer = null }
+    this._relaxAutoAdvancing = false
+    this._relaxAdvanceCount = 0
     if (this.data.isRecording || this.data.isListening) {
       try { recorderManager.stop() } catch (e) {}
     }
@@ -1871,6 +1895,182 @@ Page({
     // 停止当前 TTS 播放
     innerAudioContext.stop()
     this.setData({ closureStep: 2 })
+  },
+
+  // 放松同步面板：消费后端 cbt_state 里的 PMR / 呼吸引导元数据
+  _updateRelaxSync(phase) {
+    if (!phase) return
+    const rt = phase.response_type || ''
+    // 只在 PMR / 呼吸引导时显示；其它响应（closure/safety/text）→ 关面板 + 停自动推进
+    if (rt !== 'pmr' && rt !== 'breathing') {
+      this._relaxAutoAdvancing = false
+      this._relaxAdvanceCount = 0
+      if (this._relaxAdvanceTimer) { clearTimeout(this._relaxAdvanceTimer); this._relaxAdvanceTimer = null }
+      if (this.data.relaxSync.active) {
+        this._stopRelaxSequence()
+        this.setData({ 'relaxSync.active': false })
+      }
+      return
+    }
+
+    const stepCurrent = phase.step_current || 0
+    const stepTotal = phase.step_total || 0
+    const progressPct = stepTotal > 0 ? Math.round((stepCurrent / stepTotal) * 100) : 0
+    const durationMs = phase.duration_ms || 0
+
+    let syncPhase = ''
+    let label = ''
+    let region = ''
+    let sequence = []   // [{orbState, sub, secs}] —— JS 倒计时驱动序列
+
+    if (rt === 'pmr') {
+      syncPhase = phase.pmr_phase || 'relax'
+      region = phase.pmr_region || ''
+      const secs = Math.max(2, Math.round(durationMs / 1000))
+      if (syncPhase === 'tense') {
+        label = '用力 · 保持'
+        sequence = [{ orbState: 'tense', sub: '用力', secs }]
+      } else if (syncPhase === 'relax') {
+        label = '放松 · 感受'
+        // 放松段 TTS 较长，倒计时上限显示 20s，避免数字太大
+        sequence = [{ orbState: 'relax', sub: '放松', secs: Math.min(secs, 20) }]
+      } else if (syncPhase === 'intro') {
+        label = '准备'
+        sequence = [{ orbState: 'idle', sub: '', secs: 0 }]
+      } else {
+        label = '完成'
+        sequence = [{ orbState: 'idle', sub: '', secs: 0 }]
+      }
+    } else {
+      // breathing：478 为主
+      const bd = phase.breathing_data || {}
+      syncPhase = bd.phase || 'cycle'
+      if (bd.type === '478') {
+        if (bd.phase === 'intro') {
+          label = '准备呼吸'
+          sequence = [{ orbState: 'idle', sub: '', secs: 0 }]
+        } else if (bd.phase === 'outro') {
+          label = '完成'
+          sequence = [{ orbState: 'idle', sub: '', secs: 0 }]
+        } else {
+          // 一个完整 4-7-8 循环
+          label = `第 ${bd.cycle || 1} 轮 / 4`
+          const inh = bd.inhale_seconds || 4
+          const hold = bd.hold_seconds || 7
+          const exh = bd.exhale_seconds || 8
+          sequence = [
+            { orbState: 'inhale', sub: '吸气', secs: inh },
+            { orbState: 'hold', sub: '屏息', secs: hold },
+            { orbState: 'exhale', sub: '呼气', secs: exh },
+          ]
+        }
+      } else {
+        label = '跟着呼吸'
+        sequence = [{ orbState: 'relax', sub: '呼吸', secs: Math.max(4, Math.round(durationMs / 1000)) }]
+      }
+    }
+
+    this.setData({
+      relaxSync: {
+        active: true,
+        phase: syncPhase,
+        region,
+        label,
+        orbState: sequence[0] ? sequence[0].orbState : 'idle',
+        subPhase: sequence[0] ? sequence[0].sub : '',
+        countdown: sequence[0] ? sequence[0].secs : 0,
+        progressPct,
+        stepCurrent,
+        stepTotal,
+      },
+    })
+
+    // 触觉反馈：PMR tense 开始时轻震
+    if (rt === 'pmr' && syncPhase === 'tense') {
+      try { wx.vibrateShort({ type: 'light' }) } catch (e) {}
+    }
+
+    // 启动 JS 倒计时驱动
+    this._runRelaxSequence(sequence)
+
+    // ── 放松阶段自动推进 ──
+    // 只要还是放松响应就持续推进，后端返回 closure 时自然停止（见函数顶部分支）
+    this._relaxAutoAdvancing = true
+    this._relaxPauseMs = phase.pause_after_ms || 1800
+    // 防失控计数：单次放松最多自动推进 24 步
+    this._relaxAdvanceCount = (this._relaxAdvanceCount || 0)
+    // 注册：本步 TTS 播完后，等 pause_after_ms 自动请求下一步
+    this._onTTSEnd(() => this._scheduleRelaxAdvance())
+  },
+
+  // 放松阶段：TTS 播完后定时自动推进到下一步
+  _scheduleRelaxAdvance() {
+    if (!this._relaxAutoAdvancing) return
+    if (!this.data.sleepModeActive) { this._relaxAutoAdvancing = false; return }
+    // 防失控：单次放松最多 24 步
+    this._relaxAdvanceCount = (this._relaxAdvanceCount || 0) + 1
+    if (this._relaxAdvanceCount > 24) {
+      console.warn('[RelaxAdvance] hit 24-step cap, stop auto-advance')
+      this._relaxAutoAdvancing = false
+      return
+    }
+    if (this._relaxAdvanceTimer) clearTimeout(this._relaxAdvanceTimer)
+    const pause = this._relaxPauseMs || 1800
+    this._relaxAdvanceTimer = setTimeout(() => {
+      this._relaxAdvanceTimer = null
+      // 二次校验：仍在睡眠模式 + 仍需自动推进 + 放松面板还在
+      if (!this.data.sleepModeActive || !this._relaxAutoAdvancing) return
+      if (!this.data.relaxSync.active) return
+      console.log('[RelaxAdvance] auto → next step #' + this._relaxAdvanceCount)
+      // 静默发一个推进信号（"嗯" 对后端无害，RELAXATION 阶段任意消息都推进一步）
+      this._sendToAI('嗯', true, { silent: true })
+    }, pause)
+  },
+
+  // JS 倒计时：精确按 4-7-8 / PMR phase 时长驱动球 + 倒计时数字
+  _runRelaxSequence(sequence) {
+    this._stopRelaxSequence()
+    if (!sequence || sequence.length === 0) return
+    let segIdx = 0
+    let remain = sequence[0].secs
+
+    const applySeg = () => {
+      const seg = sequence[segIdx]
+      this.setData({
+        'relaxSync.orbState': seg.orbState,
+        'relaxSync.subPhase': seg.sub,
+        'relaxSync.countdown': remain,
+      })
+    }
+    applySeg()
+
+    // secs=0 的段（intro/outro）不计时
+    if (sequence.length === 1 && sequence[0].secs === 0) return
+
+    this._relaxTimer = setInterval(() => {
+      remain--
+      if (remain >= 1) {
+        this.setData({ 'relaxSync.countdown': remain })
+        return
+      }
+      // 当前段结束，切下一段
+      segIdx++
+      if (segIdx >= sequence.length) {
+        this._stopRelaxSequence()
+        return
+      }
+      remain = sequence[segIdx].secs
+      applySeg()
+      // 478 切换子阶段时轻震一下（吸→屏→呼 的节奏提示）
+      try { wx.vibrateShort({ type: 'light' }) } catch (e) {}
+    }, 1000)
+  },
+
+  _stopRelaxSequence() {
+    if (this._relaxTimer) {
+      clearInterval(this._relaxTimer)
+      this._relaxTimer = null
+    }
   },
 
   onPMRDone() {
@@ -2484,17 +2684,20 @@ Page({
   // ====== 文字模式：担忧编辑器（P3） ======
   openWorryTextEditor() {
     // 预填用户刚说过的那段文字
+    const initial = this.data.worryPendingText || ''
     this.setData({
       showWorryPrompt: false,
       worryEditorActive: true,
-      worryEditorText: this.data.worryPendingText || '',
+      worryEditorText: initial,
+      worryEditorTextLen: initial.length,
     })
   },
   onWorryEditorInput(e) {
-    this.setData({ worryEditorText: e.detail.value })
+    const v = e.detail.value || ''
+    this.setData({ worryEditorText: v, worryEditorTextLen: v.length })
   },
   cancelWorryEditor() {
-    this.setData({ worryEditorActive: false, worryEditorText: '' })
+    this.setData({ worryEditorActive: false, worryEditorText: '', worryEditorTextLen: 0 })
   },
   submitWorryEditor() {
     const text = (this.data.worryEditorText || '').trim()
@@ -2502,7 +2705,7 @@ Page({
       wx.showToast({ title: '写点什么再保存', icon: 'none' })
       return
     }
-    this.setData({ worryEditorActive: false, worryEditorText: '' })
+    this.setData({ worryEditorActive: false, worryEditorText: '', worryEditorTextLen: 0 })
     this.saveWorry(text)
   },
 
@@ -2584,7 +2787,11 @@ Page({
         this._ttsPlaying = false
         this.setData({ isPlayingTTS: false, _asrPending: false })
         if (this.data.sleepModeActive) this._resetCompanionTimer()
-        if (this.data.sleepModeActive && !this.data._pmrActive) {
+        // 放松阶段自动推进：先触发 TTS 结束回调（含 _scheduleRelaxAdvance），但不重启 VAD
+        if (this._relaxAutoAdvancing) {
+          this._vadRestartPending = false
+          this._fireTTSEndCallbacks()
+        } else if (this.data.sleepModeActive && !this.data._pmrActive) {
           this.setData({ statusText: '聆听中', statusHint: '继续说吧' })
           // ✅ 清锁 + 触发 TTS 结束回调，让 onTTSEnd 启动 VAD
           this._vadRestartPending = false
@@ -2719,7 +2926,8 @@ Page({
       // ✅ 触发 TTS 结束回调（事件驱动 defer）
       this._fireTTSEndCallbacks()
       if (this.data.sleepModeActive) this._resetCompanionTimer()
-      if (this.data.sleepModeActive && !this.data._pmrActive) {
+      // 放松自动推进时不重启 VAD（_scheduleRelaxAdvance 已由上面回调触发）
+      if (this.data.sleepModeActive && !this.data._pmrActive && !this._relaxAutoAdvancing) {
         this.setData({ statusText: '聆听中', statusHint: '继续说吧' })
         setTimeout(() => {
           this._vadRestartPending = false  // ✅ 清锁后再重启
@@ -2814,7 +3022,8 @@ Page({
       this._fireTTSEndCallbacks()
       
       // 睡眠模式：TTS 播完后重新开始监听（仅当音频队列空时）
-      if (this.data.sleepModeActive && !this.data._pmrActive && (this.data.ttsQueue || []).length === 0) {
+      // 放松自动推进时跳过 VAD 重启（由 _scheduleRelaxAdvance 接管）
+      if (this.data.sleepModeActive && !this.data._pmrActive && !this._relaxAutoAdvancing && (this.data.ttsQueue || []).length === 0) {
         this.setData({ statusText: '聆听中', statusHint: '手机放在枕边，继续说吧' })
         setTimeout(() => {
           if (!this._recorderStopping) this._restartVAD('tts ended')

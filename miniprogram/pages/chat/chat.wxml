@@ -46,6 +46,23 @@
       <text wx:if="{{showCbtPhase && cbtPhaseHint}}" class="sleep-hint cbt-phase-hint">{{cbtPhaseHint}}</text>
       <!-- 【2026-05-15】低调阶段提示（替代 5-step 进度条）— CBT-I 强调"陪伴不是流程" -->
       <text wx:if="{{showCbtPhase && cbtTrailText}}" class="cbt-trail">{{cbtTrailText}}</text>
+
+      <!-- 放松同步面板：PMR / 呼吸引导时显示，与 TTS 语音同步 -->
+      <view wx:if="{{relaxSync.active}}" class="relax-sync relax-sync-{{relaxSync.phase}}">
+        <view class="relax-sync-region" wx:if="{{relaxSync.region}}">{{relaxSync.region}}</view>
+        <view class="relax-sync-orb">
+          <view class="relax-sync-orb-core orb-{{relaxSync.orbState}}">
+            <text wx:if="{{relaxSync.countdown > 0}}" class="relax-sync-count">{{relaxSync.countdown}}</text>
+          </view>
+        </view>
+        <view class="relax-sync-label">
+          <text wx:if="{{relaxSync.subPhase}}" class="relax-sync-sub">{{relaxSync.subPhase}} </text>{{relaxSync.label}}
+        </view>
+        <view class="relax-sync-progress">
+          <view class="relax-sync-progress-fill" style="width: {{relaxSync.progressPct}}%"></view>
+        </view>
+        <view class="relax-sync-step">{{relaxSync.stepCurrent}} / {{relaxSync.stepTotal}}</view>
+      </view>
     </view>
 
     <!-- 白噪音 -->
@@ -272,7 +289,7 @@
         auto-height="{{true}}"
         focus="{{true}}"
       />
-      <view class="worry-editor-meta">{{(worryEditorText || '').length}}/200</view>
+      <view class="worry-editor-meta">{{worryEditorTextLen}}/200</view>
       <view class="worry-editor-btns">
         <button class="worry-btn-skip" bindtap="cancelWorryEditor">取消</button>
         <button class="worry-btn-capture" bindtap="submitWorryEditor">收好</button>

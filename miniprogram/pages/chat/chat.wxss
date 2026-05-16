@@ -1015,6 +1015,121 @@
   font-weight: 500;
 }
 
+/* ===========================
+   放松同步面板（PMR / 呼吸引导）
+   =========================== */
+.relax-sync {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18rpx;
+  margin-top: 32rpx;
+  padding: 28rpx 36rpx;
+  border-radius: 28rpx;
+  background: rgba(36, 52, 71, 0.35);
+  border: 1rpx solid rgba(255, 255, 255, 0.05);
+  animation: fadeIn 0.4s ease;
+}
+.relax-sync-region {
+  font-size: 26rpx;
+  color: #EDE8DF;
+  letter-spacing: 4rpx;
+  font-weight: 500;
+}
+/* 中央同步球 */
+.relax-sync-orb {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* 球核心：用 CSS transition 实现精确时长动画（JS 切 orbState class 驱动） */
+.relax-sync-orb-core {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 默认 transition；具体时长由各 orb-* 覆盖 */
+  transition: transform 1s ease-in-out, background 0.8s ease;
+  background: radial-gradient(circle, rgba(107,159,212,0.5), rgba(107,159,212,0.15));
+}
+/* idle / intro / outro：中性蓝柔光 */
+.orb-idle {
+  transform: scale(1);
+}
+/* 吸气：4s 平滑撑大 */
+.orb-inhale {
+  transform: scale(1.5);
+  transition-duration: 4s;
+  background: radial-gradient(circle, rgba(107,159,212,0.85), rgba(107,159,212,0.3));
+}
+/* 屏息：保持吸满，几乎不变 */
+.orb-hold {
+  transform: scale(1.5);
+  transition-duration: 0.3s;
+  background: radial-gradient(circle, rgba(143,184,224,0.9), rgba(143,184,224,0.35));
+}
+/* 呼气：8s 平滑缩小 */
+.orb-exhale {
+  transform: scale(0.65);
+  transition-duration: 8s;
+  background: radial-gradient(circle, rgba(126,200,163,0.7), rgba(126,200,163,0.2));
+}
+/* PMR 用力：0.8s 快速收紧（琥珀色） */
+.orb-tense {
+  transform: scale(0.7);
+  transition-duration: 0.8s;
+  background: radial-gradient(circle, rgba(245,200,105,0.9), rgba(245,200,105,0.3));
+}
+/* PMR 放松：3s 缓慢舒张（绿色） */
+.orb-relax {
+  transform: scale(1.4);
+  transition-duration: 3s;
+  background: radial-gradient(circle, rgba(126,200,163,0.78), rgba(126,200,163,0.22));
+}
+/* 倒计时数字 */
+.relax-sync-count {
+  font-size: 44rpx;
+  font-weight: 300;
+  color: rgba(255,255,255,0.92);
+  font-family: -apple-system, 'PingFang SC', sans-serif;
+}
+.relax-sync-label {
+  font-size: 32rpx;
+  color: #EDE8DF;
+  letter-spacing: 3rpx;
+  font-weight: 500;
+}
+.relax-sync-sub {
+  color: #F5C869;
+  font-weight: 600;
+}
+.relax-sync-tense .relax-sync-label { color: #F5C869; }
+.relax-sync-relax .relax-sync-label { color: #7EC8A3; }
+.relax-sync-cycle .relax-sync-label { color: #8FB8E0; }
+.relax-sync-progress {
+  width: 280rpx;
+  height: 6rpx;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999rpx;
+  overflow: hidden;
+}
+.relax-sync-progress-fill {
+  height: 100%;
+  background: rgba(245, 200, 105, 0.6);
+  border-radius: 999rpx;
+  transition: width 0.6s ease;
+}
+.relax-sync-step {
+  font-size: 20rpx;
+  color: rgba(139, 163, 185, 0.5);
+  letter-spacing: 2rpx;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4rpx); }
   to { opacity: 0.7; transform: translateY(0); }
