@@ -1,16 +1,29 @@
+<!-- pages/privacy/privacy.wxml -->
 <view class="privacy-container">
+
+  <!-- 顶部装饰 -->
+  <view class="page-header">
+    <text class="moon-icon">🌙</text>
+    <text class="page-title">隐私政策</text>
+    <text class="page-subtitle">知眠 · 你的睡眠笔记</text>
+  </view>
+
+  <!-- ==================== 隐私政策 ==================== -->
   <view class="section">
-    <view class="title">隐私政策</view>
-    <view class="content">
-      <view class="p">知眠（以下简称"我们"）非常重视用户的隐私保护。本隐私政策说明我们如何收集、使用、存储和保护您的个人信息。</view>
-      
+    <view class="section-header">
+      <text class="section-icon">🔒</text>
+      <text class="section-title">隐私政策</text>
+      <text class="section-divider"></text>
+    </view>
+    <view class="content-card">
+
       <view class="subtitle">1. 信息收集</view>
       <view class="p">我们可能会收集以下信息：</view>
       <view class="p">• 微信 openid、昵称、头像（用于用户身份识别）</view>
       <view class="p">• 语音录音（用于语音对话功能，经您授权后实时识别，不长期存储）</view>
       <view class="p">• 睡眠记录、担忧记录（您主动输入的内容）</view>
+      <view class="p">• 睡眠效率、对话时长等使用行为数据</view>
       <view class="p">• 设备信息（用于优化服务体验）</view>
-      <view class="p">• 睡眠效率、对话时长等使用行为数据（用于改进 AI 陪伴质量）</view>
 
       <view class="subtitle">2. 信息使用</view>
       <view class="p">我们使用您的信息用于：</view>
@@ -18,34 +31,41 @@
       <view class="p">• 生成睡眠分析报告与个性化建议</view>
       <view class="p">• 改进 AI 对话质量（你的数据帮助我们变得更好）</view>
 
-      <view class="subtitle">3. 数据存储与安全</view>
-      <view class="p">你的睡眠数据像笔记一样沉淀在知眠中，我们采用加密技术保护您的数据。所有对话内容均为私密，不会出售给任何第三方。你可随时联系 support@sleepai.chat 申请删除全部个人数据。</view>
+      <view class="subtitle">3. Obsidian 理念</view>
+      <view class="p">你的睡眠数据像笔记一样沉淀在知眠中，我们采用加密技术保护，不会出售给任何第三方。</view>
+      <view class="p">知眠的设计灵感来自 Obsidian——你的睡眠记录不只是数据，更是你与自己对话的痕迹。AI 帮你整理、关联、提炼洞见。</view>
 
-      <view class="subtitle">4. Obsidian 理念</view>
-      <view class="p">知眠的设计灵感来自 Obsidian——你的睡眠记录不只是数据，更是你与自己对话的痕迹。AI 帮你整理、关联、提炼洞见，让你在"睡眠笔记"中看到模式的变迁，理解自己的睡眠节奏。</view>
+      <view class="info-strip">
+        <text class="info-strip-icon">🔐</text>
+        <text class="info-strip-text">你可随时联系 support@sleepai.chat 申请删除全部个人数据</text>
+      </view>
 
-      <view class="subtitle">5. 录音权限</view>
+      <view class="subtitle">4. 录音权限</view>
       <view class="p">使用语音对话功能需要录音权限。录音仅用于实时语音识别，不会长期存储。关闭录音权限不影响您使用文字记录功能。</view>
 
-      <view class="subtitle">6. 第三方服务</view>
+      <view class="subtitle">5. 第三方服务</view>
       <view class="p">知眠使用微信小程序框架提供全部服务，暂不接入任何第三方分析或广告平台。</view>
 
-      <view class="subtitle">7. 联系我们</view>
-      <view class="p">如有隐私相关问题，请联系：support@sleepai.chat</view>
     </view>
   </view>
 
+  <!-- ==================== 用户协议 ==================== -->
   <view class="section">
-    <view class="title">用户协议</view>
-    <view class="content">
+    <view class="section-header">
+      <text class="section-icon">📋</text>
+      <text class="section-title">用户协议</text>
+      <text class="section-divider"></text>
+    </view>
+    <view class="content-card">
+
       <view class="subtitle">1. 服务说明</view>
       <view class="p">知眠是一款基于 AI 的睡前陪伴小程序，基于 CBT-I（认知行为失眠疗法）提供语音对话、睡眠记录、睡眠窗口建议等服务。本服务属于数字健康辅助工具，不构成医疗诊断或治疗建议。</view>
 
       <view class="subtitle">2. 医疗免责声明 ⚠️</view>
-      <view class="p">• 本服务不能替代精神科医生、心理咨询师或任何医疗专业人士的诊断与治疗</view>
-      <view class="p">• 如您存在严重失眠（持续 > 4 周）、睡眠呼吸暂停、抑郁焦虑或有自伤/自杀念头，请立即就医或拨打心理援助热线</view>
-      <view class="p">• AI 生成的睡眠建议基于 CBT-I 通用方案，可能不完全适用于您的个人情况，决策权在您手中</view>
-      <view class="p">• 知眠不提供诊断、不开药、不治疗精神疾病</view>
+      <view class="p important">• 本服务不能替代精神科医生、心理咨询师或任何医疗专业人士的诊断与治疗</view>
+      <view class="p important">• 如您存在严重失眠（持续 > 4 周）、睡眠呼吸暂停、抑郁焦虑或有自伤/自杀念头，请立即就医或拨打心理援助热线</view>
+      <view class="p important">• AI 生成的睡眠建议基于 CBT-I 通用方案，可能不完全适用于您的个人情况，决策权在您手中</view>
+      <view class="p important">• 知眠不提供诊断、不开药、不治疗精神疾病</view>
 
       <view class="subtitle">3. 使用规则</view>
       <view class="p">• 用户需年满 18 周岁</view>
@@ -56,17 +76,29 @@
       <view class="subtitle">4. CBT-I 辅助说明</view>
       <view class="p">知眠的睡眠窗口建议基于美国睡眠医学会（AASM）2025 年指南及欧洲失眠指南 2023 年中的睡眠限制疗法（SRT）方案。CBT-I 是经过大量临床验证的失眠一线疗法，但效果因人而异，我们不能保证其对所有用户都有效。</view>
 
-      <view class="subtitle">5. 紧急资源</view>
-      <view class="p emergency-hotline">如遇心理危机，请立即拨打：</view>
-      <view class="p">• 全国心理援助热线：400-161-9995</view>
-      <view class="p">• 北京心理危机研究与干预中心：010-82951332</view>
+      <!-- 紧急资源醒目卡片 -->
+      <view class="crisis-card">
+        <view class="crisis-card-title">⚠️ 如遇心理危机，请立即拨打</view>
+        <view class="crisis-row">
+          <text class="crisis-label">全国心理援助热线</text>
+          <text class="crisis-value">400-161-9995</text>
+        </view>
+        <view class="crisis-row">
+          <text class="crisis-label">北京心理危机研究与干预中心</text>
+          <text class="crisis-value">010-82951332</text>
+        </view>
+      </view>
 
-      <view class="subtitle">6. 协议变更</view>
+      <view class="subtitle">5. 协议变更</view>
       <view class="p">我们保留随时修改本协议的权利，修改后的协议将在小程序内公布，继续使用服务即表示您同意更新后的协议。</view>
+
     </view>
   </view>
 
+  <!-- 页脚 -->
   <view class="footer">
     <view class="update-time">更新时间：2025年5月 · 版本 2.0</view>
+    <view class="footer-brand">知眠 · 你的睡眠笔记</view>
   </view>
+
 </view>
