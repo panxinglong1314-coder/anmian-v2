@@ -665,3 +665,31 @@
   color: #F5C869;
   margin-bottom: 8rpx;
 }
+
+/* ===== 关于知眠/隐私政策 统一配色（简约三色） ===== */
+/* 正文：柔和白 · 标题：金色 · 热线：珊瑚红 */
+.about-line {
+  color: #C8D4E4;
+  font-size: 26rpx;
+  line-height: 1.8;
+}
+.about-line.about-sub {
+  color: #F5C869;
+  font-weight: 600;
+  margin-bottom: 6rpx;
+}
+.about-desc,
+.about-warning {
+  color: #8BA3B9;
+  font-size: 25rpx;
+  line-height: 1.75;
+}
+.about-hotline {
+  color: #E8846B;
+  font-size: 26rpx;
+  font-weight: 600;
+  line-height: 1.8;
+}
+.about-version {
+  color: #5A7A9A;
+}
