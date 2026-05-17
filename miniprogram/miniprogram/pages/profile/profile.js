@@ -13,6 +13,10 @@ Page({
     emergencyExpanded: false,
     emergencyContact: { name: '', phone: '', relation: '', consent: false },
     relationOptions: ['家人', '朋友', '医生', '其他'],
+    // 意见反馈浮层
+    showFeedback: false,
+    feedbackText: '',
+    feedbackTextLen: 0,
   },
 
   onLoad() {
@@ -254,9 +258,54 @@ Page({
     })
   },
 
-  // 跳转意见反馈页
-  goToFeedback() {
-    wx.navigateTo({ url: '/pages/feedback/feedback' })
+  // ========== 意见反馈（页内浮层） ==========
+  openFeedback() {
+    this.setData({ showFeedback: true })
+  },
+  closeFeedback() {
+    this.setData({ showFeedback: false })
+  },
+  stopProp() {},
+  onFeedbackInput(e) {
+    const v = e.detail.value || ''
+    this.setData({ feedbackText: v, feedbackTextLen: v.length })
+  },
+  async submitFeedback() {
+    if (this._feedbackSubmitting) return
+    const text = (this.data.feedbackText || '').trim()
+    if (!text) {
+      wx.showToast({ title: '写点什么再提交吧', icon: 'none' })
+      return
+    }
+    const token = app.getToken()
+    if (!token) {
+      wx.showToast({ title: '请先登录', icon: 'none' })
+      return
+    }
+    this._feedbackSubmitting = true
+    wx.showLoading({ title: '提交中' })
+    try {
+      const res = await wx.request({
+        url: `${API}/api/v1/user/feedback`,
+        method: 'POST',
+        header: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        data: { content: text, platform: 'miniprogram' },
+        timeout: 15000,
+      })
+      wx.hideLoading()
+      if (res.statusCode === 200 && res.data && res.data.status === 'ok') {
+        wx.showToast({ title: '感谢你的反馈', icon: 'success' })
+        this.setData({ showFeedback: false, feedbackText: '', feedbackTextLen: 0 })
+      } else {
+        wx.showToast({ title: (res.data && res.data.detail) || '提交失败', icon: 'none' })
+      }
+    } catch (e) {
+      wx.hideLoading()
+      console.error('[submitFeedback]', e)
+      wx.showToast({ title: '网络错误', icon: 'none' })
+    } finally {
+      this._feedbackSubmitting = false
+    }
   },
 
   // ========== 关于·占位入口 ==========
@@ -278,8 +327,8 @@ Page({
   },
   openAbout() {
     wx.showModal({
-      title: '关于知眠 v2.0',
-      content: '知眠——你的睡眠笔记\n\n知眠的设计灵感来自 Obsidian\u2014\u2014你的睡眠记录不只是数据，更是你与自己对话的痕迹。\n\n我们相信，失眠不是需要"修复"的故障，而是值得被理解、被记录的体验。每次打卡、每次对话，都是你在梳理自己的内在世界。AI 不是权威，而是陪你整理思绪的伙伴。\n\n基于 CBT-I（认知行为失眠疗法）\n美国睡眠医学会（AASM）2025 指南 · 欧洲失眠指南 2023\n\n⚠️ 知眠是数字辅助工具，不替代医生。如有严重失眠或心理困扰，请寻求专业帮助。\n\n紧急热线：400-161-9995',
+      title: '🌙 关于知眠 v2.0',
+      content: '知眠——你的睡眠笔记\n\n🌿 知眠的设计灵感来自 Obsidian——你的睡眠记录不只是数据，更是你与自己对话的痕迹。\n\n我们相信，失眠不是需要"修复"的故障，而是值得被理解、被记录的体验。每次打卡、每次对话，都是你在梳理自己的内在世界。\n\n🔬 AI 不是权威，而是陪你整理思绪的伙伴。\n\n━━━━━━━━━━━━━━━━\n基于 CBT-I（认知行为失眠疗法）\n美国睡眠医学会（AASM）2025 指南 · 欧洲失眠指南 2023\n━━━━━━━━━━━━━━━━\n\n⚠️ 知眠是数字辅助工具，不替代医生。如有严重失眠或心理困扰，请寻求专业帮助。\n\n📞 紧急热线：400-161-9995',
       showCancel: false,
       confirmText: '好的',
     })
