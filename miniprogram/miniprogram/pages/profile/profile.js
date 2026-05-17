@@ -19,6 +19,10 @@ Page({
     feedbackTextLen: 0,
     // 关于知眠浮层
     showAbout: false,
+    // 隐私政策浮层
+    showPrivacy: false,
+    // 用户协议浮层
+    showTerms: false,
   },
 
   onLoad() {
@@ -38,7 +42,7 @@ Page({
     }
     this.setData({ isLoading: true })
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/user/profile`,
         method: 'GET',
         header: { Authorization: `Bearer ${token}` },
@@ -91,7 +95,7 @@ Page({
     }
     wx.showLoading({ title: '保存中' })
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/user/profile`,
         method: 'POST',
         header: {
@@ -167,7 +171,7 @@ Page({
     const token = app.getToken()
     if (!token) return
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/user/emergency_contact`,
         method: 'GET',
         header: { Authorization: `Bearer ${token}` },
@@ -215,7 +219,7 @@ Page({
     }
     wx.showLoading({ title: '保存中' })
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/user/emergency_contact`,
         method: 'POST',
         header: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -245,7 +249,7 @@ Page({
         if (!res.confirm) return
         const token = app.getToken()
         try {
-          await wx.request({
+          await app.authRequest({
             url: `${API}/api/v1/user/emergency_contact`,
             method: 'POST',
             header: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -287,10 +291,11 @@ Page({
     this._feedbackSubmitting = true
     wx.showLoading({ title: '提交中' })
     try {
-      const res = await wx.request({
+      // 必须用 app.authRequest（Promise 封装）—— 裸 wx.request 返回 RequestTask 不是 Promise，
+      // await 它会立即拿到 RequestTask 而非响应，导致 res.statusCode 为 undefined
+      const res = await app.authRequest({
         url: `${API}/api/v1/user/feedback`,
         method: 'POST',
-        header: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         data: { content: text, platform: 'miniprogram' },
         timeout: 15000,
       })
@@ -312,20 +317,16 @@ Page({
 
   // ========== 关于·占位入口 ==========
   openPrivacy() {
-    wx.showModal({
-      title: '隐私政策',
-      content: '知眠如何保护你的数据\n\n核心承诺：\n· 你的对话仅用于陪伴你，不卖给第三方\n· 录音实时识别，不长期存储\n· 紧急联系人仅在 AI 检测严重危机时联系\n· 你可随时申请删除全部数据\n\n你的睡眠数据像笔记一样沉淀在知眠中，我们采用加密技术保护，参照 Obsidian 的理念——你的记录是你自己的。\n\n完整内容请在小程序记录页 → 个人中心 → 隐私政策 查看',
-      showCancel: false,
-      confirmText: '我知道了',
-    })
+    this.setData({ showPrivacy: true })
+  },
+  closePrivacy() {
+    this.setData({ showPrivacy: false })
   },
   openTerms() {
-    wx.showModal({
-      title: '用户协议',
-      content: '知眠是 CBT-I 数字辅助工具，不替代精神科医生。\n如果你有自伤/自杀念头，请立即拨打：\n· 全国心理援助热线 400-161-9995\n· 北京心理危机研究 010-82951332',
-      showCancel: false,
-      confirmText: '我知道了',
-    })
+    this.setData({ showTerms: true })
+  },
+  closeTerms() {
+    this.setData({ showTerms: false })
   },
   openAbout() {
     this.setData({ showAbout: true })

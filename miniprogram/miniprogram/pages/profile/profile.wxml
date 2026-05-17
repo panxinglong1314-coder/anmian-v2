@@ -116,11 +116,6 @@
       <text class="list-row-label">隐私政策</text>
       <text class="list-row-arrow">›</text>
     </view>
-    <view class="list-row" bindtap="openTerms">
-      <text class="list-row-icon">📋</text>
-      <text class="list-row-label">用户协议</text>
-      <text class="list-row-arrow">›</text>
-    </view>
     <view class="list-row" bindtap="openAbout">
       <text class="list-row-icon">🌙</text>
       <text class="list-row-label">关于知眠</text>
@@ -172,6 +167,48 @@
     </view>
   </view>
 
+  <!-- 隐私政策浮层 -->
+  <view wx:if="{{showPrivacy}}" class="about-overlay" catchtap="closePrivacy">
+    <view class="about-card" catchtap="stopProp">
+      <view class="about-card-head">
+        <text class="about-moon">📜</text>
+        <text class="about-title">隐私政策</text>
+      </view>
+
+      <scroll-view class="about-scroll" scroll-y="true">
+        <view class="about-body">
+          <text class="about-line">知眠（以下简称"我们"）非常重视用户的隐私保护。</text>
+
+          <view class="about-divider"></view>
+
+          <text class="about-line about-sub">信息收集</text>
+          <text class="about-line">我们收集微信 openid、昵称、头像、语音录音（实时识别不长期存储）、睡眠记录、担忧记录及设备信息，用于提供陪伴服务、生成睡眠报告和改进 AI 对话质量。</text>
+
+          <view class="about-divider"></view>
+
+          <text class="about-line about-sub">Obsidian 理念</text>
+          <text class="about-line">你的睡眠数据像笔记一样沉淀在知眠中，采用加密技术保护，不出售给任何第三方。你可随时联系 support@sleepai.chat 申请删除全部个人数据。</text>
+
+          <view class="about-divider"></view>
+
+          <text class="about-line about-sub">录音权限</text>
+          <text class="about-line">录音仅用于实时语音识别，不会长期存储。关闭录音权限不影响文字记录功能。</text>
+
+          <view class="about-divider"></view>
+
+          <text class="about-line about-sub">第三方服务</text>
+          <text class="about-line">知眠使用微信小程序框架提供服务，暂不接入任何第三方分析或广告平台。</text>
+        </view>
+      </scroll-view>
+
+      <view class="about-footer">
+        <view class="about-btn" bindtap="closePrivacy">
+          <text>我知道了</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
   <!-- 关于知眠浮层（居中卡片） -->
   <view wx:if="{{showAbout}}" class="about-overlay" catchtap="closeAbout">
     <view class="about-card" catchtap="stopProp">
@@ -180,22 +217,24 @@
         <text class="about-title">知眠</text>
       </view>
 
-      <view class="about-body">
-        <text class="about-line">陪你度过睡前的那些脑子停不下来的时刻。</text>
+      <scroll-view class="about-scroll" scroll-y="true">
+        <view class="about-body">
+          <text class="about-line">陪你度过睡前的那些脑子停不下来的时刻。</text>
 
-        <view class="about-divider"></view>
+          <view class="about-divider"></view>
 
-        <text class="about-line about-desc">基于认知行为失眠疗法（CBT-I）。其睡眠窗口建议参考美国睡眠医学会（AASM）2025 指南及欧洲失眠指南 2023。</text>
+          <text class="about-line about-desc">基于认知行为失眠疗法（CBT-I）。其睡眠窗口建议参考美国睡眠医学会（AASM）2025 指南及欧洲失眠指南 2023。</text>
 
-        <view class="about-divider"></view>
+          <view class="about-divider"></view>
 
-        <text class="about-line about-warning">本应用不提供医疗诊断、治疗或处方，不能替代精神科医生、心理咨询师等专业医疗人士的意见。如存在持续失眠、抑郁焦虑或有自伤念头，请立即就医或拨打心理援助热线。</text>
+          <text class="about-line about-warning">本应用不提供医疗诊断、治疗或处方，不能替代精神科医生、心理咨询师等专业医疗人士的意见。如存在持续失眠、抑郁焦虑或有自伤念头，请立即就医或拨打心理援助热线。</text>
 
-        <view class="about-divider"></view>
+          <view class="about-divider"></view>
 
-        <text class="about-line about-hotline">全国心理援助热线 400-161-9995</text>
-        <text class="about-line about-hotline">北京心理危机研究与干预中心 010-82951332</text>
-      </view>
+          <text class="about-line about-hotline">全国心理援助热线 400-161-9995</text>
+          <text class="about-line about-hotline">北京心理危机研究与干预中心 010-82951332</text>
+        </view>
+      </scroll-view>
 
       <view class="about-footer">
         <text class="about-version">知眠 v2.0</text>
