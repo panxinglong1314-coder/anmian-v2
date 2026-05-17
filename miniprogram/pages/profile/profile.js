@@ -254,11 +254,16 @@ Page({
     })
   },
 
+  // 跳转意见反馈页
+  goToFeedback() {
+    wx.navigateTo({ url: '/pages/feedback/feedback' })
+  },
+
   // ========== 关于·占位入口 ==========
   openPrivacy() {
     wx.showModal({
       title: '隐私政策',
-      content: '完整版本请访问 https://sleepai.chat/privacy\n\n核心承诺：\n· 你的对话内容仅用于陪伴你，不会卖给第三方\n· 紧急联系人仅在 AI 检测严重危机时联系\n· 你可随时清除全部数据',
+      content: '知眠如何保护你的数据\n\n核心承诺：\n· 你的对话仅用于陪伴你，不卖给第三方\n· 录音实时识别，不长期存储\n· 紧急联系人仅在 AI 检测严重危机时联系\n· 你可随时申请删除全部数据\n\n你的睡眠数据像笔记一样沉淀在知眠中，我们采用加密技术保护，参照 Obsidian 的理念——你的记录是你自己的。\n\n完整内容请在小程序记录页 → 个人中心 → 隐私政策 查看',
       showCancel: false,
       confirmText: '我知道了',
     })
@@ -274,7 +279,7 @@ Page({
   openAbout() {
     wx.showModal({
       title: '关于知眠 v2.0',
-      content: '基于 CBT-I（认知行为失眠疗法）的 AI 助眠陪伴\n\nAASM 2025 / European Insomnia Guideline 2023 临床方案',
+      content: '知眠——你的睡眠笔记\n\n知眠的设计灵感来自 Obsidian——你的睡眠记录不只是数据，更是你与自己对话的痕迹。\n\n我们相信，失眠不是需要"修复"的故障，而是值得被理解、被记录的体验。每次打卡、每次对话，都是你在梳理自己的内在世界。AI 不是权威，而是陪你整理思绪的伙伴。\n\n基于 CBT-I（认知行为失眠疗法）\n美国睡眠医学会（AASM）2025 指南 · 欧洲失眠指南 2023\n\n⚠️ 知眠是数字辅助工具，不替代医生。如有严重失眠或心理困扰，请寻求专业帮助。\n\n紧急热线：400-161-9995',
       showCancel: false,
       confirmText: '好的',
     })

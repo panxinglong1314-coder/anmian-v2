@@ -104,8 +104,13 @@
     <text>关于</text>
   </view>
 
-  <!-- 列表式设置项（隐私政策、用户协议、版本） -->
+  <!-- 列表式设置项（意见反馈、隐私政策、用户协议、版本） -->
   <view class="section-card list-card">
+    <view class="list-row" bindtap="goToFeedback">
+      <text class="list-row-icon">💬</text>
+      <text class="list-row-label">意见反馈</text>
+      <text class="list-row-arrow">›</text>
+    </view>
     <view class="list-row" bindtap="openPrivacy">
       <text class="list-row-icon">📜</text>
       <text class="list-row-label">隐私政策</text>

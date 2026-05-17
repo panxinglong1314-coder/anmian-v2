@@ -43,3 +43,9 @@
   font-size: 24rpx;
   color: #5A7A9A;
 }
+
+.emergency-hotline {
+  color: #E8846B;
+  font-weight: bold;
+  margin-top: 16rpx;
+}
