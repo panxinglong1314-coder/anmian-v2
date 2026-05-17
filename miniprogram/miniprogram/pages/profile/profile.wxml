@@ -186,8 +186,8 @@
 
           <view class="about-divider"></view>
 
-          <text class="about-line about-sub">Obsidian 理念</text>
-          <text class="about-line">你的睡眠数据像笔记一样沉淀在知眠中，采用加密技术保护，不出售给任何第三方。你可随时联系 support@sleepai.chat 申请删除全部个人数据。</text>
+          <text class="about-line about-sub">数据安全</text>
+          <text class="about-line">你的睡眠数据在知眠中采用加密技术保护，不会出售给任何第三方。你可随时联系 support@sleepai.chat 申请删除全部个人数据。</text>
 
           <view class="about-divider"></view>
 
