@@ -38,6 +38,35 @@ CLOSURE_INTENSITY_DEF = load_corpus("closure_rituals.json").get("closure_variant
 FEWSHOT_EXAMPLES = load_corpus("closure_rituals.json").get("fewshot_examples", {}).get("examples", [])
 WORRY_SCENARIOS = load_corpus("worry_scenarios.json").get("worry_scenarios", {})
 
+# ============ 反刍检测：词集 Jaccard ============
+# 高频虚词/代词不计入相似度，避免「我/的/了」之类词撑高重合度。
+_RUMINATION_STOPWORDS = {
+    "我", "你", "他", "她", "它", "的", "了", "是", "在", "也", "都", "就",
+    "和", "与", "很", "太", "会", "吧", "啊", "呢", "吗", "这", "那", "有",
+    "没", "不", "要", "到", "上", "去", "说", "想", "觉得", "自己", "一直",
+    "总是", "什么", "怎么", "可能", "感觉", "就是", "特别",
+}
+
+
+def _content_tokens(text: str) -> set:
+    """jieba 分词后取长度≥2 的实词集合（去停用词）。jieba 不可用时返回空集。"""
+    try:
+        import jieba
+    except ImportError:
+        return set()
+    return {
+        w for w in jieba.lcut(text or "")
+        if len(w) >= 2 and w not in _RUMINATION_STOPWORDS
+    }
+
+
+def _lexical_overlap(text_a: str, text_b: str) -> float:
+    """两段文本实词集合的 Jaccard 相似度（0-1）。"""
+    ta, tb = _content_tokens(text_a), _content_tokens(text_b)
+    if not ta or not tb:
+        return 0.0
+    return len(ta & tb) / len(ta | tb)
+
 # ============ 状态定义 ============
 
 class SessionPhase(Enum):
@@ -291,7 +320,18 @@ class EmotionDetector:
         for kw in self.mild_kw + self.moderate_kw:
             if kw in current_text.lower():
                 current_keywords.add(kw)
-        return len(current_keywords & recent_keywords) >= 2
+        if len(current_keywords & recent_keywords) >= 2:
+            return True
+
+        # 词集兜底：固定焦虑词表只覆盖 ~30 个词，用户换措辞复述同一担忧时
+        # 可能一个都不命中。对最近的用户消息做 jieba 实词 Jaccard，
+        # 重合度高即视为「反复说同一件事」。
+        for msg in recent:
+            if msg.get("role") != "user":
+                continue
+            if _lexical_overlap(current_text, msg.get("content", "")) >= 0.3:
+                return True
+        return False
 
     def detect_user_style(self, text: str, history: List[Dict]) -> UserStyle:
         """根据用户输入特征识别对话风格"""
@@ -616,6 +656,7 @@ class CBTManager:
             crisis_level_for_route = crisis_info["level"]
             if crisis_level_for_route in ("high", "medium"):
                 state.phase = SessionPhase.SAFETY_PROTOCOL
+                state.turns_in_phase = 0   # P0 fix: phase 切换必须 reset
                 types_for_alert = crisis_info["types"] or ["suicide"]
                 _push_to_admin(crisis_level_for_route, types_for_alert)
                 return self._safety_response(
@@ -625,6 +666,7 @@ class CBTManager:
                 )
             if anxiety_level == AnxietyLevel.SEVERE or action == RecommendedAction.IMMEDIATE_SAFETY.value:
                 state.phase = SessionPhase.SAFETY_PROTOCOL
+                state.turns_in_phase = 0   # P0 fix: phase 切换必须 reset
                 # 老路径未识别具体 type，按 high+suicide 处理（最保守）
                 _push_to_admin("high", ["suicide"])
                 return self._safety_response(state, crisis_level="high", crisis_types=["suicide"])
@@ -743,7 +785,6 @@ class CBTManager:
                 SessionPhase.RELAXATION_INDUCTION,
                 SessionPhase.ASSESSMENT,
                 SessionPhase.CLOSURE,
-                SessionPhase.NORMAL_CHAT,
             }
             if should_close and state.phase not in allowed_close_from:
                 # 强制经过 RELAXATION 再关闭

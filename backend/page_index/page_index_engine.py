@@ -33,7 +33,7 @@ def _call_minimax(prompt: str, system: str = "", timeout: int = 30) -> str:
                 "max_tokens": 2000,
                 "stream": False,
             }
-            with httpx.Client(timeout=max(timeout, 60)) as client:
+            with httpx.Client(timeout=timeout) as client:
                 resp = client.post("https://api.deepseek.com/v1/chat/completions",
                                     headers=headers, json=payload)
             resp.raise_for_status()
@@ -63,7 +63,7 @@ def _call_minimax(prompt: str, system: str = "", timeout: int = 30) -> str:
         "stream": False,
     }
     try:
-        with httpx.Client(timeout=max(timeout, 300)) as client:
+        with httpx.Client(timeout=timeout) as client:
             resp = client.post(
                 "https://api.minimaxi.com/v1/chat/completions",
                 headers=headers,
@@ -301,7 +301,9 @@ class PageIndexEngine:
         selected_ids: List[str] = []
 
         try:
-            resp = _call_minimax(prompt, timeout=240)
+            # 聊天热路径预算：15s 内 LLM 不返回即超时 → 走 Step 4 的 LSA fallback，
+            # 不能让用户为一次 RAG 导航等数分钟。
+            resp = _call_minimax(prompt, timeout=15)
             resp = resp.strip()
             # 去掉 markdown 代码块
             if resp.startswith("```"):

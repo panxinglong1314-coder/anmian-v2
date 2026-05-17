@@ -22,6 +22,9 @@ INDEX_DIR = Path(os.environ.get("ANMIAN_INDEX_DIR", Path(__file__).parent / "vec
 # LSA 降维维度（3081 条语料，128 维足够捕捉主要语义）
 LSA_COMPONENTS = 128
 
+# LSA 检索最低相似度阈值：低于此值视为噪声，不返回
+LSA_MIN_SCORE = 0.12
+
 # ============ 语料提取（通用递归） ============
 def _walk(obj, prefix=""):
     """递归遍历 JSON，提取所有长度>=10的字符串"""
@@ -214,6 +217,8 @@ class HybridRAGIndex:
 
         results = []
         for idx in top_indices:
+            if scores[idx] < LSA_MIN_SCORE:
+                break
             chunk = self.chunks_data[idx]
             if filters:
                 match = all(chunk.get(k) == v for k, v in filters.items())

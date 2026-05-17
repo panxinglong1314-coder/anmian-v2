@@ -3,6 +3,8 @@ RAG 引擎 — L2 检索增强生成（PageIndex + LSA Fallback 版）
 知眠: 用 LLM reasoning 导航 + LSA 兜底
 """
 import json
+import time
+from collections import OrderedDict
 from typing import Dict, Any, List, Optional
 from functools import lru_cache
 
@@ -37,9 +39,31 @@ def _get_session_logger():
 # 兼容旧接口
 rag_index = hybrid_rag if _LSA_AVAILABLE else None
 
-# RAG 缓存（5分钟 TTL）
-_RAG_CACHE: Dict[str, tuple] = {}
+# RAG 缓存（5分钟 TTL + LRU 容量上限，防止内存无限增长）
+_RAG_CACHE: "OrderedDict[str, tuple]" = OrderedDict()
 _CACHE_TTL = 300
+_CACHE_MAX = 256
+
+
+def _cache_get(key: str) -> Optional[str]:
+    """读缓存：命中且未过期则返回并刷新 LRU 顺序；过期则清除。"""
+    entry = _RAG_CACHE.get(key)
+    if entry is None:
+        return None
+    cached_ts, cached_result = entry
+    if time.time() - cached_ts >= _CACHE_TTL:
+        _RAG_CACHE.pop(key, None)
+        return None
+    _RAG_CACHE.move_to_end(key)
+    return cached_result
+
+
+def _cache_set(key: str, value: str) -> None:
+    """写缓存：超出容量时淘汰最旧条目。"""
+    _RAG_CACHE[key] = (time.time(), value)
+    _RAG_CACHE.move_to_end(key)
+    while len(_RAG_CACHE) > _CACHE_MAX:
+        _RAG_CACHE.popitem(last=False)
 
 # ── PageIndex Engine 单例 ────────────────────────────────────────────────────
 
@@ -146,11 +170,9 @@ def enhance_cbt_response(
     }
 
     cache_key = f"{user_message[:40]}:{ctx['phase']}:{ctx['anxiety_level']}"
-    now = __import__('time').time()
-    if cache_key in _RAG_CACHE:
-        cached_ts, cached_result = _RAG_CACHE[cache_key]
-        if now - cached_ts < _CACHE_TTL:
-            return cached_result
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     result = _page_index_retrieve(user_message, ctx=ctx)
     formatted = _format_page_index_result(result)
@@ -162,7 +184,7 @@ def enhance_cbt_response(
             for r in lsa_results:
                 formatted += f"\n[{r.get('chunk',{}).get('source','?')}] {r.get('text','')[:200]}"
 
-    _RAG_CACHE[cache_key] = (now, formatted)
+    _cache_set(cache_key, formatted)
     return formatted
 
 
@@ -307,11 +329,9 @@ def build_rag_system_prompt(
 ) -> str:
     """构建 PageIndex 增强的 RAG 标签提示"""
     cache_key = f"{user_message[:40]}:{current_phase}:{anxiety_level}:{user_style}"
-    now = __import__('time').time()
-    if cache_key in _RAG_CACHE:
-        cached_ts, cached_result = _RAG_CACHE[cache_key]
-        if now - cached_ts < _CACHE_TTL:
-            return cached_result
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     result = _page_index_retrieve(
         user_message,
@@ -362,5 +382,5 @@ def build_rag_system_prompt(
     lines.append(f"\n当前阶段: {current_phase} | 策略: {phase_strategy.get(current_phase, '自然回应')}")
 
     result_text = "\n".join(lines)
-    _RAG_CACHE[cache_key] = (now, result_text)
+    _cache_set(cache_key, result_text)
     return result_text

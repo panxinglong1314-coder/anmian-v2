@@ -4217,24 +4217,28 @@ async def create_worry(req: WorryRecordRequest, background_tasks: BackgroundTask
         worry_text = worry_text[:500]
 
     # ─── (1) 危机内容检测 ────────────────────────────────────
+    # high/severe → 拦截存储 + 返回紧急资源；medium → 仅告警运营，仍按普通担忧存
     crisis_triggered = False
+    crisis_result = {}
     try:
         analyzer = get_emotion_analyzer()
         crisis_result = analyzer._detect_crisis(worry_text)
-        if crisis_result.get("level") in ("severe", "high"):
-            crisis_triggered = True
+        crisis_level = crisis_result.get("level", "none")
+        if crisis_level in ("severe", "high", "medium"):
             session_id = req.session_id or ""
             try:
                 emit_crisis_alert(
                     user_id=user_id,
                     session_id=session_id,
-                    level=crisis_result.get("level", "severe"),
+                    level=crisis_level,
                     types=crisis_result.get("types", []),
                     message=worry_text,
                     extra={"source": "worry_capture"},
                 )
             except Exception as e:
                 print(f"[create_worry crisis_alert error] {e}")
+            if crisis_level in ("severe", "high"):
+                crisis_triggered = True
     except Exception as e:
         print(f"[create_worry crisis detect error] {e}")
 
@@ -5580,26 +5584,42 @@ async def admin_crisis_stats(days: int = Query(7, le=90)):
 
 
 # ==================== 用户反馈（用户提交 + Admin 查看）====================
-class FeedbackRequest(BaseModel):
+class UserFeedbackRequest(BaseModel):
     """用户提交的文字反馈"""
     content: str
     platform: Optional[str] = None
 
 
 @app.post("/api/v1/user/feedback")
-async def submit_user_feedback(req: FeedbackRequest, user: AuthUser = Depends(get_current_user)):
+async def submit_user_feedback(req: UserFeedbackRequest, user: AuthUser = Depends(get_current_user)):
     """用户提交一条文字意见反馈（区别于 /api/v1/feedback 的 LLM 点赞点踩）"""
     from services import feedback_service
     try:
         record = feedback_service.submit_feedback(
             user.user_id, req.content, req.platform or ""
         )
-        return {"status": "ok", "feedback_id": record["feedback_id"]}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"[submit_user_feedback error] {e}")
         raise HTTPException(status_code=500, detail="提交失败，请稍后再试")
+
+    # 反馈文字也可能藏有危机信号（如「用着用着更不想活了」），同步告警运营
+    try:
+        crisis_result = get_emotion_analyzer()._detect_crisis(req.content or "")
+        if crisis_result.get("level") in ("severe", "high", "medium"):
+            emit_crisis_alert(
+                user_id=user.user_id,
+                session_id="",
+                level=crisis_result.get("level"),
+                types=crisis_result.get("types", []),
+                message=(req.content or "")[:500],
+                extra={"source": "user_feedback", "feedback_id": record["feedback_id"]},
+            )
+    except Exception as e:
+        print(f"[submit_user_feedback crisis detect error] {e}")
+
+    return {"status": "ok", "feedback_id": record["feedback_id"]}
 
 
 @app.get("/api/v1/admin/feedback/list")
