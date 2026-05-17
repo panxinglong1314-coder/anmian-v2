@@ -157,6 +157,9 @@
       <div class="nav-item" data-page="retention" onclick="showPage('retention')">
         <span class="icon">📈</span>留存分析
       </div>
+      <div class="nav-item" data-page="feedback" onclick="showPage('feedback')">
+        <span class="icon">📮</span>用户反馈
+      </div>
       <div class="nav-group-label">系统</div>
       <div class="nav-item" data-page="health" onclick="showPage('health')">
         <span class="icon">🖥️</span>服务器监控
@@ -723,6 +726,43 @@
               </thead>
               <tbody id="crisis-history-tbody">
                 <tr><td colspan="6" class="text-center text-gray-400 py-6">点击右上角"展开/刷新"加载</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 用户反馈 -->
+      <div id="page-feedback" class="page hidden space-y-4">
+        <div class="grid grid-cols-4 gap-4">
+          <div class="card metric-card">
+            <div class="metric-value" id="fb-total">--</div>
+            <div class="metric-label">反馈总数</div>
+            <div class="metric-sub">累计</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-blue-600" id="fb-recent">--</div>
+            <div class="metric-label">近 7 天</div>
+            <div class="metric-sub">新增反馈</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📮 用户反馈列表</span>
+            <button onclick="loadFeedback()" class="btn btn-default btn-sm">🔄 刷新</button>
+          </div>
+          <div class="card-body p-0">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width:150px">时间</th>
+                  <th style="width:180px">用户</th>
+                  <th>反馈内容</th>
+                  <th style="width:80px">操作</th>
+                </tr>
+              </thead>
+              <tbody id="feedback-tbody">
+                <tr><td colspan="4" class="text-center text-gray-400 py-8">加载中...</td></tr>
               </tbody>
             </table>
           </div>

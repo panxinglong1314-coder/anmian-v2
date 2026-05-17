@@ -18,9 +18,11 @@ function toast(message, type = 'info', duration = 3000) {
 }
 
 // ========== Modal ==========
-function showModal(content, title = '详情') {
+function showModal(content, title = '详情', asHtml = false) {
   const modal = document.getElementById('suggestion-modal');
-  document.getElementById('suggestion-modal-body').textContent = content;
+  const body = document.getElementById('suggestion-modal-body');
+  if (asHtml) body.innerHTML = content;
+  else body.textContent = content;
   const titleEl = document.getElementById('suggestion-modal-title');
   if (titleEl) titleEl.textContent = title;
   modal.classList.remove('hidden');
@@ -154,6 +156,7 @@ const pageTitles = {
   abconfig: 'A/B 配置',
   sleep: '🌙 睡眠数据',
   kb: '📚 知识库',
+  feedback: '📮 用户反馈',
 };
 
 function showPage(name) {
@@ -166,7 +169,7 @@ function showPage(name) {
   const loaders = { dashboard: loadDashboard, safety: loadSafety, quality: loadQuality,
                      users: loadUsers, health: loadHealth, retention: loadRetention,
                      crisis: loadCrisis, abconfig: loadABConfig,
-                     sleep: loadSleepDashboard, kb: loadKB };
+                     sleep: loadSleepDashboard, kb: loadKB, feedback: loadFeedback };
   if (loaders[name]) loaders[name](loaders[name] === loadDashboard ? 7 : 30);
 
   // 切到危机页面后，停止标题闪烁（视为"已读"）
@@ -290,6 +293,71 @@ async function loadCrisisHistory() {
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="6" class="text-center text-red-500 py-4">加载失败: ${e.message}</td></tr>`;
   }
+}
+
+// ============================================================
+// 📮 用户反馈面板
+// ============================================================
+let _feedbackCache = [];
+
+async function loadFeedback() {
+  await Promise.all([_loadFeedbackStats(), _loadFeedbackList()]);
+}
+
+async function _loadFeedbackStats() {
+  try {
+    const r = await fetch(`${API_BASE}/feedback/stats`, { headers: { 'X-Admin-Token': adminToken } });
+    const data = await r.json();
+    document.getElementById('fb-total').textContent = data.total ?? 0;
+    document.getElementById('fb-recent').textContent = data.recent_7d ?? 0;
+  } catch (e) {
+    console.error('loadFeedbackStats', e);
+  }
+}
+
+async function _loadFeedbackList() {
+  const tbody = document.getElementById('feedback-tbody');
+  try {
+    const r = await fetch(`${API_BASE}/feedback/list?limit=100`, { headers: { 'X-Admin-Token': adminToken } });
+    const data = await r.json();
+    _feedbackCache = data.feedbacks || [];
+    if (!_feedbackCache.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-gray-400 py-8">暂无用户反馈</td></tr>';
+      return;
+    }
+    tbody.innerHTML = _feedbackCache.map((f, idx) => {
+      const who = f.nickname
+        ? `${_escapeHtml(f.nickname)} <span class="text-gray-400 font-mono text-[10px]">${_escapeHtml((f.user_id || '').slice(0, 14))}</span>`
+        : `<span class="font-mono text-xs">${_escapeHtml((f.user_id || '').slice(0, 18))}</span>`;
+      return `
+        <tr>
+          <td class="text-xs text-gray-500">${_formatTime(f.created_at)}</td>
+          <td class="text-xs">${who}</td>
+          <td class="text-xs max-w-md truncate" title="${_escapeHtml(f.content || '')}">${_escapeHtml((f.content || '').slice(0, 60))}</td>
+          <td><button onclick="showFeedbackDetail(${idx})" class="btn btn-sm bg-blue-600 text-white hover:bg-blue-700">查看</button></td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-red-500 py-4">加载失败: ${e.message}</td></tr>`;
+  }
+}
+
+function showFeedbackDetail(idx) {
+  const f = _feedbackCache[idx];
+  if (!f) return;
+  showModal(`
+    <div class="space-y-2 text-sm">
+      <div><span class="text-gray-500">用户：</span>${_escapeHtml(f.nickname || '(未设昵称)')}
+        <span class="text-gray-400 font-mono text-xs ml-1">${_escapeHtml(f.user_id || '')}</span></div>
+      <div><span class="text-gray-500">时间：</span>${_formatTime(f.created_at)}</div>
+      <div><span class="text-gray-500">平台：</span>${_escapeHtml(f.platform || '-')}</div>
+      <div class="pt-2 border-t border-gray-100">
+        <div class="text-gray-500 mb-1">反馈内容：</div>
+        <div class="bg-gray-50 rounded p-3 whitespace-pre-wrap leading-relaxed">${_escapeHtml(f.content || '')}</div>
+      </div>
+    </div>
+  `, '反馈详情', true);
 }
 
 // ----- 处理弹框 -----
@@ -500,6 +568,7 @@ function startAutoRefresh() {
     if (page === 'sleep') loadSleepDashboard(sleepDashboardDays);
     if (page === 'kb') loadKB();
     if (page === 'abconfig') loadABConfig();
+    if (page === 'feedback') loadFeedback();
   }, 300000);
 }
 function stopAutoRefresh() { if (refreshTimer) clearInterval(refreshTimer); }

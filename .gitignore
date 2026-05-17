@@ -1,25 +1,26 @@
-# Environment
-.env
-*.env.bak.*
+# Windows
+[Dd]esktop.ini
+Thumbs.db
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+
+# Node.js
+node_modules/
 
 # Python
 __pycache__/
-*.py[cod]
-*.egg-info/
-venv/
+*.pyc
 
-# Node
-node_modules/
-miniprogram_npm/
+# 密钥 / 本地配置（切勿提交）
+.env
+backend/.env
+project.private.config.json
 
-# Logs
-*.log
-uvicorn.log
-
-# Backups
-backend_backup_*/
-miniprogram_backup_*/
-
-# Data
-vector_index/
-redis_data/
+# 编辑器
+.vscode/

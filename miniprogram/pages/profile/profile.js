@@ -13,6 +13,18 @@ Page({
     emergencyExpanded: false,
     emergencyContact: { name: '', phone: '', relation: '', consent: false },
     relationOptions: ['家人', '朋友', '医生', '其他'],
+    // 意见反馈浮层
+    showFeedback: false,
+    feedbackText: '',
+    feedbackTextLen: 0,
+    // 注销账号确认浮层
+    showDeleteConfirm: false,
+    // 关于知眠浮层
+    showAbout: false,
+    // 隐私政策浮层
+    showPrivacy: false,
+    // 用户协议浮层
+    showTerms: false,
   },
 
   onLoad() {
@@ -32,7 +44,7 @@ Page({
     }
     this.setData({ isLoading: true })
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/user/profile`,
         method: 'GET',
         header: { Authorization: `Bearer ${token}` },
@@ -85,7 +97,7 @@ Page({
     }
     wx.showLoading({ title: '保存中' })
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/user/profile`,
         method: 'POST',
         header: {
@@ -161,7 +173,7 @@ Page({
     const token = app.getToken()
     if (!token) return
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/user/emergency_contact`,
         method: 'GET',
         header: { Authorization: `Bearer ${token}` },
@@ -209,7 +221,7 @@ Page({
     }
     wx.showLoading({ title: '保存中' })
     try {
-      const res = await wx.request({
+      const res = await app.authRequest({
         url: `${API}/api/v1/user/emergency_contact`,
         method: 'POST',
         header: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -239,7 +251,7 @@ Page({
         if (!res.confirm) return
         const token = app.getToken()
         try {
-          await wx.request({
+          await app.authRequest({
             url: `${API}/api/v1/user/emergency_contact`,
             method: 'POST',
             header: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -254,35 +266,133 @@ Page({
     })
   },
 
-  // 跳转意见反馈页
-  goToFeedback() {
-    wx.navigateTo({ url: '/pages/feedback/feedback' })
+  // ========== 注销账号 ==========
+  openDeleteAccount() {
+    this.setData({ showDeleteConfirm: true })
+  },
+  closeDeleteAccount() {
+    this.setData({ showDeleteConfirm: false })
+  },
+  confirmDeleteAccount() {
+    // 二次确认，防误触
+    wx.showModal({
+      title: '最后确认',
+      content: '账号注销后数据立即永久删除，不可恢复。确定继续吗？',
+      confirmText: '确定注销',
+      confirmColor: '#E8846B',
+      cancelText: '取消',
+      success: (r) => {
+        if (r.confirm) this._doDeleteAccount()
+      },
+    })
+  },
+  async _doDeleteAccount() {
+    if (this._deleting) return
+    const token = app.getToken()
+    if (!token) {
+      wx.showToast({ title: '请先登录', icon: 'none' })
+      return
+    }
+    this._deleting = true
+    wx.showLoading({ title: '注销中', mask: true })
+    try {
+      const res = await app.authRequest({
+        url: `${API}/api/v1/user/delete_account`,
+        method: 'POST',
+        data: {},
+        timeout: 20000,
+      })
+      wx.hideLoading()
+      if (res.statusCode === 200 && res.data && res.data.status === 'ok') {
+        // 清除本地登录态
+        wx.removeStorageSync('jwt_token')
+        wx.removeStorageSync('user_id')
+        if (app.globalData) app.globalData.userId = ''
+        this.setData({ showDeleteConfirm: false })
+        wx.showToast({ title: '账号已注销', icon: 'success' })
+        // 回到首页（重新进入会自动以新身份登录）
+        setTimeout(() => wx.reLaunch({ url: '/pages/chat/chat' }), 1500)
+      } else {
+        wx.showToast({ title: (res.data && res.data.detail) || '注销失败', icon: 'none' })
+      }
+    } catch (e) {
+      wx.hideLoading()
+      console.error('[deleteAccount]', e)
+      wx.showToast({ title: '网络错误', icon: 'none' })
+    } finally {
+      this._deleting = false
+    }
+  },
+
+  // ========== 意见反馈（页内浮层） ==========
+  openFeedback() {
+    this.setData({ showFeedback: true })
+  },
+  closeFeedback() {
+    this.setData({ showFeedback: false })
+  },
+  stopProp() {},
+  onFeedbackInput(e) {
+    const v = e.detail.value || ''
+    this.setData({ feedbackText: v, feedbackTextLen: v.length })
+  },
+  async submitFeedback() {
+    if (this._feedbackSubmitting) return
+    const text = (this.data.feedbackText || '').trim()
+    if (!text) {
+      wx.showToast({ title: '写点什么再提交吧', icon: 'none' })
+      return
+    }
+    const token = app.getToken()
+    if (!token) {
+      wx.showToast({ title: '请先登录', icon: 'none' })
+      return
+    }
+    this._feedbackSubmitting = true
+    wx.showLoading({ title: '提交中' })
+    try {
+      // 必须用 app.authRequest（Promise 封装）—— 裸 wx.request 返回 RequestTask 不是 Promise，
+      // await 它会立即拿到 RequestTask 而非响应，导致 res.statusCode 为 undefined
+      const res = await app.authRequest({
+        url: `${API}/api/v1/user/feedback`,
+        method: 'POST',
+        data: { content: text, platform: 'miniprogram' },
+        timeout: 15000,
+      })
+      wx.hideLoading()
+      if (res.statusCode === 200 && res.data && res.data.status === 'ok') {
+        wx.showToast({ title: '感谢你的反馈', icon: 'success' })
+        this.setData({ showFeedback: false, feedbackText: '', feedbackTextLen: 0 })
+      } else {
+        wx.showToast({ title: (res.data && res.data.detail) || '提交失败', icon: 'none' })
+      }
+    } catch (e) {
+      wx.hideLoading()
+      console.error('[submitFeedback]', e)
+      wx.showToast({ title: '网络错误', icon: 'none' })
+    } finally {
+      this._feedbackSubmitting = false
+    }
   },
 
   // ========== 关于·占位入口 ==========
   openPrivacy() {
-    wx.showModal({
-      title: '隐私政策',
-      content: '知眠如何保护你的数据\n\n核心承诺：\n· 你的对话仅用于陪伴你，不卖给第三方\n· 录音实时识别，不长期存储\n· 紧急联系人仅在 AI 检测严重危机时联系\n· 你可随时申请删除全部数据\n\n你的睡眠数据像笔记一样沉淀在知眠中，我们采用加密技术保护，参照 Obsidian 的理念——你的记录是你自己的。\n\n完整内容请在小程序记录页 → 个人中心 → 隐私政策 查看',
-      showCancel: false,
-      confirmText: '我知道了',
-    })
+    this.setData({ showPrivacy: true })
+  },
+  closePrivacy() {
+    this.setData({ showPrivacy: false })
   },
   openTerms() {
-    wx.showModal({
-      title: '用户协议',
-      content: '知眠是 CBT-I 数字辅助工具，不替代精神科医生。\n如果你有自伤/自杀念头，请立即拨打：\n· 全国心理援助热线 400-161-9995\n· 北京心理危机研究 010-82951332',
-      showCancel: false,
-      confirmText: '我知道了',
-    })
+    this.setData({ showTerms: true })
+  },
+  closeTerms() {
+    this.setData({ showTerms: false })
   },
   openAbout() {
-    wx.showModal({
-      title: '关于知眠 v2.0',
-      content: '知眠——你的睡眠笔记\n\n知眠的设计灵感来自 Obsidian——你的睡眠记录不只是数据，更是你与自己对话的痕迹。\n\n我们相信，失眠不是需要"修复"的故障，而是值得被理解、被记录的体验。每次打卡、每次对话，都是你在梳理自己的内在世界。AI 不是权威，而是陪你整理思绪的伙伴。\n\n基于 CBT-I（认知行为失眠疗法）\n美国睡眠医学会（AASM）2025 指南 · 欧洲失眠指南 2023\n\n⚠️ 知眠是数字辅助工具，不替代医生。如有严重失眠或心理困扰，请寻求专业帮助。\n\n紧急热线：400-161-9995',
-      showCancel: false,
-      confirmText: '好的',
-    })
+    this.setData({ showAbout: true })
+  },
+  closeAbout() {
+    this.setData({ showAbout: false })
   },
 
   logout() {

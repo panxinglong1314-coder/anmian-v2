@@ -687,6 +687,59 @@ async def update_emergency_contact(req: EmergencyContactRequest, user: AuthUser 
     return data
 
 
+# ---------- 注销账号（永久删除全部数据） ----------
+@app.post("/api/v1/user/delete_account")
+async def delete_user_account(user: AuthUser = Depends(get_current_user)):
+    """
+    注销账号：立即永久删除该用户全部数据，不可恢复。
+    删除范围：所有含 user_id 的 Redis 键 + 用户提交的意见反馈 + 头像文件。
+    """
+    user_id = user.user_id
+    deleted_keys = 0
+    try:
+        # 1. 删除所有包含 user_id 的 Redis 键（profile/memory/sleep/chat/worry/订阅/用量等）
+        for key in redis_client.scan_iter(match=f"*{user_id}*", count=200):
+            k = key.decode() if isinstance(key, bytes) else key
+            redis_client.delete(k)
+            deleted_keys += 1
+
+        # 2. 删除该用户提交的意见反馈（feedback:all zset 中 user_id 匹配的条目）
+        try:
+            for fid in redis_client.zrange("feedback:all", 0, -1):
+                fid = fid.decode() if isinstance(fid, bytes) else fid
+                raw = redis_client.get(f"feedback:{fid}")
+                if raw and json.loads(raw).get("user_id") == user_id:
+                    redis_client.delete(f"feedback:{fid}")
+                    redis_client.zrem("feedback:all", fid)
+                    deleted_keys += 1
+        except Exception as e:
+            print(f"[delete_account] feedback cleanup error: {e}")
+
+        # 3. 删除头像文件
+        try:
+            for f in AVATARS_DIR.glob(f"{user_id}_*"):
+                f.unlink(missing_ok=True)
+        except Exception as e:
+            print(f"[delete_account] avatar cleanup error: {e}")
+
+        # 4. 注销审计日志（仅 user_id + 时间，不含任何个人内容）
+        try:
+            redis_client.lpush("account_deletions", json.dumps({
+                "user_id": user_id,
+                "deleted_at": datetime.now().isoformat(timespec="seconds"),
+                "keys_deleted": deleted_keys,
+            }, ensure_ascii=False))
+            redis_client.ltrim("account_deletions", 0, 999)
+        except Exception:
+            pass
+
+        print(f"[delete_account] user={user_id} keys_deleted={deleted_keys}")
+        return {"status": "ok", "keys_deleted": deleted_keys}
+    except Exception as e:
+        print(f"[delete_account error] {e}")
+        raise HTTPException(status_code=500, detail="注销失败，请稍后再试")
+
+
 def _migrate_user_data(temp_id: str, real_id: str) -> int:
     """将 temp_id 的数据迁移到真实 user_id，返回迁移的键数"""
     migrated = 0
@@ -5524,6 +5577,43 @@ async def admin_crisis_history(days: int = Query(30, le=90), limit: int = Query(
 async def admin_crisis_stats(days: int = Query(7, le=90)):
     """危机告警统计（Dashboard 卡片用）"""
     return _crisis_stats(days=days)
+
+
+# ==================== 用户反馈（用户提交 + Admin 查看）====================
+class FeedbackRequest(BaseModel):
+    """用户提交的文字反馈"""
+    content: str
+    platform: Optional[str] = None
+
+
+@app.post("/api/v1/user/feedback")
+async def submit_user_feedback(req: FeedbackRequest, user: AuthUser = Depends(get_current_user)):
+    """用户提交一条文字意见反馈（区别于 /api/v1/feedback 的 LLM 点赞点踩）"""
+    from services import feedback_service
+    try:
+        record = feedback_service.submit_feedback(
+            user.user_id, req.content, req.platform or ""
+        )
+        return {"status": "ok", "feedback_id": record["feedback_id"]}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"[submit_user_feedback error] {e}")
+        raise HTTPException(status_code=500, detail="提交失败，请稍后再试")
+
+
+@app.get("/api/v1/admin/feedback/list")
+async def admin_feedback_list(limit: int = Query(100, le=500), days: int = Query(0, le=90)):
+    """用户反馈列表（按时间倒序）"""
+    from services import feedback_service
+    return {"feedbacks": feedback_service.get_feedback_list(limit=limit, days=days)}
+
+
+@app.get("/api/v1/admin/feedback/stats")
+async def admin_feedback_stats():
+    """用户反馈统计（总数 + 近 7 天）"""
+    from services import feedback_service
+    return feedback_service.get_feedback_stats()
 
 
 @app.get("/api/v1/admin/feedback/llm_stats")
