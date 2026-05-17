@@ -1,190 +1,45 @@
-/* pages/privacy/privacy.wxss - 隐私政策样式 */
 .privacy-container {
-  padding: 24rpx 32rpx 120rpx;
+  padding: 32rpx;
   background-color: #0D1B2A;
   min-height: 100vh;
   color: #E0E8F0;
 }
 
-/* 页面顶部装饰月亮 */
-.page-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 48rpx 0 40rpx;
-}
-.moon-icon {
-  font-size: 72rpx;
-  margin-bottom: 16rpx;
-  opacity: 0.9;
-}
-.page-title {
-  font-size: 44rpx;
-  font-weight: 700;
-  color: #F5C869;
-  letter-spacing: 2rpx;
-}
-.page-subtitle {
-  font-size: 24rpx;
-  color: #5A7A9A;
-  margin-top: 8rpx;
-}
-
-/* 区块：标题 + 卡片 */
 .section {
-  margin-bottom: 40rpx;
+  margin-bottom: 48rpx;
 }
 
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  margin-bottom: 20rpx;
-  padding: 0 4rpx;
-}
-.section-icon {
-  font-size: 36rpx;
-}
-.section-title {
-  font-size: 36rpx;
-  font-weight: 700;
-  color: #EDE8DF;
-  letter-spacing: 1rpx;
-}
-.section-divider {
-  flex: 1;
-  height: 1rpx;
-  background: linear-gradient(to right, rgba(139,163,185,0.15), transparent);
-}
-
-/* 内容卡片 */
-.content-card {
-  background: rgba(26, 48, 74, 0.5);
-  border: 1rpx solid rgba(139, 163, 185, 0.12);
-  border-radius: 20rpx;
-  padding: 32rpx 28rpx;
-}
-
-/* 小标题 */
-.subtitle {
-  font-size: 28rpx;
-  font-weight: 600;
+.title {
+  font-size: 40rpx;
+  font-weight: bold;
   color: #F5C869;
-  margin-top: 28rpx;
-  margin-bottom: 14rpx;
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-}
-.subtitle:first-child {
-  margin-top: 0;
-}
-.subtitle-icon {
-  font-size: 24rpx;
-  opacity: 0.8;
-}
-
-/* 正文段落 */
-.p {
-  font-size: 26rpx;
-  line-height: 1.85;
-  color: #B8C8DC;
-  margin-bottom: 10rpx;
-}
-
-/* 重点段落（免责声明等） */
-.p.important {
-  color: #E0E8F0;
-  font-size: 26rpx;
-  line-height: 1.8;
-}
-
-/* 紧急热线段落 — 醒目珊瑚色 */
-.emergency-hotline {
-  color: #E8846B;
-  font-weight: 600;
-  font-size: 26rpx;
-  margin-top: 20rpx;
-}
-
-/* 项目符号列表 */
-.p.list-item {
-  padding-left: 8rpx;
-  position: relative;
-}
-
-/* 高亮信息条 */
-.info-strip {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  padding: 18rpx 22rpx;
-  background: rgba(245, 200, 105, 0.08);
-  border-radius: 12rpx;
-  border: 1rpx solid rgba(245, 200, 105, 0.15);
-  margin: 16rpx 0;
-}
-.info-strip-icon {
-  font-size: 28rpx;
-  flex-shrink: 0;
-}
-.info-strip-text {
-  font-size: 24rpx;
-  color: #D0C090;
-  line-height: 1.5;
-  flex: 1;
-}
-
-/* 紧急联系区块 */
-.crisis-card {
-  background: rgba(232, 132, 107, 0.08);
-  border: 1rpx solid rgba(232, 132, 107, 0.2);
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-top: 16rpx;
-}
-.crisis-card-title {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: #E8846B;
-  margin-bottom: 14rpx;
-}
-.crisis-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12rpx 0;
-  border-bottom: 1rpx solid rgba(232, 132, 107, 0.1);
-}
-.crisis-row:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-.crisis-label {
-  font-size: 24rpx;
-  color: #C0B0A0;
-}
-.crisis-value {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #E8846B;
-  font-family: 'PingFang SC', 'Helvetica Neue', sans-serif;
-}
-
-/* 页脚 */
-.footer {
-  margin-top: 48rpx;
-  padding: 32rpx 0 24rpx;
-  border-top: 1rpx solid rgba(139, 163, 185, 0.1);
+  margin-bottom: 24rpx;
   text-align: center;
 }
-.update-time {
-  font-size: 22rpx;
-  color: #5A7A9A;
+
+.subtitle {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #8BA3B9;
+  margin-top: 32rpx;
+  margin-bottom: 16rpx;
 }
-.footer-brand {
-  font-size: 22rpx;
-  color: #3A5A7A;
-  margin-top: 8rpx;
-  letter-spacing: 1rpx;
+
+.p {
+  font-size: 28rpx;
+  line-height: 1.8;
+  color: #C5D4E8;
+  margin-bottom: 12rpx;
+}
+
+.footer {
+  margin-top: 64rpx;
+  padding-top: 32rpx;
+  border-top: 1rpx solid #1B3A5A;
+  text-align: center;
+}
+
+.update-time {
+  font-size: 24rpx;
+  color: #5A7A9A;
 }
