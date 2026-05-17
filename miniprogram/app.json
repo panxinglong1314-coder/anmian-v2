@@ -6,11 +6,14 @@
     "pages/profile/profile",
     "pages/subscribe/subscribe",
     "pages/train/train",
+    "pages/feedback/feedback",
     "pages/privacy/privacy",
     "pages/morning/morning"
   ],
   "plugins": {},
-  "requiredBackgroundModes": ["audio"],
+  "requiredBackgroundModes": [
+    "audio"
+  ],
   "window": {
     "navigationBarBackgroundColor": "#0D1B2A",
     "navigationBarTextStyle": "white",
