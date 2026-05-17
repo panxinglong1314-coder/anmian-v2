@@ -1,0 +1,209 @@
+<!-- pages/profile/profile.wxml - 个人中心 -->
+<!-- 顶部标题由 WeChat 原生导航栏处理（profile.json 中 navigationBarTitleText 配置） -->
+<view class="page">
+
+  <!-- 用户信息卡片：头像 + 昵称输入 + 保存（合一） -->
+  <view class="profile-card">
+    <button class="avatar-chooser" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar" hover-class="none">
+      <image
+        wx:if="{{avatarUrl}}"
+        class="avatar"
+        src="{{avatarUrl}}"
+        mode="aspectFill"
+      />
+      <view wx:else class="avatar avatar-default">
+        <text class="avatar-letter">{{userInfo.nickname ? userInfo.nickname[0] : '我'}}</text>
+      </view>
+      <view class="avatar-edit-hint">✎</view>
+    </button>
+    <view class="profile-info">
+      <view class="profile-name-row">
+        <input
+          class="profile-name-input"
+          type="nickname"
+          placeholder="点击设置昵称"
+          value="{{nickname}}"
+          bindinput="onNicknameInput"
+          bindblur="onNicknameBlur"
+        />
+        <view wx:if="{{nicknameDirty}}" class="profile-save-btn" bindtap="saveProfile">保存</view>
+      </view>
+      <text class="profile-id">ID: {{userInfo.user_id || ''}}</text>
+      <text wx:if="{{userInfo.created_at}}" class="profile-meta">
+        加入于 {{userInfo.created_at.slice(0,10)}}
+      </text>
+    </view>
+  </view>
+
+  <!-- 区段标题：安全与隐私 -->
+  <view class="section-heading">
+    <text>安全与隐私</text>
+  </view>
+
+  <!-- 紧急联系人卡片 -->
+  <view class="section-card emergency-card">
+    <view class="emergency-header" bindtap="toggleEmergency">
+      <view class="emergency-title-row">
+        <text class="emergency-icon">🆘</text>
+        <text class="emergency-title">紧急联系人</text>
+        <text class="emergency-status {{emergencyContact.phone ? 'set' : 'unset'}}">
+          {{emergencyContact.phone ? '已设置' : '未设置'}}
+        </text>
+      </view>
+      <text class="emergency-toggle">{{emergencyExpanded ? '收起' : '展开'}} {{emergencyExpanded ? '⌃' : '⌄'}}</text>
+    </view>
+
+    <view wx:if="{{emergencyExpanded}}" class="emergency-body">
+      <view class="emergency-privacy">
+        <text class="emergency-privacy-icon">🔒</text>
+        <text class="emergency-privacy-text">
+          仅在 AI 检测到严重危机信号（如自伤倾向）时，我们才会联系 TA。
+          平时绝不会打扰，绝不用于营销。你随时可以删除。
+        </text>
+      </view>
+
+      <view class="form-row">
+        <text class="form-label">姓名</text>
+        <input class="form-input" placeholder="例如：妈妈、王医生"
+          value="{{emergencyContact.name}}" bindinput="onEmergencyNameInput" maxlength="30" />
+      </view>
+      <view class="form-row">
+        <text class="form-label">手机号</text>
+        <input class="form-input" type="number" placeholder="11 位手机号"
+          value="{{emergencyContact.phone}}" bindinput="onEmergencyPhoneInput" maxlength="11" />
+      </view>
+      <view class="form-row">
+        <text class="form-label">关系</text>
+        <view class="relation-pills">
+          <view wx:for="{{relationOptions}}" wx:key="*this"
+            class="relation-pill {{emergencyContact.relation === item ? 'active' : ''}}"
+            data-relation="{{item}}" bindtap="onSelectRelation">{{item}}</view>
+        </view>
+      </view>
+
+      <view class="emergency-consent" bindtap="toggleConsent">
+        <view class="consent-checkbox {{emergencyContact.consent ? 'checked' : ''}}">
+          <text wx:if="{{emergencyContact.consent}}">✓</text>
+        </view>
+        <text class="consent-label">我同意在 AI 判定为严重危机时联系 TA，并已征得 TA 的同意</text>
+      </view>
+
+      <view class="form-action">
+        <view class="save-btn" bindtap="saveEmergencyContact">
+          <text>{{emergencyContact.phone ? '更新' : '保存'}}</text>
+        </view>
+        <view wx:if="{{emergencyContact.phone}}" class="clear-btn" bindtap="clearEmergencyContact">
+          <text>清除</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 区段标题：关于 -->
+  <view class="section-heading">
+    <text>关于</text>
+  </view>
+
+  <!-- 列表式设置项（意见反馈、隐私政策、用户协议、版本） -->
+  <view class="section-card list-card">
+    <view class="list-row" bindtap="openFeedback">
+      <text class="list-row-icon">💬</text>
+      <text class="list-row-label">意见反馈</text>
+      <text class="list-row-arrow">›</text>
+    </view>
+    <view class="list-row" bindtap="openPrivacy">
+      <text class="list-row-icon">📜</text>
+      <text class="list-row-label">隐私政策</text>
+      <text class="list-row-arrow">›</text>
+    </view>
+    <view class="list-row" bindtap="openTerms">
+      <text class="list-row-icon">📋</text>
+      <text class="list-row-label">用户协议</text>
+      <text class="list-row-arrow">›</text>
+    </view>
+    <view class="list-row" bindtap="openAbout">
+      <text class="list-row-icon">🌙</text>
+      <text class="list-row-label">关于知眠</text>
+      <text class="list-row-value">v2.0</text>
+      <text class="list-row-arrow">›</text>
+    </view>
+  </view>
+
+  <!-- 退出登录 -->
+  <view class="logout-section">
+    <view class="logout-btn" bindtap="logout">
+      <text>退出登录</text>
+    </view>
+  </view>
+
+  <!-- 意见反馈浮层（底部抽屉） -->
+  <view wx:if="{{showFeedback}}" class="fb-overlay" catchtap="closeFeedback">
+    <view class="fb-sheet" catchtap="stopProp">
+      <view class="fb-handle"></view>
+
+      <view class="fb-sheet-head">
+        <view class="fb-sheet-title-row">
+          <text class="fb-sheet-emoji">💬</text>
+          <text class="fb-sheet-title">意见反馈</text>
+        </view>
+        <view class="fb-sheet-close" catchtap="closeFeedback">✕</view>
+      </view>
+      <view class="fb-sheet-desc">你的每一条想法，我们都会认真看 🌙</view>
+
+      <view class="fb-input-wrap">
+        <textarea
+          class="fb-sheet-input"
+          style="height:160rpx;"
+          value="{{feedbackText}}"
+          bindinput="onFeedbackInput"
+          placeholder="功能建议、用着不顺手的地方、想说的任何话…"
+          placeholder-class="fb-input-ph"
+          maxlength="500"
+          auto-height="{{false}}"
+          cursor-spacing="140"
+        />
+        <text class="fb-sheet-meta">{{feedbackTextLen}}/500</text>
+      </view>
+
+      <view class="fb-sheet-btn {{feedbackTextLen > 0 ? '' : 'fb-sheet-btn-disabled'}}" bindtap="submitFeedback">
+        提交反馈
+      </view>
+      <view class="fb-sheet-foot">提交后运营团队会看到 · 感谢你帮知眠变得更好</view>
+    </view>
+  </view>
+
+  <!-- 关于知眠浮层（居中卡片） -->
+  <view wx:if="{{showAbout}}" class="about-overlay" catchtap="closeAbout">
+    <view class="about-card" catchtap="stopProp">
+      <view class="about-card-head">
+        <text class="about-moon">🌙</text>
+        <text class="about-title">知眠</text>
+      </view>
+
+      <view class="about-body">
+        <text class="about-line">陪你度过睡前的那些脑子停不下来的时刻。</text>
+
+        <view class="about-divider"></view>
+
+        <text class="about-line about-desc">基于认知行为失眠疗法（CBT-I）。其睡眠窗口建议参考美国睡眠医学会（AASM）2025 指南及欧洲失眠指南 2023。</text>
+
+        <view class="about-divider"></view>
+
+        <text class="about-line about-warning">本应用不提供医疗诊断、治疗或处方，不能替代精神科医生、心理咨询师等专业医疗人士的意见。如存在持续失眠、抑郁焦虑或有自伤念头，请立即就医或拨打心理援助热线。</text>
+
+        <view class="about-divider"></view>
+
+        <text class="about-line about-hotline">全国心理援助热线 400-161-9995</text>
+        <text class="about-line about-hotline">北京心理危机研究与干预中心 010-82951332</text>
+      </view>
+
+      <view class="about-footer">
+        <text class="about-version">知眠 v2.0</text>
+        <view class="about-btn" bindtap="closeAbout">
+          <text>我知道了</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+</view>
