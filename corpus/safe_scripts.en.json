@@ -1,0 +1,115 @@
+{
+  "_meta": {
+    "locale": "en",
+    "schema_version": "parallel-to-zh-v1",
+    "review_status": "DRAFT — clinical/safety review required before production use",
+    "framing": "C-SSRS-informed risk language; 988 Suicide & Crisis Lifeline (US); Crisis Text Line; Samaritans for UK/IE; Lifeline for AU"
+  },
+  "safety_protocol": {
+    "name": "Safety Protocol",
+    "description": "Triggered when the user shows signs of suicidal ideation or self-harm.",
+    "activation_keywords": [
+      "kill myself", "killing myself", "end my life", "want to die",
+      "wish i was dead", "suicide", "suicidal", "hurt myself",
+      "harm myself", "cut myself", "no reason to live", "can't go on"
+    ],
+    "response_priority": "IMMEDIATE_SAFETY",
+    "mandatory_elements": [
+      "Acknowledge feelings without judgment",
+      "Provide crisis resources (988, Crisis Text Line)",
+      "Express willingness to stay with them",
+      "Do not try to quickly fix the problem",
+      "Do not abandon the user"
+    ],
+    "hotlines": [
+      {
+        "name": "988 Suicide & Crisis Lifeline (US)",
+        "number": "988",
+        "text_option": "Text 988",
+        "available": "24/7",
+        "country": "US"
+      },
+      {
+        "name": "Crisis Text Line",
+        "text_option": "Text HOME to 741741",
+        "available": "24/7",
+        "country": "US/CA/UK/IE"
+      },
+      {
+        "name": "Samaritans",
+        "number": "116 123",
+        "available": "24/7",
+        "country": "UK/IE"
+      },
+      {
+        "name": "Lifeline Australia",
+        "number": "13 11 14",
+        "available": "24/7",
+        "country": "AU"
+      },
+      {
+        "name": "Befrienders Worldwide (find local helpline)",
+        "url": "https://befrienders.org",
+        "available": "varies",
+        "country": "international"
+      }
+    ],
+    "emergency_note": "If there is an immediate risk of harm, please call 911 (US/CA), 999 (UK), 000 (AU), or local emergency services."
+  },
+  "safety_responses": {
+    "immediate": {
+      "phase1_acknowledgment": [
+        "I hear how heavy this feels right now. You don't have to pretend it's okay.",
+        "Thank you for telling me. I know saying these words takes courage.",
+        "What you're carrying sounds really painful. I want you to know — you are not alone with this.",
+        "I noticed you mentioned {keyword}. I want to check in gently — are you having thoughts of hurting yourself tonight?"
+      ],
+      "phase2_validation": [
+        "Saying this out loud, in this much pain, takes a lot of strength.",
+        "These feelings of wanting things to end — they may have been with you for a long time.",
+        "However hopeless it feels right now, there are people trained to help you find a way through.",
+        "You don't need to have an answer tonight. I'm here with you until you're ready."
+      ],
+      "phase3_resources": [
+        "I want to share some support right now:\n\n📞 988 Suicide & Crisis Lifeline (US): call or text 988\n💬 Crisis Text Line: text HOME to 741741\n\nBoth are free, confidential, and staffed 24/7 by trained counselors.",
+        "If you're outside the US:\n\n🇬🇧 Samaritans (UK/IE): 116 123\n🇦🇺 Lifeline (AU): 13 11 14\n🌐 Find your country: befrienders.org",
+        "If you feel you're in immediate danger, please call 911 (US/CA), 999 (UK), 000 (AU), or your local emergency number — or go to the nearest emergency room."
+      ],
+      "phase4_grounding": [
+        "Let's come back to right now. Where are you? Are you at home, somewhere safe?",
+        "Let's do something small together — feel your feet on the floor. Notice the weight of your body resting on whatever is holding you up.",
+        "Right now, in this moment — can you name one thing you can see, one thing you can hear, and one thing you can feel? Take your time."
+      ]
+    }
+  },
+  "continuation_responses": {
+    "description": "How to keep the conversation open after the safety protocol triggers.",
+    "templates": [
+      "I'm right here. Keep talking, or just sit with me — either is okay.",
+      "It helps that you're still here, still talking to me. I'm not going anywhere.",
+      "You don't have to carry this alone. We can keep this connection as long as you need.",
+      "If talking feels like too much, just tell me one word for how you feel right now."
+    ]
+  },
+  "transfer_responses": {
+    "description": "Language for gently moving the user toward human support.",
+    "templates": [
+      "I think a trained crisis counselor could help you in a way I can't. They've sat with this exact kind of pain many times.",
+      "Would you be willing to text or call 988 right now? You can keep this chat open at the same time.",
+      "If picking up the phone feels too much, you can text 988 or text HOME to 741741 — it's quieter, and you can take your time."
+    ]
+  },
+  "follow_up_script": {
+    "description": "Gentle check-in after a safety event has resolved.",
+    "session_check_in": [
+      "How have things felt since we last talked?",
+      "Were you able to reach out to anyone for support?",
+      "How are you doing right now? Has anything shifted, even a little?"
+    ],
+    "positive_reinforcement": [
+      "Coming back here, after a night like that, is itself a kind of strength.",
+      "You're still here. That matters.",
+      "However tonight feels, the fact that you keep showing up is worth honoring."
+    ]
+  }
+}

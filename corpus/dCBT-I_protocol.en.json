@@ -1,0 +1,202 @@
+{
+  "_meta": {
+    "locale": "en",
+    "schema_version": "parallel-to-zh-v1",
+    "review_status": "DRAFT — clinical review recommended",
+    "sources": "VA CBT-I Therapist Manual (public domain); AASM CBT-I clinical practice guidelines; SleepioRx framework; standard CBT-I literature (Perlis, Edinger, Morin)"
+  },
+  "meta": {
+    "name": "Digital CBT-I Protocol",
+    "name_en": "Digital CBT-I Protocol",
+    "based_on": "Evidence-based framework grounded in AASM CBT-I guidelines and the VA CBT-I therapist manual.",
+    "evidence": "Multiple RCTs of digital CBT-I; npj Digital Medicine (2025) and related dCBT-I trials.",
+    "version": "2025.1-en",
+    "components_rating": {
+      "sleep_restriction": "1A (Sleep Restriction + Stimulus Control, Level I recommendation in CBT-I guidelines)",
+      "cognitive_restructuring": "1A (Cognitive Restructuring, Level I recommendation)",
+      "stimulus_control": "1A (Stimulus Control, Level I recommendation)",
+      "sleep_hygiene": "2A (Sleep Hygiene Education, Level II — adjunctive, not standalone)",
+      "relaxation_mindfulness": "1A (Relaxation Training, Level I recommendation)",
+      "paradoxical_intention": "1A (Paradoxical Intention, Level A recommendation)",
+      "third_wave_integrated": "2A (Mindfulness + ACT, supported by 2024-2025 systematic reviews)"
+    }
+  },
+  "core_components": {
+    "sleep_restriction_therapy": {
+      "description": "Restrict time in bed to increase sleep drive (Homeostatic Sleep Pressure).",
+      "mechanism": "Reduces wakefulness in bed → increases sleep efficiency → improves sleep quality → time in bed gradually expands.",
+      "implementation": {
+        "TIB_calculation": "Time in Bed = Out-of-bed time − Into-bed time.",
+        "TST_calculation": "Total Sleep Time = TIB − Sleep Onset Latency (SOL) − Wake After Sleep Onset (WASO).",
+        "sleep_efficiency": "SE = TST / TIB × 100%, target SE ≥ 85%.",
+        "prescription": "Initial TIB = mean TST over last 1–2 weeks (but no less than 5 hours).",
+        "adjustment": "Weekly review: if SE > 85%, expand TIB by 15–30 min; if SE < 80%, reduce TIB.",
+        "minimum_TIB": "Never less than 5 hours (safety floor)."
+      },
+      "AI_adaptation": "In a pre-sleep companion context, don't enforce strict window calculations. Instead, gently guide: 'Try going to bed 15–30 minutes later than usual tonight, and see if you fall asleep faster.' (Light-touch sleep restriction.)"
+    },
+    "stimulus_control": {
+      "description": "Rebuild the conditioned association between bed and sleep; weaken the bed-wakefulness link.",
+      "core_instructions": [
+        {"rule": 1, "instruction": "Only get into bed when you're clearly sleepy.", "rationale": "Reduces wakeful time in bed; strengthens 'bed = sleep' association."},
+        {"rule": 2, "instruction": "If you can't fall asleep within ~20 minutes, get up and go to another room until sleepy again.", "rationale": "Breaks the 'awake = in bed' conditioned response."},
+        {"rule": 3, "instruction": "Use the bed only for sleep and intimacy — no phones, TV, work, or worrying in bed.", "rationale": "Weakens the bed's association with non-sleep activities."},
+        {"rule": 4, "instruction": "Get up at the same time every day (including weekends) to anchor the circadian rhythm.", "rationale": "Stabilizes the body clock and builds sleep drive."},
+        {"rule": 5, "instruction": "Avoid daytime naps. If you must, keep them under 20 minutes and before 3 PM.", "rationale": "Preserves nighttime sleep drive."}
+      ],
+      "AI_adaptation": "In a pre-sleep companion context, guide a brief 'sleep onset ritual': 'When you get into bed tonight, just do one thing — close your eyes and let your breath happen. No counting, no trying. Just waiting.' (Light-touch stimulus control.)"
+    },
+    "cognitive_restructuring": {
+      "description": "Identify and reframe catastrophic cognitions about sleep.",
+      "target_cognitive_distortions": [
+        "All-or-Nothing: 'I must get 8 hours or tomorrow is wrecked.'",
+        "Catastrophizing: 'If I don't sleep, I'll have a breakdown / die / lose my job.'",
+        "Pre-sleep monitoring: 'How long have I been awake? How long until the alarm?'",
+        "Fortune-telling: 'I know I won't sleep tonight either.'",
+        "Emotional reasoning: 'Because I can't sleep, something must be very wrong with me.'"
+      ],
+      "Socratic_questioning_sequence": [
+        "How true is this thought? Is 'I'll die if I don't sleep' backed by data?",
+        "Even if the worst happened, would it really be as bad as it feels?",
+        "Any counter-evidence? Have there been nights when you slept little and still got through the day?",
+        "If you didn't believe this thought, how would you look at tonight?",
+        "Right now, what does your body actually need — sleep, or just calm?"
+      ],
+      "AI_adaptation": "Don't attempt deep cognitive restructuring (that's the therapist's job). Instead: 1) gently surface a catastrophic thought; 2) offer a counter-example; 3) shift attention to bodily sensation."
+    },
+    "sleep_hygiene": {
+      "description": "Optimize sleep environment and behavior (Level II recommendation; adjunctive, not standalone).",
+      "environmental": [
+        {"factor": "Temperature", "recommendation": "Keep bedroom at 65–72°F (18–22°C)", "rationale": "Core body temperature drop is a sleep-onset trigger."},
+        {"factor": "Light", "recommendation": "Total darkness (blackout curtains or eye mask)", "rationale": "Light suppresses melatonin."},
+        {"factor": "Sound", "recommendation": "White noise or earplugs (steady background better than sudden noise)", "rationale": "Reduces micro-arousals from noise."},
+        {"factor": "Bedding", "recommendation": "Comfortable mattress and pillow — not too firm, not too soft", "rationale": "Physical comfort supports sleep continuity."}
+      ],
+      "behavioral": [
+        {"timing": "4–6 hours before bed", "avoid": "Caffeine (5–6 hour half-life)", "effect": "Blocks adenosine receptors; delays sleep pressure."},
+        {"timing": "2–3 hours before bed", "avoid": "Alcohol", "effect": "Speeds onset but fragments REM and causes early waking."},
+        {"timing": "1 hour before bed", "avoid": "Blue-light devices (phones/tablets/TV)", "effect": "Blue light suppresses melatonin; delays sleep onset."},
+        {"timing": "Pre-bed", "avoid": "Vigorous exercise", "effect": "Raises temperature and activates cortisol; delays sleep."},
+        {"timing": "Morning", "do": "Get 10–15 minutes of bright natural light right after waking", "effect": "Anchors circadian rhythm."},
+        {"timing": "Evening", "do": "Moderate aerobic exercise (finishing 3+ hours before bed)", "effect": "Increases deep (N3) sleep."}
+      ],
+      "AI_adaptation": "Don't deliver checklists. Weave hygiene into conversation: 'Did you have coffee this afternoon?' — light, conversational, never preachy."
+    },
+    "paradoxical_intention": {
+      "description": "Core technique for 'sleep-effort syndrome' insomnia (Level A recommendation).",
+      "mechanism": "Deliberately trying to stay awake removes the anxiety about sleep, breaking the 'try harder → more awake' cycle.",
+      "indication": "Sleep-onset insomnia + strong pre-sleep anxiety + over-monitoring of sleep state in bed.",
+      "contraindication": "Severe depression (may worsen hopelessness).",
+      "AI_instruction_sequence": [
+        {"step": 1, "script": "I've noticed you're monitoring whether you're close to sleep. Here's the thing — that effort itself is what keeps you awake."},
+        {"step": 2, "script": "So tonight, I want to invite an experiment: don't try to fall asleep. I mean it. You don't have to do anything to make sleep happen. Just keep your eyes lightly open, or gently closed, and tell yourself: 'I'm not going to force sleep tonight. I'm just resting here.'"},
+        {"step": 3, "script": "When you really put down 'must sleep,' something strange happens — sleep becomes easier. Because when you stop fighting it, the brain's alarm system quiets, and sleep can arrive on its own."},
+        {"step": 4, "script": "It's a paradox: giving up trying to sleep makes sleep more likely. Try it tonight, just as an experiment, okay?"}
+      ]
+    },
+    "third_wave_integration": {
+      "description": "Integration with mindfulness and ACT — the leading edge of dCBT-I in 2024–2025.",
+      "mindfulness_body_scan": {
+        "description": "Build non-reactive awareness of bodily sensations; reduces over-focus on internal experience pre-sleep.",
+        "AI_usage": "Guide users from toes to crown of the head, without judging or changing — just observing."
+      },
+      "open_awareness": {
+        "description": "Open awareness of thoughts and feelings without locking onto any one (for more advanced users).",
+        "AI_usage": "Guide users to become 'observers of the inner world' — thoughts like clouds passing, no need to follow."
+      },
+      "ACT_commitment": {
+        "description": "Clarify values to shift from 'I must sleep' to 'I'm resting in a way that matters.'",
+        "AI_usage": "Ask: 'If sleep weren't something to be anxious about, what would you actually want from tonight?' (Often: rest, and time with one's own quiet.)"
+      },
+      "loving_kindness": {
+        "description": "Build goodwill to interrupt pre-sleep social rumination.",
+        "AI_usage": "Guide users to send kindness toward the person they're stuck on tonight — interrupts the rumination loop."
+      }
+    }
+  },
+  "session_structure_ai_companion": {
+    "description": "How the AI companion structures a dCBT-I session in a pre-sleep context.",
+    "mode_1_light": {
+      "name": "Light (mild insomnia, mild evening anxiety)",
+      "duration": "3-5 minutes",
+      "sequence": [
+        {"step": "Assessment (30s)", "content": "Tonight's sleep difficulty (0-10), main worry (one sentence)", "cbt_component": "Assessment"},
+        {"step": "Worry externalization (1 min)", "content": "If worry present: validate + log + transition", "cbt_component": "Worry Handling"},
+        {"step": "Light relaxation (2-3 min)", "content": "Pick a suitable breathing or mindfulness practice", "cbt_component": "Relaxation"},
+        {"step": "Closure (30s)", "content": "Sleep permission + light paradoxical-intention nudge", "cbt_component": "Closure Ritual"}
+      ]
+    },
+    "mode_2_standard": {
+      "name": "Standard (moderate insomnia, clear anxiety)",
+      "duration": "8-12 minutes",
+      "sequence": [
+        {"step": "Assessment (1 min)", "content": "Difficulty + worry type + recent sleep pattern", "cbt_component": "Assessment"},
+        {"step": "Worry processing (2 min)", "content": "Externalize worry + light cognitive intervention", "cbt_component": "Worry Handling"},
+        {"step": "Cognitive restructuring (2 min)", "content": "Identify 1-2 distortions + Socratic questioning", "cbt_component": "Cognitive Restructuring"},
+        {"step": "Relaxation induction (4-5 min)", "content": "Breathing + PMR or mindful body scan", "cbt_component": "Relaxation"},
+        {"step": "Paradoxical intention (1 min)", "content": "Sleep-effort reduction prompt", "cbt_component": "Paradoxical Intention"},
+        {"step": "Closure ritual (1 min)", "content": "Personalized sleep permission", "cbt_component": "Closure"}
+      ]
+    },
+    "mode_3_intensive": {
+      "name": "Intensive (severe insomnia, severe anxiety, possible safety risk)",
+      "duration": "15-20 minutes",
+      "sequence": [
+        {"step": "Assessment + safety screen (2 min)", "content": "Difficulty + suicidality / self-harm screen (if indicated)", "cbt_component": "Assessment + Safety"},
+        {"step": "Worry capture (3 min)", "content": "Detailed externalization, no probing for details", "cbt_component": "Worry Capture"},
+        {"step": "Cognitive restructuring (4 min)", "content": "Full distortion identification + Socratic questioning", "cbt_component": "Cognitive Restructuring"},
+        {"step": "Paradoxical intention (2 min)", "content": "Strong recommendation if applicable", "cbt_component": "Paradoxical Intention"},
+        {"step": "Mindfulness + PMR (5-6 min)", "content": "Body scan + PMR combination", "cbt_component": "Relaxation"},
+        {"step": "Closure + sleep permission (2 min)", "content": "Personalized closure ritual", "cbt_component": "Closure"}
+      ]
+    }
+  },
+  "insomnia_subtypes_adaptation": {
+    "description": "Adjust technique priorities by insomnia subtype.",
+    "sleep_onset_type": {
+      "name": "Sleep-Onset Insomnia",
+      "primary_techniques": ["paradoxical_intention", "sleep_restriction (light)", "478"],
+      "secondary_techniques": ["stimulus_control", "open_awareness"],
+      "avoid": "PMR while in bed (can reinforce bed-wakefulness association)"
+    },
+    "maintenance_type": {
+      "name": "Sleep-Maintenance Insomnia (waking during the night)",
+      "primary_techniques": ["sleep_restriction", "stimulus_control", "sleep_hygiene"],
+      "secondary_techniques": ["PMR (for returning to sleep after waking)", "mindfulness"],
+      "AI_guidance": "When the user wakes mid-night: 'Don't look at the clock. Don't calculate hours left. Just notice — it's still night. You're still resting. Gently bring attention back to the breath.'"
+    },
+    "mixed_type": {
+      "name": "Mixed (both onset and maintenance)",
+      "primary_techniques": ["sleep_restriction", "stimulus_control", "cognitive_restructuring"],
+      "secondary_techniques": ["paradoxical_intention", "PMR", "mindful body scan"]
+    },
+    "social_rumination_type": {
+      "name": "Social Rumination (pre-sleep relational worry)",
+      "primary_techniques": ["loving_kindness", "open_awareness", "worry externalization"],
+      "secondary_techniques": ["cognitive_restructuring (relational distortions)", "paradoxical_intention"],
+      "AI_guidance": "'I notice tonight's worry is about someone specific. Pre-sleep replay of relationships is very common. Tonight, you don't need to solve anything. You just need to be here, well-cared-for.'"
+    }
+  },
+  "digital_personalization": {
+    "description": "Adaptive personalization (modeled on SleepioRx-style algorithms).",
+    "sleep_diary_tracking": [
+      "Bedtime",
+      "Wake time",
+      "Estimated total sleep time",
+      "Actual total sleep time (subjective is fine)",
+      "Sleep Onset Latency (SOL)",
+      "Number and total duration of nighttime awakenings",
+      "Tonight's sleep quality (1-10)",
+      "Tonight's worry theme (optional)"
+    ],
+    "dynamic_adjustment": {
+      "SE_above_90": "Expand TIB by 30 minutes",
+      "SE_85_90": "Maintain current TIB",
+      "SE_80_85": "Review and decide",
+      "SE_below_80": "Reduce TIB by 15-30 minutes (but never below 5 hours)",
+      "high_pre_sleep_anxiety": "Prioritize paradoxical intention",
+      "high_rumination": "Prioritize open awareness / mindfulness",
+      "physical_tension": "Prioritize PMR or 4-7-8"
+    }
+  }
+}

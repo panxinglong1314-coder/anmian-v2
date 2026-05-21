@@ -1,0 +1,238 @@
+{
+  "_meta": {
+    "locale": "en",
+    "schema_version": "parallel-to-zh-v1",
+    "review_status": "DRAFT — clinical review recommended",
+    "source": "Progressive Muscle Relaxation (Jacobson, 1938; Bernstein & Borkovec abbreviated PMR). Standard public-domain CBT-I content."
+  },
+  "pmr_scripts": {
+    "full_body": {
+      "name": "Full-Body Progressive Muscle Relaxation",
+      "description": "Systematically tense and release every major muscle group from feet to face. Best for users with full-body tension.",
+      "total_duration_minutes": 15,
+      "sequence": [
+        {
+          "region": "feet",
+          "order": 1,
+          "tense_instruction": "Bring your attention to your feet. Curl your toes down, like you're trying to grip the bottom of your socks. Feel the muscles in your feet tighten.",
+          "relax_instruction": "Now let go. Let your toes unclench naturally. Notice the blood flowing back, a warm wave of relaxation rising up from the soles of your feet.",
+          "feel_keyword": "warmth",
+          "breathe_with": "release on the exhale"
+        },
+        {
+          "region": "calves",
+          "order": 2,
+          "tense_instruction": "Now your calves. Flex your ankles upward, as if pointing your toes back toward your face. Feel the stretch and tension in your calves.",
+          "relax_instruction": "Release. Your calves soften, like warm bread in the sun. Feel gravity disappear here.",
+          "feel_keyword": "lightness"
+        },
+        {
+          "region": "thighs",
+          "order": 3,
+          "tense_instruction": "Tighten your thighs. Press them together as if holding a sheet of paper between them. Feel the tightness.",
+          "relax_instruction": "Release. Your legs become heavy, sinking into the mattress — but it's a comfortable heaviness. Your legs are resting.",
+          "feel_keyword": "heaviness"
+        },
+        {
+          "region": "buttocks",
+          "order": 4,
+          "tense_instruction": "Clench your glute muscles, like you're trying to hold something in. Feel the tightness through your hips.",
+          "relax_instruction": "Let everything release. Any tightness here can flow out now. Your pelvis becomes heavy, settling deep.",
+          "feel_keyword": "sinking"
+        },
+        {
+          "region": "belly",
+          "order": 5,
+          "tense_instruction": "Tighten your belly muscles, as if you were bracing for a light tap on the stomach. Feel the tension across the abdomen.",
+          "relax_instruction": "Release. Let the belly go completely soft. If it helps, gently place a hand there and feel it grow warm and loose.",
+          "feel_keyword": "warmth"
+        },
+        {
+          "region": "lower back",
+          "order": 6,
+          "tense_instruction": "Arch your lower back slightly so it lifts a bit off the mattress. Feel the stretch.",
+          "relax_instruction": "Let your back settle back down fully, touching the mattress. Your lower back is relaxing, like butter slowly melting.",
+          "feel_keyword": "melting"
+        },
+        {
+          "region": "chest",
+          "order": 7,
+          "tense_instruction": "Take a deep breath in, expand your chest, and lift your shoulders slightly. Feel the chest stretch and tighten.",
+          "relax_instruction": "Exhale. Let the chest fall completely. Feel your heartbeat settle into a calm rhythm, like a small bird resting by the water.",
+          "feel_keyword": "steady"
+        },
+        {
+          "region": "hands",
+          "order": 8,
+          "tense_instruction": "Make fists. Squeeze tightly, as if holding onto something important. Feel the tension in your palms and fingers.",
+          "relax_instruction": "Open your hands — fingers spreading like the petals of a flower. Feel the blood flowing back, the slight warm tingling at your fingertips.",
+          "feel_keyword": "warm tingle"
+        },
+        {
+          "region": "forearms",
+          "order": 9,
+          "tense_instruction": "Tighten your forearms — straighten your arms and flex your wrists upward. Feel the tension.",
+          "relax_instruction": "Let your arms drop completely, no effort at all. Like ropes loosened in the sun, sinking into the mattress.",
+          "feel_keyword": "letting go"
+        },
+        {
+          "region": "upper arms",
+          "order": 10,
+          "tense_instruction": "Bend your elbows and flex your biceps, like you're showing off your muscles. Feel the tension.",
+          "relax_instruction": "Release. Let your arms stretch out and rest. Your upper arms become heavy, sinking beside you. No more work needed.",
+          "feel_keyword": "heaviness"
+        },
+        {
+          "region": "shoulders",
+          "order": 11,
+          "tense_instruction": "Shrug your shoulders up to your ears, like you could touch them. Feel the tightness across your shoulders.",
+          "relax_instruction": "Let them drop completely. No effort. Let gravity take them down. Feel the bones of your shoulders settle deeper into the bed.",
+          "feel_keyword": "release"
+        },
+        {
+          "region": "neck",
+          "order": 12,
+          "tense_instruction": "Tighten your neck muscles, lifting your chin slightly as if to look at the ceiling. Feel the stretch in the front of your neck.",
+          "relax_instruction": "Let your head settle back onto the pillow. The full weight of your head, held by the pillow. The neck lengthens, the vertebrae soften.",
+          "feel_keyword": "lengthening"
+        },
+        {
+          "region": "face",
+          "order": 13,
+          "tense_instruction": "Tighten your face — furrow your brow, clench your jaw, pull the corners of your mouth down. Feel the whole face tight.",
+          "relax_instruction": "Let the whole face go. Forehead smooth. Corners of the eyes and mouth softening. Your face becomes calm — like a sleeping child's, no expression, no tension.",
+          "feel_keyword": "smooth"
+        },
+        {
+          "region": "whole body",
+          "order": 14,
+          "tense_instruction": "Now your whole body. Take a deep breath in and tighten every muscle from head to toe at once.",
+          "relax_instruction": "Exhale, release everything. Hand the full weight of your body to the mattress. Every inch is resting now — head to toe — fully at ease.",
+          "feel_keyword": "floating heaviness"
+        }
+      ],
+      "intro_script": "Progressive muscle relaxation is a well-studied technique with a simple idea: tense the muscles, then release. The contrast helps you discover what real relaxation feels like. Take each region seriously, but don't over-strain — feeling the difference between tense and relaxed is all that matters. Wear loose clothing and find a comfortable position. Whenever you're ready, we'll begin."
+    },
+    "express": {
+      "name": "Express PMR",
+      "description": "Streamlined version covering only the major muscle groups; for when time is tight.",
+      "total_duration_minutes": 5,
+      "regions": ["feet and calves", "thighs and glutes", "belly and chest", "hands and arms", "shoulders and neck", "face", "whole body"],
+      "script_template": {
+        "tense": "Tighten the muscles in {r}... Notice the tension.",
+        "hold": "Hold that tension...",
+        "relax": "Now release completely. Let {r} go soft, as if it didn't belong to you. Notice the contrast..."
+      }
+    },
+    "pmr_short": {
+      "name": "PMR Short (5 regions / 3 minutes)",
+      "name_en": "PMR Short — 5 Regions in 3 Minutes",
+      "description": "Designed for users with mild to moderate anxiety. 5 regions × 3 minutes total. Quick and effective for the last stretch before sleep.",
+      "total_duration_minutes": 3,
+      "total_seconds": 180,
+      "target_anxiety": ["mild to moderate anxiety", "residual pre-sleep tension", "time-limited contexts"],
+      "contraindications": ["users with severe muscle cramps", "during acute trauma episodes"],
+      "evidence_rating": "1A (PMR overall is Level I in CBT-I guidelines; short version is clinically optimized)",
+      "regions": [
+        {
+          "order": 1,
+          "region": "feet + calves",
+          "duration_seconds": 35,
+          "tense_instruction": "Bring attention to your feet and calves. Curl your toes down, point your ankles back — feel the muscles tighten, just on the edge of a cramp, but don't actually cramp. Hold... feel five seconds of this tension.",
+          "relax_instruction": "Now let go. Let your ankles drop, your calves go completely limp on the mattress. A wave of warmth rises from the soles of your feet. Gravity disappears here. Your calves don't want to move — not even a little.",
+          "feel_keyword": "warm + heavy",
+          "breathe_cue": "release on the exhale"
+        },
+        {
+          "order": 2,
+          "region": "hands + forearms",
+          "duration_seconds": 35,
+          "tense_instruction": "Now your hands. Make fists, tight — like you're gripping something important and refusing to let go. Your forearms tighten too. Feel the heat in your palms, knuckles a little pale... hold.",
+          "relax_instruction": "Open your hands. Fingers spread like five petals. Warmth fills your palms; the blood comes back to your fingertips — a small tingle, the sign of relaxation. Your forearms drop completely, soft rope, not yours anymore.",
+          "feel_keyword": "tingling + warmth",
+          "breathe_cue": "release on the exhale"
+        },
+        {
+          "order": 3,
+          "region": "belly + chest",
+          "duration_seconds": 35,
+          "tense_instruction": "Now contract your belly — like bracing for a light tap to the stomach. At the same time, breathe in deeply, chest expanding, ribs lifting. Both together. Hold this state.",
+          "relax_instruction": "Exhale — let the chest fall, the belly go completely soft. There's more space inside your body now, and everything within is resting. Nothing to do. This is the most comfortable position.",
+          "feel_keyword": "open space + softness",
+          "breathe_cue": "deep inhale, then exhale to release"
+        },
+        {
+          "order": 4,
+          "region": "shoulders + face",
+          "duration_seconds": 35,
+          "tense_instruction": "Two regions together. Shrug your shoulders up to your ears — at the same time, tighten the face: brow furrowed, jaw clenched, chin lifted slightly. Feel this face and these shoulders saying 'ready.'",
+          "relax_instruction": "Let it all drop. Shoulders fall, gravity taking them down. Face fully releases — brow smooths, jaw opens, mouth corners soften. Your face goes wide and flat, like a still image floating on water.",
+          "feel_keyword": "dropping + smooth",
+          "breathe_cue": "shoulders and face release together on the exhale"
+        },
+        {
+          "order": 5,
+          "region": "whole body",
+          "duration_seconds": 40,
+          "tense_instruction": "Last one. Feel your whole body. Take a deep breath in, and tighten everything — head to toes, no part left out. Ready? Begin... tighten... hold.",
+          "relax_instruction": "Exhale — release everything. From the top of your scalp to the tips of your toes, every muscle gives up the fight with gravity. Nothing to do. You're just here, safely held. The whole body sinking into the mattress, sinking into sleep.",
+          "feel_keyword": "whole-body floating + heaviness",
+          "breathe_cue": "one last deep inhale, then full exhale"
+        }
+      ],
+      "intro_script": "Let's do a 3-minute express relaxation. Only 5 regions, but each one will leave you more relaxed than the one before. This is designed for right before sleep — it doesn't need much time, just your attention to each tense-relax contrast. Wear loose clothing, lie down. Ready? Let's begin.",
+      "outro_script": "Beautiful. You should feel heavier, warmer, more settled than when we started. That's relaxation. Remember this feeling — it's what sleep will carry you into. Let your breath go fully automatic. The body will take it from here. Goodnight.",
+      "mid_script": "Nicely done. However much relaxation you feel, it's real. One more round — notice the contrast."
+    },
+    "pmr_tiny": {
+      "name": "PMR Micro (2 regions / 90 seconds)",
+      "name_en": "PMR Micro — 2 Regions in 90 Seconds",
+      "description": "Shortest version: hands + face only. For users with severe sleep onset difficulty, very limited time, or acute anxiety.",
+      "total_duration_minutes": 1.5,
+      "total_seconds": 90,
+      "target_anxiety": ["acute anxiety", "severe sleep onset difficulty", "very limited time"],
+      "contraindications": [],
+      "evidence_rating": "1A (PMR overall) + clinical optimization",
+      "regions": [
+        {
+          "order": 1,
+          "region": "hands",
+          "duration_seconds": 40,
+          "tense_instruction": "Make fists, squeeze tightly — to the limit. Feel the heat in your palms, the tightness in your forearms. Hold...",
+          "relax_instruction": "Release fully. Fingers open, palms warm. Don't move — just stay with the warmth. That's the relaxation signal.",
+          "feel_keyword": "warmth",
+          "breathe_cue": "release on the exhale"
+        },
+        {
+          "order": 2,
+          "region": "face",
+          "duration_seconds": 40,
+          "tense_instruction": "Tighten every muscle in your face — brow furrowed, eyelids squeezed, jaw clenched, mouth pulled down. Feel this face saying 'tense.' Hold...",
+          "relax_instruction": "Release everything. The whole face falls, like a warm cloth softening. Eyelids heavy, don't want to open. Corners of the mouth slightly lifted — not a smile, just relaxation. This is the sleeping face.",
+          "feel_keyword": "heavy + smooth",
+          "breathe_cue": "face releases on the exhale"
+        }
+      ],
+      "intro_script": "If you have very little time, or you're feeling especially tight right now, let's do the fastest version. Only 2 regions, only 90 seconds. It still works — even two tense-release contrasts can signal your brain 'okay to relax now.' Lie down. Let's begin.",
+      "outro_script": "Good. You did it. Let this relaxation spread — from your forearms to your shoulders, from your shoulders to the rest of your body. Nothing more to do. Just close your eyes and let the body sink."
+    }
+  },
+  "selection_guide": {
+    "full_body": {
+      "when": "User has plenty of time (15+ minutes), strong full-body tension, or prior PMR experience.",
+      "when_not": "Time is short, or user has never tried PMR (start with express or pmr_short)."
+    },
+    "express": {
+      "when": "User has limited time (5 minutes), or wants a taster before committing to the full version.",
+      "when_not": "Not suitable for deep relaxation induction."
+    },
+    "pmr_short": {
+      "when": "Mild to moderate anxiety, limited time (3 minutes), wants quick but effective PMR.",
+      "when_not": "Severe full-body tension needs full_body; acute anxiety needs pmr_tiny."
+    },
+    "pmr_tiny": {
+      "when": "Severe sleep onset difficulty, acute anxiety, high arousal needing fastest possible down-regulation.",
+      "when_not": "If time is available, longer versions work better."
+    }
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "_meta": {
+    "locale": "en",
+    "schema_version": "parallel-to-zh-v1",
+    "review_status": "DRAFT — clinical review required before production use",
+    "informed_by": ["VA CBT-I Therapist Manual (public domain)", "C-SSRS framing", "Beck Anxiety Inventory phrasing"]
+  },
+  "emotion_categories": {
+    "anxiety": {
+      "level_mild": {
+        "keywords": [
+          "worried", "worry", "anxious", "anxiety", "nervous", "uneasy", "on edge",
+          "tense", "restless", "stressed", "can't relax", "mind won't quiet",
+          "thoughts won't stop", "keyed up", "jittery", "unsettled", "uneasy",
+          "preoccupied", "what if", "concerned"
+        ],
+        "description": "Mild activation; CBT conversation can continue.",
+        "recommended_action": "CONTINUE",
+        "language_style": "supportive"
+      },
+      "level_moderate": {
+        "keywords": [
+          "racing heart", "heart pounding", "heart is racing", "chest tight",
+          "chest is tight", "tight chest", "shortness of breath", "can't catch my breath",
+          "shaking", "trembling", "hands are shaking", "sweating", "sweaty palms",
+          "panicking", "panic", "spiraling", "spinning", "racing thoughts",
+          "can't stop thinking", "tossing and turning", "really anxious",
+          "extremely worried", "overwhelming", "out of control", "losing it",
+          "can't calm down", "freaking out"
+        ],
+        "description": "Moderate activation with somatic signs; slow pacing, avoid probing details.",
+        "recommended_action": "CONTINUE_WITH_CARE",
+        "language_style": "gentle"
+      },
+      "level_severe": {
+        "keywords": [
+          "can't go on", "can't take it anymore", "can't do this anymore",
+          "i give up", "no point", "nothing matters", "want to die",
+          "wish i was dead", "would be better off dead", "rather be dead",
+          "don't want to live", "no reason to live", "end it all",
+          "kill myself", "killing myself", "going to kill myself",
+          "take my own life", "end my life", "suicide", "suicidal",
+          "hurt myself", "harm myself", "cut myself", "cutting myself",
+          "can't breathe", "suffocating", "completely falling apart",
+          "completely broken", "i'm done"
+        ],
+        "description": "Severe activation or safety signal; triggers safety protocol.",
+        "recommended_action": "IMMEDIATE_SAFETY",
+        "language_style": "stable"
+      }
+    },
+    "sadness": {
+      "mild": [
+        "a bit sad", "feeling down", "low", "blue", "bummed", "off",
+        "not myself", "heavy heart", "deflated", "disappointed"
+      ],
+      "moderate": [
+        "really sad", "very sad", "heartbroken", "hurting", "miserable",
+        "grieving", "devastated", "in pain", "hopeless feeling", "empty"
+      ],
+      "severe": [
+        "can't go on", "no hope", "nothing matters anymore", "extremely sad",
+        "want to die", "wish i was gone", "completely hopeless"
+      ],
+      "recommended_action_by_level": {
+        "mild": "CONTINUE",
+        "moderate": "CONTINUE_WITH_CARE",
+        "severe": "IMMEDIATE_SAFETY"
+      }
+    },
+    "anger": {
+      "mild": [
+        "annoyed", "irritated", "frustrated", "bothered", "ticked off",
+        "grumpy", "cranky"
+      ],
+      "moderate": [
+        "really angry", "furious", "pissed off", "mad", "outraged",
+        "fed up", "resentful"
+      ],
+      "severe": [
+        "i hate", "going to lose it", "want to break something",
+        "want to hurt someone", "i'll explode", "see red"
+      ],
+      "recommended_action_by_level": {
+        "mild": "CONTINUE",
+        "moderate": "CONTINUE_WITH_CARE",
+        "severe": "CONTINUE_WITH_CARE"
+      }
+    },
+    "frustration": {
+      "mild": [
+        "stuck", "not going well", "off track", "things aren't working"
+      ],
+      "moderate": [
+        "really frustrated", "feeling powerless", "helpless", "defeated",
+        "nothing works"
+      ],
+      "severe": [
+        "complete failure", "totally useless", "i can't do anything right",
+        "no way out"
+      ],
+      "recommended_action_by_level": {
+        "mild": "CONTINUE",
+        "moderate": "CONTINUE",
+        "severe": "CONTINUE_WITH_CARE"
+      }
+    }
+  },
+  "worry_domains": {
+    "work": [
+      "work", "job", "boss", "manager", "coworker", "colleague", "team",
+      "office", "career", "promotion", "raise", "interview", "deadline",
+      "presentation", "meeting", "project", "kpi", "performance review",
+      "quit", "resigning", "fired", "layoff", "overtime"
+    ],
+    "social": [
+      "friend", "friends", "friendship", "people", "social", "relationship with",
+      "conflict", "argument", "fight with", "lonely", "loneliness", "isolated",
+      "left out"
+    ],
+    "romantic": [
+      "girlfriend", "boyfriend", "partner", "spouse", "husband", "wife",
+      "marriage", "dating", "breakup", "broke up", "divorce", "ex",
+      "relationship", "love"
+    ],
+    "family": [
+      "family", "mom", "mother", "dad", "father", "parents", "kids",
+      "children", "child", "son", "daughter", "sibling", "brother", "sister",
+      "in-laws", "household"
+    ],
+    "health": [
+      "health", "body", "sick", "illness", "doctor", "hospital", "appointment",
+      "test results", "symptoms", "pain", "diagnosis", "medication",
+      "checkup", "scan"
+    ],
+    "money": [
+      "money", "finances", "financial", "debt", "loan", "mortgage", "rent",
+      "bills", "budget", "savings", "broke", "bankrupt", "afford", "income"
+    ],
+    "future": [
+      "future", "direction", "path", "lost", "purpose", "meaning", "choice",
+      "decision", "planning", "where am i going", "what to do with my life"
+    ],
+    "school": [
+      "exam", "test", "midterm", "final", "school", "study", "studying",
+      "grades", "gpa", "college", "university", "graduation", "thesis",
+      "advisor", "professor", "homework", "assignment"
+    ]
+  },
+  "cognitive_distortion_signals": {
+    "catastrophizing": [
+      "what if", "going to be terrible", "going to ruin", "disaster", "i'm done",
+      "i'm finished", "everything will fall apart", "worst case", "worst-case",
+      "this will destroy"
+    ],
+    "black_and_white": [
+      "either", "or else", "always or never", "completely", "totally",
+      "100%", "zero", "perfect", "perfect or", "all or nothing"
+    ],
+    "mind_reading": [
+      "they think", "he thinks", "she thinks", "they must think", "everyone thinks",
+      "they probably hate", "they'll judge", "they're judging"
+    ],
+    "overgeneralization": [
+      "always", "never", "every time", "no one ever", "everyone always",
+      "nothing ever", "i never", "i always"
+    ],
+    "should_statements": [
+      "i should", "i shouldn't", "i must", "i have to", "i need to",
+      "i ought to", "i'm supposed to"
+    ],
+    "fortune_telling": [
+      "i know it will", "definitely going to", "it'll never", "it'll always",
+      "i can already tell", "i bet", "for sure"
+    ]
+  }
+}

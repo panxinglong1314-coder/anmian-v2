@@ -1,0 +1,285 @@
+{
+  "_meta": {
+    "locale": "en",
+    "schema_version": "parallel-to-zh-v1",
+    "review_status": "DRAFT — clinical review recommended",
+    "notes": "Same template ids as the Chinese file for code parity."
+  },
+  "closure_rituals": {
+    "standard": {
+      "name": "Standard Closure",
+      "description": "General-purpose closing ritual for most situations.",
+      "template": "You shared something tonight about «{worry_topic}».\n\nI've made a note of it — it won't disappear while you sleep, because it's waiting in tomorrow's 5 PM review with me.\n\nRight now, there's only one thing left to do: close your eyes, stop thinking.\n\nYour bed is one of the safest places in the world.\n\nLet's do one last deep breath together, and let every thought drift away.\n\nGoodnight. 🌙",
+      "variables": ["worry_topic", "user_name", "session_summary"]
+    },
+    "anxious_closure": {
+      "name": "Anxiety-Soothing Closure",
+      "description": "For users with higher anxiety; reinforces a sense of safety.",
+      "template": "There might still be voices in your head — voices about «{worry_topic}».\n\nLet me give them somewhere to go for the night. They're in your 'worry box' now, and tomorrow at 5 PM you'll come back to them on purpose.\n\nFor now, your mind can let go.\n\nFeel your body — from toes to crown, every part saying 'rest.'\n\nRight now, you don't have to solve anything. You only have to close your eyes.\n\nGoodnight. Tomorrow will have its own answers — but tonight, the answer is sleep. 🌙",
+      "additional_elements": ["worry-box visualization", "body-check anchoring", "safety reassurance"]
+    },
+    "peaceful_closure": {
+      "name": "Peace-Reinforcing Closure",
+      "description": "For users who are already fairly calm; reinforces that state.",
+      "template": "You're feeling {worry_topic} right now — and that's a good starting place.\n\nSleep isn't something you 'win.' It's what happens when you completely let go.\n\nLet your breath be natural — nothing to control.\n\nFeel how the bed is holding your body. It's saying: 'You can give me all your weight.'\n\nYou don't have to do anything. You just have to be here, lying here.\n\nGoodnight. 🌙",
+      "additional_elements": ["release of control", "trust in the body"]
+    },
+    "post_worry_closure": {
+      "name": "Post-Worry Closure",
+      "description": "Used after a worry has been successfully externalized; emphasizes lightness.",
+      "template": "You just shared «{worry_topic}», and that's enough.\n\nSaying it out loud is its own kind of release. You don't need to solve it tonight — you've already done the most important thing: putting it down somewhere it can wait, so it stops taking up the whole room.\n\nNow your head can be empty.\n\nLet your breath shift from 'conscious breathing' back to automatic.\n\nTomorrow {next_action_time}, you'll have time set aside to come back to this.\n\nFor now, let everything quiet down.\n\nGoodnight. 🌙",
+      "variables": ["worry_topic", "next_action_time"]
+    },
+    "rumination_break": {
+      "name": "Rumination Break",
+      "description": "Used when the user is caught in rumination; interrupts the loop.",
+      "template": "Let me gently interrupt for a moment.\n\nI noticed you've been on this one for a while. Tonight isn't the night for the perfect answer — those answers usually come after rest.\n\nTonight's job is just: sleep.\n\nSo let me help you switch gears.\n\nI want you to notice something simple: where are you right now? You're at {location}. This is a safe place.\n\nThe world out there will need you again tomorrow.\n\nRight now, it's just you, and this bed.\n\nGoodnight — see you tomorrow. 🌙",
+      "variables": ["location", "rumination_topic"]
+    }
+  },
+  "closure_variants_15": {
+    "description": "15 closure variants = 5 ritual templates × 3 emotional intensities (light / moderate / severe). Select via the emotion_intensity field.",
+    "intensity_definitions": {
+      "light": {
+        "name": "Light intensity (1-3/10)",
+        "characteristics": "User is fairly calm, well-prepared for sleep; just needs a simple sign-off.",
+        "language_tone": "soft, brief, trusting",
+        "pacing": "fairly quick; no over-repetition",
+        "elements": "basic guidance + natural breath + short goodnight"
+      },
+      "moderate": {
+        "name": "Moderate intensity (4-6/10)",
+        "characteristics": "Residual worry, but expressed or logged; needs a soothing close.",
+        "language_tone": "warm, affirming, companionable",
+        "pacing": "medium, with rhythmic pauses",
+        "elements": "worry externalization + safety building + breath companionship + specific goodnight"
+      },
+      "severe": {
+        "name": "Severe intensity (7-10/10)",
+        "characteristics": "Strong anxiety or emotional waves; needs deeper soothing and reinforcement of safety.",
+        "language_tone": "steady, grounded, repeated safety reassurance",
+        "pacing": "slow, many pauses, allows emotion to be present",
+        "elements": "worry-box visualization + bodily anchoring + multiple safety reassurances + permissive sleep allowance"
+      }
+    },
+    "variants": [
+      {
+        "id": "standard_light",
+        "ritual": "standard",
+        "intensity": "light",
+        "template": "You talked about «{worry_topic}» tonight — that's enough. I've noted it; it'll be waiting tomorrow.\n\nNow, nothing to think about. The bed is comfortable. Your voice is resting. Your thoughts can rest too.\n\nLet the breath happen on its own.\n\nGoodnight. You don't need any answers tonight. You just need to close your eyes. 🌙"
+      },
+      {
+        "id": "standard_moderate",
+        "ritual": "standard",
+        "intensity": "moderate",
+        "template": "You shared «{worry_topic}» tonight. I can tell it sits heavy, so I've noted it down — it'll wait for you at 5 PM tomorrow, you don't have to handle it now.\n\nFor now, your mind can rest. You've done the most important thing tonight: you spoke, and then you lay down.\n\nLet the breath get lighter, softer — like distant waves.\n\nYou don't have to fall asleep. You just have to lie here. Sleep will come.\n\nGoodnight. I'm here with you. 🌙"
+      },
+      {
+        "id": "standard_severe",
+        "ritual": "standard",
+        "intensity": "severe",
+        "template": "You shared «{worry_topic}» tonight. I can feel how much this is weighing on you. You don't have to solve it now — I've put it somewhere safe, and it'll be waiting tomorrow, when you have more energy.\n\nRight now, I want you to feel your body. Your body is still here, on the bed, in a safe place. You don't need it to do anything — just to lie here.\n\nTake a slow breath in. Then, slowly, let it out.\n\nAnother slow breath in. And out.\n\nYou are allowed not to solve anything tonight. You are allowed to just lie here.\n\nLet thoughts drift, like clouds across the sky. You are the sky; thoughts are just weather passing through.\n\nNow, close your eyes. There's nothing more to do.\n\nGoodnight. You're safe. 🌙"
+      },
+      {
+        "id": "anxious_light",
+        "ritual": "anxious_closure",
+        "intensity": "light",
+        "template": "You shared «{worry_topic}» — I've put it in the worry box.\n\nLet's set it aside with a simple breath.\n\nBreathe in, feel the chest open. Breathe out, feel the shoulders drop.\n\nGood.\n\nThe worry box will remind us tomorrow at 5 PM.\n\nFor now, just close your eyes and rest. Nothing here for you to handle.\n\nGoodnight 🌙"
+      },
+      {
+        "id": "anxious_moderate",
+        "ritual": "anxious_closure",
+        "intensity": "moderate",
+        "template": "I could hear the unease when you talked about «{worry_topic}». That feeling is real, and I heard it.\n\nSo let me help: this worry is going into the worry box. The box will hold it — it won't come bother you while you sleep. Tomorrow at 5 PM, you'll come back and open it on purpose.\n\nBut not now. Now is for sleep.\n\nHow about your body? Where is it right now? It's beside you, resting. This body has tried hard today. It deserves rest.\n\nLet the body lie down. Let the mind lie down too.\n\nGoodnight. You're safe. Everything else waits until tomorrow. 🌙"
+      },
+      {
+        "id": "anxious_severe",
+        "ritual": "anxious_closure",
+        "intensity": "severe",
+        "template": "I can feel how hard tonight is. What you shared about «{worry_topic}» is genuinely a lot to carry.\n\nBut I want you to know: the worry box has it now. It's not in your head anymore — it's in a box, in tomorrow.\n\nNow, your head can be empty, and your body can rest.\n\nLet's take a deep breath together, and feel where the body meets the bed. Start at your feet — feet on the bed, supported. Calves, knees, thighs — all sinking into the mattress.\n\nBelly — rising and falling with the breath. Chest — gently moving in rhythm.\n\nHands at your sides.\n\nShoulders, completely down.\n\nFace, completely soft.\n\nThe whole body, handed over to the bed.\n\nRight now, there is nothing for you to handle. Right now, you just close your eyes.\n\nYou are safe. You are held. Tomorrow will have its answers, but tonight is for sleep.\n\nDeeply, let me stay with you for one last breath.\n\nIn —\n\nOut —\n\nGood. Now, close your eyes.\n\nGoodnight 🌙"
+      },
+      {
+        "id": "peaceful_light",
+        "ritual": "peaceful_closure",
+        "intensity": "light",
+        "template": "You're feeling peaceful right now — that's a beautiful place to fall asleep from.\n\nSleep isn't something you fight for. It's the body's natural rhythm, like the heartbeat. You only have to give it time and space.\n\nLie back. Close your eyes. Let it happen.\n\nGoodnight 🌙"
+      },
+      {
+        "id": "peaceful_moderate",
+        "ritual": "peaceful_closure",
+        "intensity": "moderate",
+        "template": "Your state right now is well-suited for sleep. You shared «{worry_topic}», but what I heard is — you're ready to let today be done.\n\nSleep is an act of trust: giving today to yesterday, giving tomorrow to tomorrow. Right now, all you give it is this moment.\n\nLet the breath go completely natural — no control. Your body knows how to fall asleep.\n\nNothing to do. Just lie here, eyes closed, follow the sleepiness.\n\nIf sleep comes, follow it. If it hasn't yet, no problem — lying down is rest.\n\nGoodnight. You don't need an answer tonight. You only need to be here. 🌙"
+      },
+      {
+        "id": "peaceful_severe",
+        "ritual": "peaceful_closure",
+        "intensity": "severe",
+        "template": "I can feel how hard tonight has been. Even though «{worry_topic}» isn't resolved, you still came to bed, still ready to rest.\n\nThat's the best thing you did today: being willing to put things down, even just for now.\n\nIt's not easy. I know.\n\nBut you did it. That's enough.\n\nNow, feel this: how heavy is your body right now? How long has it been since you felt your body this heavy?\n\nLet gravity take over completely. Let your body sink into the mattress.\n\nRight now, you don't need any answers. Right now, you don't need to solve anything. Right now, the only thing you need is to close your eyes.\n\nLet the breath get lighter, the thoughts slower, the body heavier.\n\nYou're just lying here, safely held.\n\nGoodnight 🌙"
+      },
+      {
+        "id": "post_worry_light",
+        "ritual": "post_worry_closure",
+        "intensity": "light",
+        "template": "You shared «{worry_topic}» — and that was already the best way to handle it: say it, then let it go.\n\nNow let the breath be light and natural. Your head can be empty; the worry can wait until tomorrow.\n\nLie back, close your eyes. Today is over.\n\nGoodnight 🌙"
+      },
+      {
+        "id": "post_worry_moderate",
+        "ritual": "post_worry_closure",
+        "intensity": "moderate",
+        "template": "You shared «{worry_topic}». That was important — you spoke it out loud instead of letting it spin in your head.\n\nSpeaking it is itself a kind of release.\n\nNow it's not in your head anymore — it's in my notes, and tomorrow {next_action_time}, you'll find time to come back to it.\n\nFor now, your mind can rest. You've done the most important thing today: lying down, ready for sleep.\n\nLet the breath slow. Let the body sink. Let the thoughts drift like leaves.\n\nToday is over. You did well.\n\nGoodnight 🌙"
+      },
+      {
+        "id": "post_worry_severe",
+        "ritual": "post_worry_closure",
+        "intensity": "severe",
+        "template": "Just now, you spoke «{worry_topic}» out loud. That step matters.\n\nWhen we speak a worry out loud — instead of letting it grow alone in the dark — it loses some of its power. It was heard. It was seen. It was placed somewhere meant for it.\n\nNow it's not with you anymore.\n\nTomorrow {next_action_time}, you'll come back to it on purpose. But tomorrow is tomorrow, and now is now.\n\nNow your mind can rest fully.\n\nLet me do a quick body scan so the body can tell you how tired it is:\n\nFeel your toes — they want to stop moving.\nFeel your calves — heavy.\nFeel your thighs — no interest in moving.\nFeel your hips — already in the bed.\nFeel your belly — rising and falling with breath.\nFeel your chest — heart steady.\nFeel your hands — warm.\nFeel your shoulders — dropped.\n\nThe whole body, resting.\n\nThe whole body, sinking into sleep.\n\nToday is over. You did well.\n\nGoodnight 🌙"
+      },
+      {
+        "id": "rumination_light",
+        "ritual": "rumination_break",
+        "intensity": "light",
+        "template": "I notice you've been on «{rumination_topic}» for a while. We don't have to find a final answer tonight — after good sleep, the answer is often much clearer anyway.\n\nLet's set it down now, like closing a book.\n\nThe world out there will need you tomorrow. For now, it's just you and this bed.\n\nEyes closed. Goodnight 🌙"
+      },
+      {
+        "id": "rumination_moderate",
+        "ritual": "rumination_break",
+        "intensity": "moderate",
+        "template": "Let me gently interrupt for a moment.\n\nYou've been on «{rumination_topic}» for a long time tonight. You don't have to find the answer here — that isn't tonight's job.\n\nTonight's job is just one thing: sleep.\n\nHere's something to hold onto: when's the last time you slept well? Did you notice how much clearer thinking feels when you've rested?\n\nSo right now, sleeping well is one of the best things you can do for this issue.\n\nWhere are you? You're at {location}. This is safe. The world will keep until tomorrow.\n\nLet the breath slow. Let the body sink.\n\nLet the mind rest too.\n\nGoodnight 🌙"
+      },
+      {
+        "id": "rumination_severe",
+        "ritual": "rumination_break",
+        "intensity": "severe",
+        "template": "I want to gently, gently interrupt.\n\nI can tell you've thought a lot about «{rumination_topic}». A lot, for a long time. Maybe you're tired but the thoughts won't stop.\n\nI want to tell you something: it's not your fault. Rumination is the brain's way of trying to protect you — it thinks that thinking enough will produce the answer. But you've thought enough tonight.\n\nLet me help you do one thing.\n\nTake a deep breath. Then ask: where is my body right now?\n\nNot in that problem — in this room, on this bed. Your body is here.\n\nThe bed is supporting you. What else is in your room? Maybe the soft glow of a lamp, the weight of a blanket. Your body is feeling these things.\n\nNow let thoughts settle like leaves on the ground. Don't grab them. Let them drift.\n\nTomorrow, the world will need you again. But tomorrow is tomorrow.\n\nNow is now.\n\nNow, only you, your breath, and this bed.\n\nLet the body sink. Let yourself rest.\n\nYou've done everything you could tonight.\n\nGoodnight 🌙"
+      }
+    ]
+  },
+  "sleep_induction_phrases": {
+    "countdown": [
+      "Now, we'll count down from 10. With each number, you sink one layer deeper.",
+      "10... feel your toes completely relax...",
+      "9... your calves get heavy...",
+      "8... your thighs sink into the mattress...",
+      "7... your belly grows warm and easy...",
+      "6... your heartbeat is slow, so slow...",
+      "5... your shoulders drop completely...",
+      "4... your arms sink down...",
+      "3... your neck completely lets go, your head feels heavy...",
+      "2... your face smooths, no tension at all...",
+      "1... the whole body sinks into deep relaxation... sleep is moving toward you..."
+    ],
+    "body_scan": [
+      "Feel your toes... fully relaxed...",
+      "Feel your calves... heavy, not wanting to move...",
+      "Feel your thighs... full weight given to the bed...",
+      "Feel your hips... pelvis at rest...",
+      "Feel your belly... warm, rhythmic...",
+      "Feel your chest... heartbeat like distant water...",
+      "Feel your hands... fingertips a little warm and tingling...",
+      "Feel your arms... resting at your sides, boneless...",
+      "Feel your shoulders... finally not holding anything up...",
+      "Feel your neck... lengthened, comfortable...",
+      "Feel your face... smooth, calm, no expression...",
+      "Now feel everything together — head to toe, every inch..."
+    ],
+    "permission_to_sleep": [
+      "This is your 'sleep permission' for tonight.\n\nThere's nothing more for you to do.\n\nThere's nothing more for you to think.\n\nJust close your eyes. Sleep will come.\n\nWhen your eyelids get heavy, let them close.\n\nWhen sleepiness arrives, follow it.\n\nGoodnight."
+    ]
+  },
+  "dynamic_closure_generator": {
+    "description": "LLM dynamically generates a closure based on session content, instead of using a fixed template.",
+    "input_variables": [
+      "worry_topic",
+      "worry_expressed",
+      "emotion_level",
+      "session_duration",
+      "breathing_completed",
+      "pmr_completed"
+    ],
+    "output_format": "Generated by the LLM in real time, based on the above variables and the CLUEM style."
+  },
+  "fewshot_examples": {
+    "description": "Few-shot examples for the LLM closure generator: each pairs input variables with the expected output style.",
+    "examples": [
+      {
+        "example_id": "example_work_light",
+        "scenario": "work",
+        "intensity": "light",
+        "input": {
+          "worry_topic": "work",
+          "worry_expressed": "just can't stop thinking about tomorrow's work",
+          "emotion_level": 2,
+          "breathing_completed": true,
+          "pmr_completed": false
+        },
+        "output_script": "You shared 'work' tonight and we did the breath together. Your body is more relaxed than when we started. Tomorrow's stuff can wait until tomorrow. Right now, your brain has worked long enough. Let it rest. Let the breath go completely automatic. Lie back, close your eyes — you just have to be here. Goodnight 🌙"
+      },
+      {
+        "example_id": "example_work_severe",
+        "scenario": "work",
+        "intensity": "severe",
+        "input": {
+          "worry_topic": "work",
+          "worry_expressed": "I've been thinking all night, work is a mess, what about tomorrow, I can't sleep, the more I can't sleep the more I think",
+          "emotion_level": 8,
+          "breathing_completed": true,
+          "pmr_completed": true
+        },
+        "output_script": "I can feel how much weight 'work' is carrying tonight. You've thought about the same thing for hours — that's how the brain tries to protect you under pressure. But it has protected you enough now.\n\nI've put 'work' in the worry box. Tomorrow at 5 PM, you'll come back to it — not now.\n\nNow I want you to feel something: how tired is your body? It worked alongside you all day. It needs rest too.\n\nYou're in bed. Feel how the mattress supports you. From the soles of your feet to the top of your head, your whole body is held.\n\nNothing more to do. Nothing more to think.\n\nRight now, you're allowed not to solve anything. Right now, you just close your eyes.\n\nDeeply, let me stay with you for one last breath.\n\nIn —\n\nOut —\n\nGood. Close your eyes. You're safe. Goodnight 🌙"
+      },
+      {
+        "example_id": "example_exam_moderate",
+        "scenario": "exam",
+        "intensity": "moderate",
+        "input": {
+          "worry_topic": "exam",
+          "worry_expressed": "have a big exam next week, can't stop reviewing in my head, the more I do the less I sleep",
+          "emotion_level": 5,
+          "breathing_completed": true,
+          "pmr_completed": false
+        },
+        "output_script": "There's an exam next week — I hear how much you care. That worry is real; it's showing you the exam matters to you.\n\nBut right now, you don't need to review anymore. While you sleep, your brain consolidates what you learned during the day — that's called memory consolidation, and it's more effective than another hour of cramming. Stopping review before bed is actually the smarter way to prepare.\n\nYour brain's job tonight isn't studying. It's organizing. Let it work.\n\nLie back, notice your body — breath slowing, heart steady, body sinking.\n\nThe worry box will hold the exam stuff. Tomorrow, you'll have more energy to face it.\n\nClose your eyes. Goodnight 🌙"
+      },
+      {
+        "example_id": "example_relationship_light",
+        "scenario": "relationship",
+        "intensity": "light",
+        "input": {
+          "worry_topic": "relationship",
+          "worry_expressed": "some friction with someone, hard to say what exactly, just feels stuck",
+          "emotion_level": 3,
+          "breathing_completed": false,
+          "pmr_completed": true
+        },
+        "output_script": "You and someone are in a bit of friction, and there's a heaviness in your chest — that's familiar. Sometimes just saying it out loud makes it lighter.\n\nYou've already done something great: you spoke it, then you lay down.\n\nRight now, you don't have to solve this. After a night of sleep, perspectives often shift in ways we can't predict.\n\nLet the breath be natural. Let the body get heavy.\n\nGoodnight 🌙"
+      },
+      {
+        "example_id": "example_health_moderate",
+        "scenario": "health",
+        "intensity": "moderate",
+        "input": {
+          "worry_topic": "health",
+          "worry_expressed": "body's been off lately, keep worrying, want to get it checked but afraid to",
+          "emotion_level": 6,
+          "breathing_completed": true,
+          "pmr_completed": true
+        },
+        "output_script": "I can hear how much your health has been on your mind. Not feeling well plus worrying about it — that's a double load. The feeling is real; you don't have to deny it.\n\nI've made a note of this — not to solve it, just to set it aside for now. It won't disappear in your sleep, because it's waiting for tomorrow.\n\nNow let me stay with you in the body. Where is your body right now?\n\nYou're in bed, in a safe place. Can you feel the mattress under you? The weight of the blanket?\n\nThat's what's real right now. Not the worry — the actual bed you're lying on.\n\nLet the worry stay in the worry box. Your body is already uncomfortable; it needs your kindness. Let it rest. Let the breath get lighter.\n\nNothing to do. Just close your eyes.\n\nGoodnight 🌙"
+      },
+      {
+        "example_id": "example_health_severe",
+        "scenario": "health",
+        "intensity": "severe",
+        "input": {
+          "worry_topic": "health",
+          "worry_expressed": "I'm so scared, can't sleep, scared of waking up like this, scared the test results will be bad",
+          "emotion_level": 9,
+          "breathing_completed": true,
+          "pmr_completed": true
+        },
+        "output_script": "I hear you. You're scared.\n\nThis fear doesn't have to be chased away or denied. It's here. It's part of you right now.\n\nBut I want you to notice something: where are you right now? You're in bed. You're in a safe place. You can breathe. You can feel the bed holding you.\n\nThat's real. Not the fear's prediction — the actual bed, the actual blanket, the actual breath.\n\nLet's do something. One hand on your chest, the other on your belly. Take a deep breath.\n\nDid you feel it? Your body is here. It's still breathing. It's resting.\n\nThe worry box will hold the fear for tonight. Tomorrow, you'll have more strength.\n\nFor now, let me stay with you here. You don't have to sleep. You just have to lie here, feel the breath, feel the bed.\n\nYou are safe. You are held.\n\nIn —\n\nOut —\n\nGood. One more breath —\n\nGood. Close your eyes. You don't have to do anything more. Just be here.\n\nGoodnight 🌙"
+      }
+    ]
+  }
+}

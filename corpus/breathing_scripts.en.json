@@ -1,0 +1,370 @@
+{
+  "_meta": {
+    "locale": "en",
+    "schema_version": "parallel-to-zh-v1",
+    "review_status": "DRAFT — clinical review recommended",
+    "sources": "4-7-8 (Andrew Weil); Box breathing (US Navy SEALs / standard CBT); Diaphragmatic (standard); Body Scan (MBSR / J. Kabat-Zinn); Open Awareness (ACT); Loving-Kindness (Metta); Paradoxical Intention (V. Frankl, adapted to CBT-I)"
+  },
+  "breathing_scripts": {
+    "478": {
+      "name": "4-7-8 Breathing",
+      "name_en": "4-7-8 Breathing",
+      "description": "Classic anti-anxiety pattern; activates the parasympathetic nervous system. Best for users with strong anxious arousal.",
+      "origin": "Developed by Dr. Andrew Weil, based on ancient yogic pranayama.",
+      "contraindications": ["Use caution with serious heart conditions", "Not recommended during pregnancy (the breath-hold)"],
+      "default_cycles": 4,
+      "cycle_duration_seconds": 19,
+      "total_duration_seconds": 76,
+      "evidence_rating": "1A (Level I recommendation in major insomnia guidelines for relaxation training)",
+      "instructions": [
+        {
+          "phase": "inhale",
+          "duration_seconds": 4,
+          "emoji": "🌬️",
+          "physical_guide": "Breathe in slowly through your nose. Feel the air move from your nostrils, down your throat, filling your lungs. Notice your chest gently expand.",
+          "mental_focus": "Rest your attention on the sense of 'filling.' Picture the breath like warm light, slowly filling your body.",
+          "tts_pace": "slow",
+          "ssml_break_ms": 400
+        },
+        {
+          "phase": "hold",
+          "duration_seconds": 7,
+          "emoji": "⏸️",
+          "physical_guide": "Gently hold the breath. Don't force it — just let the air rest inside you.",
+          "mental_focus": "Feel the stillness inside. The air is doing its work, settling every cell.",
+          "tts_pace": "very_slow",
+          "ssml_break_ms": 700
+        },
+        {
+          "phase": "exhale",
+          "duration_seconds": 8,
+          "emoji": "🌬️",
+          "physical_guide": "Breathe out through your mouth, softly, like blowing out a candle but more gently. Let the air carry tension out with it.",
+          "mental_focus": "Imagine the breath taking the day's worry with it. Your body grows lighter, sinking a little deeper into the bed.",
+          "tts_pace": "very_slow",
+          "ssml_break_ms": 800
+        }
+      ],
+      "intro_script": "Let's try 4-7-8 breathing. It's a simple pattern that activates your body's calming system and helps shift you out of a wound-up state. Find a comfortable position — lying down is fine — with your hands resting at your sides. Whenever you're ready, we'll begin.",
+      "transition_script": "Nicely done. Let's try another round — it usually gets easier the second time. The pattern will start to feel more natural.",
+      "outro_script": "Beautiful work. After {n} rounds, your heart rate should be slowing and your body settling. Let's keep this rhythm going as we move into the next practice."
+    },
+    "box_breathing": {
+      "name": "Box Breathing",
+      "name_en": "Box Breathing",
+      "description": "Also called 4-4-4-4 breathing. Great for users who need structure or are dealing with tension headaches.",
+      "default_cycles": 6,
+      "cycle_duration_seconds": 16,
+      "total_duration_seconds": 96,
+      "evidence_rating": "1A (Level I recommendation for relaxation training)",
+      "instructions": [
+        {
+          "phase": "inhale",
+          "duration_seconds": 4,
+          "emoji": "⬜",
+          "physical_guide": "Breathe in calmly through your nose, counting 1... 2... 3... 4...",
+          "mental_focus": "Picture drawing the top edge of a square — each count of the inhale fills in the line."
+        },
+        {
+          "phase": "hold_in",
+          "duration_seconds": 4,
+          "emoji": "⏹",
+          "physical_guide": "Hold the breath, counting 1... 2... 3... 4...",
+          "mental_focus": "Picture the right side of the square. The breath rests inside you, holding this quiet."
+        },
+        {
+          "phase": "exhale",
+          "duration_seconds": 4,
+          "emoji": "⬜",
+          "physical_guide": "Breathe out through your mouth, counting 1... 2... 3... 4...",
+          "mental_focus": "Picture the bottom edge of the square — the exhale draws a steady line."
+        },
+        {
+          "phase": "hold_out",
+          "duration_seconds": 4,
+          "emoji": "⏹",
+          "physical_guide": "Naturally pause before the next inhale, counting 1... 2... 3... 4...",
+          "mental_focus": "Picture the left side of the square. Nothing to rush — the next breath will come when it's ready."
+        }
+      ],
+      "intro_script": "Let's try Box Breathing. It's used by athletes and the military to settle down quickly under pressure. It's called 'box' because every side of the pattern takes the same time — like drawing a square. Ready? Let's begin."
+    },
+    "diaphragmatic": {
+      "name": "Diaphragmatic Breathing",
+      "name_en": "Diaphragmatic Breathing",
+      "description": "Deep belly breathing; activates the parasympathetic system. Best for users with shallow chest breathing or chest tightness.",
+      "default_cycles": 5,
+      "cycle_duration_seconds": 12,
+      "evidence_rating": "1A (Level I recommendation for relaxation training)",
+      "instructions": [
+        {
+          "phase": "inhale",
+          "duration_seconds": 5,
+          "emoji": "🌊",
+          "physical_guide": "Place one hand on your chest, the other just above your belly button. Breathe in slowly through your nose, letting the air fill your belly first — the hand on your belly should rise, while the one on your chest stays mostly still.",
+          "mental_focus": "Picture the breath like a slow tide — filling the belly first, then gently rising into the chest."
+        },
+        {
+          "phase": "exhale",
+          "duration_seconds": 6,
+          "emoji": "🌊",
+          "physical_guide": "Breathe out softly through your mouth, like a quiet sigh. Feel your belly hand fall, and your chest settle.",
+          "mental_focus": "Picture tension flowing out with the breath, like the tide pulling back from the shore — the beach left clean and still."
+        }
+      ],
+      "intro_script": "Let's try the most natural form of breathing — diaphragmatic, or belly breathing. The diaphragm is the muscle between your chest and belly; it's the real engine of breathing. When we're anxious, our breath gets shallow and lives only in the chest. Let's bring it back down. Lie comfortably, place one hand on your chest, the other just above your belly button."
+    }
+  },
+  "mindfulness_scripts": {
+    "body_scan": {
+      "name": "Mindfulness Body Scan",
+      "name_en": "Mindfulness Body Scan",
+      "description": "Guided attention through the body, building non-reactive awareness of bodily sensations (a core third-wave CBT practice).",
+      "origin": "Mindfulness-Based Stress Reduction (MBSR), Jon Kabat-Zinn; adopted in many digital CBT-I programs.",
+      "default_duration_minutes": 8,
+      "evidence_rating": "2A (supported by recent systematic reviews of dCBT-I)",
+      "contraindications": ["Users with severe PTSD should practice under a therapist's guidance"],
+      "instructions": [
+        {
+          "body_part": "toes",
+          "duration_seconds": 30,
+          "guide": "Bring your attention to your toes. You don't need to change anything — just notice. The texture, the temperature, the weight. Sensation is okay. No sensation is also okay.",
+          "acceptance_phrase": "The toes can fully let go."
+        },
+        {
+          "body_part": "feet",
+          "duration_seconds": 30,
+          "guide": "Now move your attention to your whole feet. Feel where they meet the bed, the weight of your heels. Let the feet rest — they don't have to hold anything up.",
+          "acceptance_phrase": "The feet can sink into the bed."
+        },
+        {
+          "body_part": "calves",
+          "duration_seconds": 30,
+          "guide": "Move up to your calves. Is there any tightness there? Just notice, without judgment. Tightness is okay too — that's the body taking care of you.",
+          "acceptance_phrase": "The calves can soften."
+        },
+        {
+          "body_part": "thighs",
+          "duration_seconds": 30,
+          "guide": "Now your thighs. Feel where they touch the sheets. Feel the weight of the bones. Imagine handing all that weight over to the bed.",
+          "acceptance_phrase": "The thighs can fully let go."
+        },
+        {
+          "body_part": "hips",
+          "duration_seconds": 30,
+          "guide": "Feel where your hips meet the bed. We often forget this part of the body. Let it settle in, without pushing.",
+          "acceptance_phrase": "The hips can rest."
+        },
+        {
+          "body_part": "lower back",
+          "duration_seconds": 30,
+          "guide": "Now your lower back. The lower back often holds tension. You don't have to release it — just notice that it's there.",
+          "acceptance_phrase": "The lower back doesn't need to hold anything up."
+        },
+        {
+          "body_part": "belly",
+          "duration_seconds": 30,
+          "guide": "Feel your belly rising and falling. Up on the inhale, down on the exhale. Like ocean waves — nothing to control, just happening.",
+          "acceptance_phrase": "Breath moves the belly on its own."
+        },
+        {
+          "body_part": "chest",
+          "duration_seconds": 30,
+          "guide": "Now your chest. Feel the rhythm of your heartbeat. You don't need to slow it or speed it — just notice it. This is a living body, resting.",
+          "acceptance_phrase": "The heart is doing its quiet work."
+        },
+        {
+          "body_part": "hands",
+          "duration_seconds": 30,
+          "guide": "Bring attention back to your hands. They can be open, or resting comfortably wherever they are. Feel the warmth of the palms, any tingling in the fingers.",
+          "acceptance_phrase": "The hands can fully let go."
+        },
+        {
+          "body_part": "arms",
+          "duration_seconds": 30,
+          "guide": "Feel your arms from shoulder to wrist. If there's tightness anywhere, just notice it and let it be — you don't have to push it away.",
+          "acceptance_phrase": "The weight of the arms belongs to the bed now."
+        },
+        {
+          "body_part": "shoulders",
+          "duration_seconds": 30,
+          "guide": "Feel your shoulders. This area often collects emotion and stress. Just observe. No need to release. No need to relax. Just witness.",
+          "acceptance_phrase": "The shoulders can put their load down."
+        },
+        {
+          "body_part": "neck",
+          "duration_seconds": 30,
+          "guide": "Notice how your neck is holding. Your head is on the pillow — the neck doesn't need to do anything. Let the head sink into the pillow's support.",
+          "acceptance_phrase": "The neck can fully release."
+        },
+        {
+          "body_part": "face",
+          "duration_seconds": 30,
+          "guide": "Now your face. The space between your eyebrows can soften. The corners of your mouth can rest. Eyelids heavy. Notice each small muscle.",
+          "acceptance_phrase": "Every muscle in the face can let go."
+        },
+        {
+          "body_part": "whole body",
+          "duration_seconds": 60,
+          "guide": "Widen your awareness now to your whole body. From your toes to the top of your head, all connected. Feel everything breathing together, resting together. The body knows how to sleep — your job is just to give it time and space.",
+          "acceptance_phrase": "The whole body is resting."
+        }
+      ],
+      "intro_script": "Let's do a body scan. It's a mindfulness practice that helps you reconnect to your body — gently, without trying to fix anything. You don't have to do anything. Just notice. This isn't to make your body different — only to witness it as it is. Ready? We'll go slowly.",
+      "outro_script": "Beautiful. Your body has settled. From here, we move into sleep."
+    },
+    "open_awareness": {
+      "name": "Open Awareness Practice",
+      "name_en": "Open Awareness Practice",
+      "description": "Cultivates open awareness of present-moment experience without fixing attention on any one thing (a third-wave CBT / ACT-aligned practice).",
+      "origin": "Acceptance and Commitment Therapy (ACT) and MBSR traditions.",
+      "default_duration_minutes": 5,
+      "evidence_rating": "2A (supported by 2024 reviews for insomnia with anxiety)",
+      "instructions": [
+        {
+          "step": 1,
+          "duration_seconds": 60,
+          "guide": "We're not focusing on any one thing now — we're opening to everything. Bring attention to the sense of 'hearing' itself. Not the individual sounds, but the space in which sound arises and fades.",
+          "acceptance_teaching": "Thoughts will come, like clouds. You don't have to follow them. You don't have to push them away. You are the open sky; thoughts are passing weather."
+        },
+        {
+          "step": 2,
+          "duration_seconds": 60,
+          "guide": "Feel how the bed supports you right now. You're not analyzing it, just feeling the contact. Warm. Supported. Safe. Your body resting.",
+          "acceptance_teaching": "Even small discomforts are just one of many sensations. They come, they pass. You don't have to do anything about them."
+        },
+        {
+          "step": 3,
+          "duration_seconds": 60,
+          "guide": "Now rest attention gently on the breath — not controlling it, just watching. On the inhale, knowing you're inhaling. On the exhale, knowing you're exhaling. Nothing special — just the breath as it is.",
+          "acceptance_teaching": "If your mind wanders into a story, no need to judge yourself. Noticing the wandering IS the practice. Just gently bring attention back."
+        }
+      ],
+      "intro_script": "Now something different. Not focused, not relaxed exactly — a wider kind of awareness. I invite you to become a quiet observer of whatever arises, inside and around you. Nothing to do. Nothing to achieve. This is a 'doing-nothing' practice. Ready?",
+      "outro_script": "Beautiful. Whatever happened — whether your mind was busy, completely still, or somewhere in between — that's mindfulness. Rest now in this open awareness. When sleep arrives, follow it."
+    },
+    "loving_kindness": {
+      "name": "Loving-Kindness / Metta",
+      "name_en": "Loving-Kindness / Metta",
+      "description": "Cultivates warmth and goodwill to interrupt pre-sleep social rumination (recommended for users whose worries center on relationships).",
+      "default_duration_minutes": 5,
+      "evidence_rating": "2B (research support for pre-sleep rumination)",
+      "instructions": [
+        {
+          "step": 1,
+          "duration_seconds": 90,
+          "guide": "First, turn warm attention toward yourself. Imagine yourself as a friend who needs care. Silently say: 'May I rest well tonight. May I be free from worry. May I be held gently.' Don't force it — see if a little warmth arises. If it does, let it stay. If not, that's okay too.",
+          "phrase_to_self": "May I rest well tonight. May I be free from worry."
+        },
+        {
+          "step": 2,
+          "duration_seconds": 90,
+          "guide": "Now, if there's someone you can't quite let go of tonight — someone you're in conflict with, or worried about — turn that warm attention toward them. Not to forgive, not to reconcile. Just to recognize: they're another person trying to get through life. They also wish for rest. Quietly: 'May you also rest well. May you be free from worry.'",
+          "phrase_to_self": "May you rest well tonight."
+        },
+        {
+          "step": 3,
+          "duration_seconds": 60,
+          "guide": "Finally, send that warmth wider — to everyone else who's awake in the dark right now, lying in bed unable to sleep, just like you. Silently: 'May all of us rest well tonight.' Nothing to do. Just a kind wish.",
+          "phrase_to_self": "May all of us rest well tonight."
+        }
+      ],
+      "intro_script": "If tonight's worries center on relationships, let's try a loving-kindness practice. It's an old practice of goodwill. It doesn't ask you to forgive anyone. It doesn't ask you to change any thoughts. It just lets a small warmth exist. Especially helpful for people whose minds replay social moments before sleep. Ready?"
+    }
+  },
+  "paradoxical_intention": {
+    "name": "Paradoxical Intention",
+    "name_en": "Paradoxical Intention",
+    "description": "Removes the anxiety of falling asleep by 'trying to stay awake.' Recommended for users with sleep-effort syndrome.",
+    "contraindications": ["Use caution with users in severe depression"],
+    "evidence_rating": "1A (Level I recommendation in CBT-I guidelines for cognitive interventions)",
+    "instructions": [
+      {
+        "phase": "psychoeducation",
+        "guide": "Let's try something that sounds backwards but works really well. Have you noticed: the harder you 'try' to fall asleep, the more awake you get? That's because effort activates your alertness system — your brain decides sleep must be a dangerous task requiring vigilance. So tonight, I want you to do the opposite.",
+        "explanation": "Instead of 'how do I fall asleep,' shift the goal to: 'Tonight, I'll just lie here, eyes closed, resting. Sleep is a bonus — if it doesn't come, that doesn't count as failure.' This is letting go of sleep, not chasing it."
+      },
+      {
+        "phase": "instruction",
+        "guide": "Now I'm going to invite you to do something a little strange: keep your eyes lightly open. Look at a spot on the ceiling. And tell yourself: 'Tonight, I'm going to do my best to stay awake. I'm not going to sleep — I'm just resting.' Not actually trying not to sleep — just letting go of the pressure to sleep.",
+        "mental_focus": "When you really put down the demand to sleep, your alertness system gets quiet. The strange thing: when you stop trying to fall asleep, falling asleep gets easier. That's paradoxical intention."
+      },
+      {
+        "phase": "reframe",
+        "guide": "Picture sleep not as a task to be completed, but as something the body does automatically — like heartbeat or breathing. You don't command those. Sleep is the same. The body has its own way of arriving at sleep. You just give it space.",
+        "reframed_goal": "Tonight's job: eyes closed, resting. That's it. Whether sleep happens is the body's decision, not your responsibility."
+      }
+    ],
+    "intro_script": "This next technique might feel strange — even counter-intuitive. But it has strong evidence behind it. Major insomnia guidelines list it as a top-tier recommendation. It's called paradoxical intention.",
+    "tts_guidance": "Open your eyes lightly. Look toward the ceiling. Nothing specific to focus on — just keep them open. Then say to yourself: 'Tonight, I won't force myself to sleep. I'm just resting.' Hold that thought gently. Nothing to do."
+  },
+  "sleep_effort_reduction": {
+    "name": "Sleep Effort Reduction",
+    "name_en": "Sleep Effort Reduction",
+    "description": "Meta-cognitive intervention for users who chronically 'try too hard' to sleep.",
+    "evidence_rating": "2B (emerging research support, 2024-2025)",
+    "instructions": [
+      {
+        "step": "recognition",
+        "guide": "Let's notice something. When you lie in bed trying to sleep, how much of your energy is going into 'effort'? Things like — checking if you're getting close to sleep, calculating how long you've been awake, telling yourself 'sleep now sleep now,' monitoring noises to make sure nothing wakes you. All of that is sleep effort.",
+        "reflection_prompt": "On a scale of 1-10, how much of your energy went into 'trying to sleep' tonight?"
+      },
+      {
+        "step": "normalization",
+        "guide": "Many people with insomnia put so much energy into 'trying to sleep' that sleep — something that's supposed to be automatic — becomes a race they have to win. Here's the catch: when you turn sleep into a race, your body enters race mode. Alertness kicks in. Sleep gets further away.",
+        "insight": "Sleep and effort are incompatible. The more you try, the more awake you get. That's not your fault — it's how the brain works."
+      },
+      {
+        "step": "intention",
+        "guide": "Tonight, I invite a small experiment: set aside the question of 'how do I sleep?' Not giving up on sleep — just handing the job back to your body. Your only job: lie here, eyes closed, rest. Whether sleep comes is the body's department, not tonight's responsibility.",
+        "new_permission": "Tonight, you're allowed not to sleep. You're allowed to just lie here. Sleep is a gift you give your body, not a trophy you earn."
+      }
+    ],
+    "intro_script": "If you're putting a lot of energy into 'trying' to sleep every night, let's do a meta-cognitive practice. It doesn't change your thoughts — it changes your relationship with 'trying to sleep.' Ready?"
+  },
+  "selection_logic": {
+    "description": "Pick a technique by guideline recommendation strength and insomnia subtype.",
+    "decision_tree": [
+      {
+        "condition": "Strong anxious arousal — racing heart, shallow rapid breathing",
+        "recommend": "478",
+        "reason": "Most direct parasympathetic activation; 1A recommendation."
+      },
+      {
+        "condition": "Needs structure; mind feels scattered and can't settle",
+        "recommend": "box_breathing",
+        "reason": "Predictable rhythm settles mental noise; 1A recommendation."
+      },
+      {
+        "condition": "Chest tightness, shallow breath, air feels insufficient",
+        "recommend": "diaphragmatic",
+        "reason": "Engages the diaphragm fully; 1A recommendation."
+      },
+      {
+        "condition": "Strong anxiety about falling asleep — the harder you try, the more awake you feel",
+        "recommend": "paradoxical_intention",
+        "reason": "Level A recommendation; targets sleep-effort syndrome directly."
+      },
+      {
+        "condition": "Body feels numb or disconnected",
+        "recommend": "body_scan",
+        "reason": "Third-wave CBT core practice; 2A recommendation."
+      },
+      {
+        "condition": "Repeatedly replaying social interactions / relational worries before sleep",
+        "recommend": "loving_kindness",
+        "reason": "Targets relational rumination; 2B recommendation."
+      },
+      {
+        "condition": "Mind keeps judging its own sleep state",
+        "recommend": "open_awareness",
+        "reason": "Builds non-reactive awareness; 2A recommendation."
+      },
+      {
+        "condition": "Unsure / no preference",
+        "recommend": "478",
+        "reason": "Strongest evidence base, broadly applicable."
+      }
+    ]
+  }
+}

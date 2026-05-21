@@ -1,0 +1,346 @@
+{
+  "_meta": {
+    "locale": "en",
+    "schema_version": "parallel-to-zh-v1",
+    "review_status": "DRAFT — clinical review recommended",
+    "source": "Standard CBT framework (D. Burns 'Feeling Good' 10 distortions, extended); ids match the Chinese file for code parity."
+  },
+  "cognitive_distortions": [
+    {
+      "id": "catastrophizing",
+      "name": "Catastrophizing",
+      "name_en": "Catastrophizing",
+      "definition": "Imagining small problems or uncertain outcomes as full-blown disasters.",
+      "examples": [
+        "If I bomb tomorrow's presentation, my career is over.",
+        "If I don't sleep tonight, tomorrow will be a complete disaster.",
+        "If I lose this job, I'll never work again."
+      ],
+      "socratic_questions": [
+        "If the worst really did happen, what's the most likely actual consequence?",
+        "Even in the worst case, is there a chance it's not as bad as it feels right now?",
+        "Have you been through anything like this before? How did it actually turn out?",
+        "If a friend were in this exact situation, what would you say to them?",
+        "A month from now, will this still feel like a disaster?",
+        "What's the evidence this is truly catastrophic? What's the evidence against?"
+      ],
+      "reframing": "Uncertainty is not the same as catastrophe. Even the worst outcome is rarely the end of the world.",
+      "detection_keywords": [
+        "what if", "going to be a disaster", "going to ruin everything",
+        "my life is over", "i'm finished", "worst case", "everything will fall apart"
+      ]
+    },
+    {
+      "id": "black_and_white",
+      "name": "All-or-Nothing Thinking",
+      "name_en": "All-or-Nothing / Black-and-White Thinking",
+      "definition": "Evaluating situations in extreme, binary terms with no middle ground.",
+      "examples": [
+        "Either I do this perfectly, or I'm a failure.",
+        "If I disagree with him at all, I'm not supporting him.",
+        "Either I'm all in, or I should give up entirely."
+      ],
+      "socratic_questions": [
+        "Is there any possibility between these two extremes?",
+        "What's the territory between 'perfect' and 'failure'?",
+        "If you had to grade yourself, would it really be 0 or 100?",
+        "Can something be 'okay but not great' and still count?",
+        "Does one outcome really define your entire worth?"
+      ],
+      "reframing": "Most of life lives in shades of gray. The middle ground is where most real outcomes actually sit.",
+      "detection_keywords": [
+        "either", "or else", "completely", "totally", "perfect", "100%", "all or nothing"
+      ]
+    },
+    {
+      "id": "mind_reading",
+      "name": "Mind Reading",
+      "name_en": "Mind Reading",
+      "definition": "Assuming you know what others are thinking, with no real evidence.",
+      "examples": [
+        "He must think I'm incompetent.",
+        "My boss definitely sees me as a liability.",
+        "I know everyone is talking about me behind my back."
+      ],
+      "socratic_questions": [
+        "How could you actually know what they're thinking?",
+        "Is it possible they're thinking something completely different?",
+        "Even if they were thinking that, is their thought the same as fact?",
+        "Have you ever been wrong about what someone was thinking?",
+        "What's the evidence — beyond a feeling — that this is what they think?"
+      ],
+      "reframing": "We can't know what's in someone else's head unless they tell us. Assumption is not the same as fact.",
+      "detection_keywords": [
+        "they think", "they must think", "everyone thinks", "he must believe",
+        "she'll judge", "they'll see me as"
+      ]
+    },
+    {
+      "id": "overgeneralization",
+      "name": "Overgeneralization",
+      "name_en": "Overgeneralization",
+      "definition": "Drawing a universal negative conclusion from a single event.",
+      "examples": [
+        "I always mess things up.",
+        "I never do anything right.",
+        "Everyone always lets me down."
+      ],
+      "socratic_questions": [
+        "Does one failure really speak for every time?",
+        "Is there even one small thing you didn't mess up recently?",
+        "Are words like 'always' and 'never' really accurate here?",
+        "Does this single outcome really generalize to everything else?",
+        "If you collected the actual evidence, would the conclusion still hold?"
+      ],
+      "reframing": "A single event is one data point, not a verdict. Looking for counter-examples helps see the fuller picture.",
+      "detection_keywords": [
+        "always", "never", "every time", "no one ever", "everyone always",
+        "i never", "i always"
+      ]
+    },
+    {
+      "id": "personalization",
+      "name": "Personalization",
+      "name_en": "Personalization",
+      "definition": "Holding yourself responsible for events that are only partly — or not at all — within your control.",
+      "examples": [
+        "He's in a bad mood — it must be because of me.",
+        "The project failed because I wasn't good enough.",
+        "If I'd been a better partner, we wouldn't be fighting."
+      ],
+      "socratic_questions": [
+        "What other factors might have contributed to this?",
+        "Do you really control every variable here?",
+        "If a friend were in this exact spot, would you blame them?",
+        "Is it possible this has nothing to do with you at all?",
+        "Are you taking responsibility that isn't actually yours to carry?"
+      ],
+      "reframing": "Many things have many causes. You may be one of several factors — not the whole reason.",
+      "detection_keywords": [
+        "it's my fault", "all my fault", "if i had", "because of me", "i'm to blame"
+      ]
+    },
+    {
+      "id": "filtering",
+      "name": "Mental Filter",
+      "name_en": "Mental Filter",
+      "definition": "Focusing only on negative details and filtering out all positive evidence.",
+      "examples": [
+        "Today was just one bad thing after another.",
+        "There is nothing good about this job.",
+        "Sure they praised me, but it still doesn't feel like enough."
+      ],
+      "socratic_questions": [
+        "Was there even one moment today that went okay?",
+        "If you listed everything that happened, what's the ratio of negative to positive?",
+        "Why doesn't the positive thing deserve the same attention?",
+        "What's the filter you're using to decide what counts?",
+        "If a friend only remembered today's bad parts, what would you say to them?"
+      ],
+      "reframing": "Negative things happened — and they're not the whole story. Naming positives helps keep balance.",
+      "detection_keywords": [
+        "nothing good", "all bad", "the whole day", "not a single", "only the bad", "but still"
+      ]
+    },
+    {
+      "id": "mind_vs_reality",
+      "name": "Mind as Reality",
+      "name_en": "Mind as Reality",
+      "definition": "Treating your thoughts and intuitions as objective facts about the world.",
+      "examples": [
+        "I have a feeling this will go wrong — so it will.",
+        "I feel like I'm not competent, so I must not be.",
+        "I'm scared of speaking in public, so I'm going to humiliate myself."
+      ],
+      "socratic_questions": [
+        "Is a feeling the same thing as a fact?",
+        "Have you ever had a 'gut sense' that turned out to be wrong?",
+        "What's the difference between 'I feel X' and 'X is true'?",
+        "Without this thought, would you see the situation differently?",
+        "Can we separate 'I'm afraid this will happen' from 'this will actually happen'?"
+      ],
+      "reframing": "Thoughts are thoughts. They are real as experiences, but they aren't evidence.",
+      "detection_keywords": [
+        "i have a feeling", "i can already tell", "i just know", "for sure it'll"
+      ]
+    },
+    {
+      "id": "emotional_reasoning",
+      "name": "Emotional Reasoning",
+      "name_en": "Emotional Reasoning",
+      "definition": "Using your emotional state as proof that something is objectively true.",
+      "examples": [
+        "I feel guilty, so I must have done something wrong.",
+        "I feel inadequate, so I must really be inadequate.",
+        "I feel this much anxiety — something dangerous must be happening."
+      ],
+      "socratic_questions": [
+        "Does guilt always mean you actually did something wrong?",
+        "Can emotion be a signal without being a verdict?",
+        "If you didn't feel this way, would the objective facts of the situation change?",
+        "Can you say 'I feel...' instead of 'I am...'?",
+        "When we're afraid, doesn't a lot of stuff look more dangerous than it really is?"
+      ],
+      "reframing": "Feelings are signals, not verdicts. They're real, but they aren't logic.",
+      "detection_keywords": [
+        "i feel guilty so", "i must have", "it proves i", "that's why i'm"
+      ]
+    },
+    {
+      "id": "should_statements",
+      "name": "Should Statements",
+      "name_en": "Should Statements",
+      "definition": "Using rigid 'should' / 'must' / 'ought to' rules to demand things of yourself or others.",
+      "examples": [
+        "I should always be the strongest one.",
+        "I shouldn't feel sad about this.",
+        "I should be able to handle everything on my own."
+      ],
+      "socratic_questions": [
+        "Whose rule is this, really?",
+        "Is this 'should' reasonable? Are there exceptions?",
+        "If a friend held themselves to this rule, what would you tell them?",
+        "What changes if you swap 'should' for 'I'd like to'?",
+        "Are humans actually capable of always doing this?"
+      ],
+      "reframing": "Trading 'I should' for 'I'd like to' or 'It would help if I' lowers the pressure of self-criticism.",
+      "detection_keywords": [
+        "i should", "i shouldn't", "i must", "i have to", "i ought to", "i'm supposed to"
+      ]
+    },
+    {
+      "id": "labeling",
+      "name": "Labeling",
+      "name_en": "Labeling",
+      "definition": "Defining yourself or someone else entirely by one negative label.",
+      "examples": [
+        "I'm just a failure.",
+        "He's a selfish person.",
+        "I'm so stupid — I can't do anything right."
+      ],
+      "socratic_questions": [
+        "Can one event define an entire person?",
+        "If a friend labeled themselves this way, what would you say?",
+        "Can any human be summed up in one word?",
+        "Can you describe the behavior instead of giving yourself a label?",
+        "What's the difference between 'I'm a failure' and 'I failed at this one thing'?"
+      ],
+      "reframing": "Describe behavior, not identity. Behaviors are specific and changeable; labels are sweeping and usually unfair.",
+      "detection_keywords": [
+        "i'm a", "i'm just", "i'm such a", "he's just a", "she's just a"
+      ]
+    },
+    {
+      "id": "fortune_telling",
+      "name": "Fortune Telling",
+      "name_en": "Fortune Telling",
+      "definition": "Predicting negative future outcomes as if they were already certain.",
+      "examples": [
+        "I know tomorrow is going to be awful.",
+        "This is definitely going to fail.",
+        "We're not going to get along — I can already tell."
+      ],
+      "socratic_questions": [
+        "How confident can you really be about the future?",
+        "Have you predicted things before that didn't come true?",
+        "Are you predicting, or are you worrying?",
+        "If you let the prediction go, what would you actually see?",
+        "Is 'most likely outcome' the same as 'worst possible outcome'?"
+      ],
+      "reframing": "The future hasn't happened yet. Your prediction is one possibility, not a guarantee.",
+      "detection_keywords": [
+        "i know it'll", "definitely going to", "it'll never", "for sure it will", "i can already tell"
+      ]
+    },
+    {
+      "id": "disqualifying_positive",
+      "name": "Disqualifying the Positive",
+      "name_en": "Disqualifying the Positive",
+      "definition": "Rejecting or dismissing positive experiences and achievements, deciding they 'don't count.'",
+      "examples": [
+        "It was just luck — it doesn't say anything about my ability.",
+        "Anyone could have done that. It's no big deal.",
+        "I might have succeeded this time, but I won't next time."
+      ],
+      "socratic_questions": [
+        "Do you really believe that was only luck?",
+        "Is it possible your effort and skill also played a role?",
+        "If your best friend had this success, what would you say to them?",
+        "Why do you hold yourself to a different standard than others?",
+        "Can you accept the simple statement: 'I did well this time'?"
+      ],
+      "reframing": "Positive experiences are real. Letting them count is itself a skill worth practicing.",
+      "detection_keywords": [
+        "just lucky", "no big deal", "anyone could", "doesn't count", "fluke"
+      ]
+    },
+    {
+      "id": "magnification",
+      "name": "Magnification / Minimization",
+      "name_en": "Magnification / Minimization",
+      "definition": "Inflating the importance of negative events while shrinking positives.",
+      "examples": [
+        "If I don't sleep tonight, tomorrow is ruined.",
+        "Yes I learned a lot, but that one failure is what really matters.",
+        "This small win doesn't really matter."
+      ],
+      "socratic_questions": [
+        "Does one bad night really ruin everything?",
+        "Let's weigh it: one rough night vs. all the nights you've handled okay — are they really the same weight?",
+        "What if we let the positive thing be a little bigger too?",
+        "If we shrink the negative back to actual size, is it still that scary?",
+        "What scale are you using to decide what's big and what's small?"
+      ],
+      "reframing": "Let's put things at the right scale. One thing mattering doesn't mean another thing matters less.",
+      "detection_keywords": [
+        "ruined", "tomorrow is over", "the only thing that matters",
+        "just a small", "doesn't even count"
+      ]
+    },
+    {
+      "id": "lack_of_coping",
+      "name": "Lack of Coping Belief",
+      "name_en": "Lack of Coping Belief",
+      "definition": "Assuming you can't handle a difficult situation, even when there's evidence you can.",
+      "examples": [
+        "There's no way I can handle this.",
+        "This is too much. I can't do it.",
+        "No one can help — I just have to suffer through it alone."
+      ],
+      "socratic_questions": [
+        "Have you handled anything similar before? Even something small?",
+        "If the worst really did happen, are you sure there's nothing you could do?",
+        "When you feel you 'just have to bear it,' what are you actually doing in practice?",
+        "Could asking for help itself be a form of coping?",
+        "If your best friend were here, would you assume they couldn't handle it?"
+      ],
+      "reframing": "You're already coping with more than you give yourself credit for. Denying that doesn't make it less true.",
+      "detection_keywords": [
+        "i can't handle", "i can't do this", "no way", "i just have to bear it",
+        "i can't take it"
+      ]
+    },
+    {
+      "id": "regret",
+      "name": "Regretful Thinking",
+      "name_en": "Regretful Thinking",
+      "definition": "Focusing on what was lost or missed, while ignoring what you still have.",
+      "examples": [
+        "If only I'd taken the other job.",
+        "If only I'd tried harder back then.",
+        "I missed my chance."
+      ],
+      "socratic_questions": [
+        "What do you have right now that's worth being grateful for?",
+        "If you could choose again, do you really know which path would have been better?",
+        "Does regret change the past, or just consume the present?",
+        "What if you put the energy you spend regretting into what you can do now?",
+        "Standing here today, was that past choice really completely wrong?"
+      ],
+      "reframing": "The past can't change, but the choices you made shaped who you are now. Focus on what you can use today.",
+      "detection_keywords": [
+        "if only", "i should have", "back then", "i missed", "i could have"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,356 @@
+{
+  "_meta": {
+    "locale": "en",
+    "schema_version": "parallel-to-zh-v1",
+    "review_status": "DRAFT — clinical review recommended"
+  },
+  "worry_scenarios": {
+    "description": "English pre-sleep worry scenarios. Each scenario = typical worry content + emotion keywords + intensity range + matched CBT-I technique recommendations. Helps the AI identify the worry type and select the right intervention.",
+    "scenarios": [
+      {
+        "id": "work",
+        "category": "Work",
+        "icon": "💼",
+        "description": "Pre-sleep worries about work.",
+        "typical_worries": [
+          "Important meeting / interview / presentation tomorrow",
+          "Project behind schedule, deadline approaching",
+          "Tense relationship with manager or coworkers",
+          "Career decisions or future direction unclear",
+          "Still thinking about work after hours",
+          "Workload feels impossible",
+          "Made a mistake at work, afraid it'll be discovered"
+        ],
+        "emotion_keywords": [
+          "stressed", "anxious", "tense", "can't sleep",
+          "mind won't stop", "more I try the more awake I am",
+          "worried I'll mess up", "afraid of failing",
+          "drained", "frustrated", "fed up"
+        ],
+        "cognitive_distortion_tendencies": [
+          "catastrophizing",
+          "overgeneralization",
+          "should_statements",
+          "fortune_telling"
+        ],
+        "anxiety_level_range": [4, 9],
+        "recommended_techniques": {
+          "primary": "paradoxical_intention",
+          "secondary": ["cognitive_restructuring", "open_awareness"],
+          "closure_variants": ["standard", "anxious_closure"],
+          "rationale": "Work worry often co-occurs with sleep-effort syndrome — the harder you try, the more awake you get. Paradoxical intention targets that cycle directly."
+        },
+        "cbt_phase_priority": "cognitive_restructuring",
+        "example_prompts": [
+          "Can't stop thinking about work tomorrow",
+          "Worried I messed up — my boss is going to find out",
+          "Can't sleep, my head is full of tomorrow's stuff"
+        ],
+        "clue_phrases": [
+          "work", "boss", "coworker", "project", "deadline",
+          "meeting", "interview", "presentation", "still thinking about work"
+        ]
+      },
+      {
+        "id": "exam",
+        "category": "Exam / School",
+        "icon": "📝",
+        "description": "Pre-sleep worries about exams and academic life.",
+        "typical_worries": [
+          "Important exam tomorrow / next week",
+          "Behind on review, too much material",
+          "Test anxiety, sweaty palms",
+          "Worried about results disappointing parents",
+          "Don't know if studied the right things",
+          "Thesis defense / advisor pressure",
+          "Application deadlines"
+        ],
+        "emotion_keywords": [
+          "nervous", "stressed", "anxious",
+          "can't stop reviewing", "afraid of failing",
+          "what if I forget", "underprepared", "overwhelmed by material"
+        ],
+        "cognitive_distortion_tendencies": [
+          "catastrophizing",
+          "black_and_white",
+          "magnification"
+        ],
+        "anxiety_level_range": [4, 9],
+        "recommended_techniques": {
+          "primary": "paradoxical_intention",
+          "secondary": ["cognitive_restructuring", "478"],
+          "closure_variants": ["anxious_closure", "post_worry_closure"],
+          "rationale": "Exam worry often pairs with mid-night rumination. Education that sleep consolidates memory reduces the 'I should review more' loop."
+        },
+        "cbt_phase_priority": "cognitive_restructuring",
+        "example_prompts": [
+          "I have an exam tomorrow and I'm panicking",
+          "Can't sleep, just kept reviewing in my head",
+          "What if I fail this one"
+        ],
+        "clue_phrases": [
+          "exam", "test", "midterm", "final", "study", "studying",
+          "gpa", "grades", "thesis", "defense", "deadline"
+        ]
+      },
+      {
+        "id": "relationship",
+        "category": "Friendships / Social",
+        "icon": "💔",
+        "description": "Pre-sleep worries about friends, coworkers, and social situations.",
+        "typical_worries": [
+          "Conflict or misunderstanding with a friend / coworker",
+          "Said something I'm replaying over and over",
+          "Feeling left out of a group",
+          "Worried someone is upset with me",
+          "Awkward social interaction earlier today",
+          "Drifting friendships",
+          "Feeling lonely or isolated"
+        ],
+        "emotion_keywords": [
+          "rejected", "left out", "lonely", "guilty",
+          "replaying", "did I say the wrong thing", "they're upset",
+          "embarrassed", "regret"
+        ],
+        "cognitive_distortion_tendencies": [
+          "mind_reading",
+          "personalization",
+          "filtering",
+          "overgeneralization"
+        ],
+        "anxiety_level_range": [3, 8],
+        "recommended_techniques": {
+          "primary": "loving_kindness",
+          "secondary": ["cognitive_restructuring", "open_awareness"],
+          "closure_variants": ["rumination_break", "peaceful_closure"],
+          "rationale": "Social rumination is best interrupted by loving-kindness (sends warmth instead of replay) plus a gentle rumination_break closure."
+        },
+        "cbt_phase_priority": "worry_capture",
+        "example_prompts": [
+          "Can't stop replaying what I said to my friend",
+          "I think they're mad at me",
+          "Why did I say that, it keeps coming back"
+        ],
+        "clue_phrases": [
+          "friend", "coworker", "they said", "they think",
+          "left out", "lonely", "argument", "fight with", "awkward"
+        ]
+      },
+      {
+        "id": "health",
+        "category": "Health Worry",
+        "icon": "🏥",
+        "description": "Pre-sleep worries about physical health or body symptoms.",
+        "typical_worries": [
+          "Symptom that won't go away",
+          "Waiting on test results",
+          "Afraid to make a doctor's appointment",
+          "Worried something is seriously wrong",
+          "Body checking, scanning for sensations",
+          "Family history of illness",
+          "Recently diagnosed condition"
+        ],
+        "emotion_keywords": [
+          "scared", "what if it's serious",
+          "racing heart", "chest tight", "can't breathe",
+          "something feels wrong", "googled symptoms", "panicking"
+        ],
+        "cognitive_distortion_tendencies": [
+          "catastrophizing",
+          "emotional_reasoning",
+          "fortune_telling",
+          "mind_vs_reality"
+        ],
+        "anxiety_level_range": [5, 10],
+        "recommended_techniques": {
+          "primary": "478",
+          "secondary": ["body_scan", "cognitive_restructuring"],
+          "closure_variants": ["anxious_closure"],
+          "rationale": "Health anxiety has strong somatic activation. Down-regulating arousal first (4-7-8) before any cognitive work."
+        },
+        "cbt_phase_priority": "relaxation_induction",
+        "example_prompts": [
+          "Keep feeling this in my chest and I can't stop worrying",
+          "What if the test results are bad",
+          "I'm scared something is really wrong"
+        ],
+        "clue_phrases": [
+          "symptom", "doctor", "hospital", "test results",
+          "diagnosis", "scan", "pain", "afraid it's serious"
+        ]
+      },
+      {
+        "id": "future_uncertainty",
+        "category": "Future Uncertainty",
+        "icon": "🌫️",
+        "description": "Pre-sleep worries about life direction, decisions, and uncertainty.",
+        "typical_worries": [
+          "Don't know what to do with my life",
+          "Big decision pending — stay or leave",
+          "Career change considerations",
+          "Comparing myself to peers",
+          "Feeling stuck, no clear path",
+          "Worry about the next 5–10 years",
+          "Identity / purpose questions"
+        ],
+        "emotion_keywords": [
+          "lost", "stuck", "unsure", "overwhelmed",
+          "what am I doing", "everyone else seems to have it figured out",
+          "directionless", "anxious about decisions"
+        ],
+        "cognitive_distortion_tendencies": [
+          "catastrophizing",
+          "fortune_telling",
+          "black_and_white",
+          "magnification"
+        ],
+        "anxiety_level_range": [4, 8],
+        "recommended_techniques": {
+          "primary": "open_awareness",
+          "secondary": ["paradoxical_intention", "cognitive_restructuring"],
+          "closure_variants": ["peaceful_closure", "rumination_break"],
+          "rationale": "Existential worry rarely has a 3 AM answer. Open awareness teaches that not every thought needs an answer right now."
+        },
+        "cbt_phase_priority": "cognitive_restructuring",
+        "example_prompts": [
+          "Don't know what I'm doing with my life",
+          "Should I take this job or not — keep going in circles",
+          "Everyone else seems sorted, I'm just lost"
+        ],
+        "clue_phrases": [
+          "future", "direction", "lost", "purpose", "meaning",
+          "decision", "where am I going", "what to do with my life"
+        ]
+      },
+      {
+        "id": "financial",
+        "category": "Money / Finances",
+        "icon": "💰",
+        "description": "Pre-sleep worries about money, debt, or financial security.",
+        "typical_worries": [
+          "Bills piling up, not enough income",
+          "Debt or loan stress",
+          "Worried about a major purchase",
+          "Lost job income / cut hours",
+          "Comparing finances to peers",
+          "Retirement / long-term saving anxiety",
+          "Sudden unexpected expense"
+        ],
+        "emotion_keywords": [
+          "broke", "in debt", "can't afford", "stressed about money",
+          "what if I lose my job", "behind on bills",
+          "drowning financially"
+        ],
+        "cognitive_distortion_tendencies": [
+          "catastrophizing",
+          "fortune_telling",
+          "magnification"
+        ],
+        "anxiety_level_range": [4, 9],
+        "recommended_techniques": {
+          "primary": "paradoxical_intention",
+          "secondary": ["cognitive_restructuring", "478"],
+          "closure_variants": ["anxious_closure", "post_worry_closure"],
+          "rationale": "Money worry triggers strong fortune-telling. Reframing 'tomorrow's calculations need a rested mind' helps reduce nighttime ruminating."
+        },
+        "cbt_phase_priority": "cognitive_restructuring",
+        "example_prompts": [
+          "Can't sleep, money is so tight this month",
+          "What if I lose my job, how would I pay rent",
+          "Keep doing the math in my head"
+        ],
+        "clue_phrases": [
+          "money", "bills", "debt", "rent", "mortgage",
+          "broke", "can't afford", "savings", "income"
+        ]
+      },
+      {
+        "id": "family_parenting",
+        "category": "Family / Parenting",
+        "icon": "👨‍👩‍👧",
+        "description": "Pre-sleep worries about family, parenting, or caring for others.",
+        "typical_worries": [
+          "Worried about a child's behavior / school / health",
+          "Aging parents' health or care decisions",
+          "Family conflict or tension",
+          "Feeling overwhelmed by caregiving",
+          "Mom-guilt / parental guilt",
+          "Worried about being a 'bad' parent",
+          "Sibling or in-law tension"
+        ],
+        "emotion_keywords": [
+          "guilty", "exhausted", "overwhelmed",
+          "worried about my kid", "worried about mom/dad",
+          "feel like a bad parent", "stretched thin"
+        ],
+        "cognitive_distortion_tendencies": [
+          "personalization",
+          "should_statements",
+          "catastrophizing",
+          "labeling"
+        ],
+        "anxiety_level_range": [4, 9],
+        "recommended_techniques": {
+          "primary": "loving_kindness",
+          "secondary": ["cognitive_restructuring", "body_scan"],
+          "closure_variants": ["peaceful_closure", "anxious_closure"],
+          "rationale": "Parental / caregiving worry is often loaded with 'I should' rules. Loving-kindness (especially toward oneself) softens self-criticism; cognitive work targets should-statements."
+        },
+        "cbt_phase_priority": "worry_capture",
+        "example_prompts": [
+          "Worried sick about my kid",
+          "I feel like a terrible parent tonight",
+          "Mom's health has me up at 3 AM"
+        ],
+        "clue_phrases": [
+          "kid", "child", "son", "daughter", "mom", "dad",
+          "parent", "family", "in-laws", "caregiving"
+        ]
+      },
+      {
+        "id": "intimate_relationship",
+        "category": "Romantic / Intimate Relationship",
+        "icon": "💕",
+        "description": "Pre-sleep worries about a romantic partner, breakup, or relationship status.",
+        "typical_worries": [
+          "Recent argument with partner",
+          "Doubts about the relationship",
+          "Going through a breakup or divorce",
+          "Long-distance / communication issues",
+          "Single and worried about being alone",
+          "Trust / jealousy issues",
+          "Replaying a difficult conversation"
+        ],
+        "emotion_keywords": [
+          "hurt", "heartbroken", "lonely",
+          "fight with partner", "ex", "breakup",
+          "missing them", "doubting us", "betrayed"
+        ],
+        "cognitive_distortion_tendencies": [
+          "mind_reading",
+          "catastrophizing",
+          "personalization",
+          "overgeneralization"
+        ],
+        "anxiety_level_range": [4, 10],
+        "recommended_techniques": {
+          "primary": "loving_kindness",
+          "secondary": ["cognitive_restructuring", "open_awareness"],
+          "closure_variants": ["rumination_break", "peaceful_closure"],
+          "rationale": "Romantic rumination loops hard. Loving-kindness (toward self AND the other) plus a rumination_break interrupts late-night replay."
+        },
+        "cbt_phase_priority": "worry_capture",
+        "example_prompts": [
+          "Had a fight with my partner and can't sleep",
+          "Keep replaying what they said",
+          "What if this is the end of us"
+        ],
+        "clue_phrases": [
+          "partner", "girlfriend", "boyfriend", "husband", "wife",
+          "spouse", "breakup", "broke up", "ex", "divorce",
+          "fight", "argument"
+        ]
+      }
+    ]
+  }
+}

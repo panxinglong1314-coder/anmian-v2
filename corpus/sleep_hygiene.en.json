@@ -1,0 +1,125 @@
+{
+  "_meta": {
+    "locale": "en",
+    "schema_version": "parallel-to-zh-v1",
+    "review_status": "DRAFT — clinical review recommended",
+    "sources": "AASM sleep hygiene guidance; VA CBT-I public-domain materials; standard sleep medicine references"
+  },
+  "sleep_hygiene_topics": {
+    "caffeine": {
+      "title": "Caffeine Management",
+      "key_facts": [
+        "Caffeine has a half-life of about 5–6 hours — meaning a coffee at 3 PM still has half of its caffeine in your system by 9 PM.",
+        "Caffeine blocks adenosine receptors, suppressing sleepiness. That's why it's harder to fall asleep when you've had it late.",
+        "Even if you think 'caffeine doesn't affect me anymore,' it still degrades your sleep quality, even if you fall asleep."
+      ],
+      "recommendations": [
+        "Avoid coffee and strong tea after 2 PM.",
+        "Energy drinks often contain even more caffeine than coffee.",
+        "If you rely on coffee, try moving your last cup to before noon.",
+        "Green tea has less caffeine but still has an effect."
+      ],
+      "alternative": "If you need an afternoon lift, try water with lemon, a few minutes of stretching, or a brief walk outside in natural light."
+    },
+    "alcohol": {
+      "title": "Alcohol and Sleep",
+      "key_facts": [
+        "Alcohol can help you fall asleep faster, but it significantly degrades sleep quality — especially REM sleep.",
+        "Alcohol suppresses breathing and can worsen sleep apnea.",
+        "A few hours after drinking, the sedative effect wears off, often causing fragmented sleep and waking in the early morning.",
+        "Alcohol disrupts the natural sleep cycle, making early-morning awakenings more likely."
+      ],
+      "recommendations": [
+        "Try to avoid alcohol within 3 hours of bedtime.",
+        "If you do drink, aim for 4–5 hours before bed, in moderation.",
+        "Don't use alcohol as a sleep aid — it's not real sleep."
+      ]
+    },
+    "exercise": {
+      "title": "Exercise and Sleep",
+      "key_facts": [
+        "Regular exercise improves sleep quality and is one of the most effective sleep hygiene behaviors.",
+        "Timing matters — vigorous exercise within 3 hours of bedtime can raise body temperature and activate the nervous system, making it harder to fall asleep.",
+        "Physical tiredness after exercise is not the same as sleep readiness."
+      ],
+      "recommendations": [
+        "Aim for aerobic exercise in the morning or afternoon.",
+        "If evening is the only option, finish at least 2–3 hours before bed.",
+        "Suitable pre-sleep movement: gentle yoga, walking, tai chi.",
+        "Avoid high-intensity interval training (HIIT) close to bedtime."
+      ]
+    },
+    "screen_light": {
+      "title": "Blue Light and Screens",
+      "key_facts": [
+        "Blue light suppresses melatonin secretion, tricking the brain into thinking it's still daytime.",
+        "Short-wavelength blue light from phones, tablets, and computers has the biggest effect on sleep.",
+        "Even if the screen doesn't feel bright, it still affects melatonin.",
+        "The emotional pull of social media content (anger, anxiety, excitement) also activates the nervous system."
+      ],
+      "recommendations": [
+        "Try to put the phone away an hour before bed.",
+        "If you can't, enable 'Night Shift' or 'eye-care mode' (warmer color).",
+        "Keep the phone out of sight — not on your pillow.",
+        "Use a reading lamp instead of your phone screen."
+      ]
+    },
+    "bedroom_environment": {
+      "title": "Bedroom Environment",
+      "key_facts": [
+        "Optimal sleep temperature is around 65–72°F (18–22°C); too hot or too cold disrupts both falling asleep and depth of sleep.",
+        "Total darkness supports melatonin — even small lights (electronics, indicators) can interfere.",
+        "Noise is a major and underestimated sleep disrupter."
+      ],
+      "recommendations": [
+        "Keep the bedroom around 65–72°F.",
+        "Use blackout curtains or an eye mask.",
+        "Use earplugs or a white-noise machine to mask sound.",
+        "Move glowing devices out of the bedroom or cover them.",
+        "Choose bedding that feels comfortable to your skin."
+      ]
+    },
+    "sleep_schedule": {
+      "title": "Sleep Schedule",
+      "key_facts": [
+        "Your body has an internal clock (circadian rhythm) that prefers consistency.",
+        "Getting up at the same time every day — including weekends — is the single most powerful sleep-regulation behavior.",
+        "'Sleep debt' is real, but weekend sleep-ins don't truly repay it.",
+        "Even after a bad night, getting up at your usual time matters."
+      ],
+      "recommendations": [
+        "Set a fixed wake time, and stick to it even when sleep was rough.",
+        "Don't sleep in more than an hour later on weekends.",
+        "If you nap, keep it under 30 minutes and no later than 3 PM.",
+        "Sleepiness usually arrives in a specific 'sleep window' — going to bed too early or too late disrupts the rhythm."
+      ]
+    },
+    "pre_sleep_routine": {
+      "title": "Pre-Sleep Routine",
+      "key_facts": [
+        "The brain learns by association — a fixed sequence before bed helps it recognize 'time to sleep.'",
+        "A wind-down routine doesn't need to be long — 10–30 minutes is plenty.",
+        "The key is consistency — the same sequence, in the same order."
+      ],
+      "recommendations": [
+        "A simple sequence: dim the lights → prepare tomorrow's basics → worry journal (if needed) → guided breathing → bed.",
+        "Keep the bed for sleep only — avoid phones, work, or eating in it.",
+        "'Externalize' anxious thoughts — write them down and tell yourself, 'I'll look at this tomorrow.'"
+      ]
+    }
+  },
+  "education_scripts": {
+    "topic_delivery": {
+      "description": "How to weave sleep hygiene into a pre-sleep conversation naturally.",
+      "delivery_style": "Sharing, not lecturing.",
+      "example_intro": "Something interesting about sleep that you might not know...",
+      "example_close": "Not saying you have to change anything tonight — just thought it might be useful.",
+      "never_say": [
+        "You should go to bed earlier.",
+        "You need to break these habits.",
+        "If you don't change, you'll never sleep well.",
+        "You shouldn't drink coffee/alcohol."
+      ]
+    }
+  }
+}
