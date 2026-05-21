@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'self'; object-src 'none'">
 <title>知眠运营后台</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌙%3C/text%3E%3C/svg%3E">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script src="tailwind.min.js"></script>
+<script src="echarts.min.js"></script>
 <style>
   .sidebar { background: #1a1d24; }
   .nav-group-label { color: #6b7280; font-size: 11px; padding: 16px 16px 4px; letter-spacing: 0.05em; text-transform: uppercase; }
@@ -359,9 +360,6 @@
           </div>
         </div>
       </div>
-
-    
-<!-- 建议 Modal -->
 
       <!-- 服务器监控 -->
       <div id="page-health" class="page hidden space-y-4">
@@ -814,6 +812,6 @@
   </div>
 </div>
 
-<script src="app.js?v=38"></script>
+<script src="app.js?v=40"></script>
 </body>
 </html>

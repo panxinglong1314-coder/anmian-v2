@@ -12,7 +12,7 @@ function toast(message, type = 'info', duration = 3000) {
   const container = document.getElementById('toast-container');
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.innerHTML = `<span>${type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ'}</span><span>${message}</span>`;
+  el.innerHTML = `<span>${type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ'}</span><span>${_escapeHtml(message)}</span>`;
   container.appendChild(el);
   setTimeout(() => { el.style.animation = 'toastOut .3s ease forwards'; setTimeout(() => el.remove(), 300); }, duration);
 }
@@ -529,7 +529,7 @@ function _startCrisisSSE() {
           }
           // 新告警通知
           if (data.new_alerts && data.new_alerts.length > 0) {
-            _flashCrisisTitle();
+            _startTitleFlash(`🚨 ${data.pending_count || data.new_alerts.length} 条危机告警`);
             if (crisisNotificationPermission === 'granted') {
               data.new_alerts.forEach(a => {
                 new Notification('🚨 危机告警', {
@@ -645,16 +645,6 @@ async function loadDashboard(days) {
     });
   }
 
-  // 会话结局
-  const outcomes = data.outcome_distribution || {};
-  renderChart('chart-outcome', Object.keys(outcomes).length ? {
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', data: Object.keys(outcomes), axisLabel: { fontSize: 11 } },
-    yAxis: { type: 'value', minInterval: 1 },
-    series: [{ type: 'bar', data: Object.values(outcomes), itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0] }, barWidth: '50%' }]
-  } : null, Object.keys(outcomes).length === 0 ? emptyStateHTML('暂无结局数据', '', '📈') : null);
-
   // 每日趋势图
   const daily = data.daily_trend || [];
   if (daily.length > 1) {
@@ -701,9 +691,17 @@ async function loadDashboard(days) {
 }
 
 // ========== 安全中心 ==========
+let _safetyCache = [];
+
+function showSafetySuggestion(idx) {
+  const e = _safetyCache[idx];
+  showModal((e && e.top_suggestion) || '暂无', '处理建议');
+}
+
 async function loadSafety() {
   const data = await fetchJSON(`${API_BASE}/safety?days=30`);
   const events = Array.isArray(data) ? data : [];
+  _safetyCache = events;
 
   const total = events.length;
   const crisis = events.filter(e => e.crisis_status === '已识别').length;
@@ -722,27 +720,34 @@ async function loadSafety() {
     tbody.innerHTML = `<tr><td colspan="7">${emptyStateHTML('暂无安全事件', '最近30天未检测到危机或不当建议', '🛡️')}</td></tr>`;
     return;
   }
-  events.forEach(e => {
+  events.forEach((e, idx) => {
     const severity = e.severity || '正常';
     const sevCls = severity === '危险' ? 'badge-red' : severity === '警告' ? 'badge-orange' : 'badge-gray';
     const crisisCls = e.crisis_status === '已识别' ? 'badge-yellow' : 'badge-green';
-    const suggestion = (e.top_suggestion || '暂无').replace(/"/g, '&quot;').replace(/'/g, "\\'");
     const row = document.createElement('tr');
-    const sessionId = e.session_id || '';
+    const sessionId = _escapeHtml(e.session_id || '');
     row.innerHTML = `
       <td class="text-gray-500 text-xs">${(e.timestamp || '').slice(0, 16)}</td>
-      <td><span class="truncate-id font-mono text-xs text-gray-500">${e.user_id || '--'}</span></td>
-      <td><span class="badge ${sevCls}">${severity}</span></td>
-      <td><span class="badge ${crisisCls}">${e.crisis_status || '正常'}</span></td>
+      <td><span class="truncate-id font-mono text-xs text-gray-500">${_escapeHtml(e.user_id || '--')}</span></td>
+      <td><span class="badge ${sevCls}">${_escapeHtml(severity)}</span></td>
+      <td><span class="badge ${crisisCls}">${_escapeHtml(e.crisis_status || '正常')}</span></td>
       <td>${e.bad_advice_found ? '<span class="badge badge-red">是</span>' : '<span class="badge badge-green">否</span>'}</td>
       <td class="text-xs">${e.empathy !== undefined ? `共${e.empathy}/5` : '--'} / ${e.tech !== undefined ? `技${e.tech}/9` : ''}</td>
-      <td><button class="text-blue-600 text-xs hover:underline" onclick="showModal('${suggestion}', '处理建议')">查看建议</button> <button class="text-red-500 text-xs hover:underline ml-2" onclick="deleteSafetyEvent('${sessionId}', this)">删除</button></td>
+      <td><button class="text-blue-600 text-xs hover:underline" onclick="showSafetySuggestion(${idx})">查看建议</button> <button class="text-red-500 text-xs hover:underline ml-2" onclick="deleteSafetyEvent('${sessionId}', this)">删除</button></td>
     `;
     tbody.appendChild(row);
   });
 }
 
 // ========== AI 质量 ==========
+let _qualityFailures = [];
+
+function showFailureSuggestion(idx) {
+  const f = _qualityFailures[idx];
+  if (!f) return;
+  showModal(f.suggestion || '建议人工复核', '改进建议: ' + (f.issue || ''));
+}
+
 async function loadQuality() {
   const data = await fetchJSON(`${API_BASE}/quality?days=30`);
   const hasData = data && !data.error && !data.message;
@@ -791,6 +796,7 @@ async function loadQuality() {
 
   // 失败模式（带改进建议）
   const failures = data.top_failure_modes || [];
+  _qualityFailures = failures;
   const fDiv = document.getElementById('quality-failures');
   if (!failures.length) {
     fDiv.innerHTML = emptyStateHTML('数据积累中', '预计 10 条会话后展示高频失败模式', '🔧');
@@ -802,11 +808,11 @@ async function loadQuality() {
         <div class="flex items-start gap-2 flex-1">
           <span class="flex-shrink-0 w-5 h-5 rounded bg-red-100 text-red-600 text-xs flex items-center justify-center font-bold mt-0.5">${i + 1}</span>
           <div>
-            <div class="text-sm font-medium text-gray-800">${f.issue}</div>
+            <div class="text-sm font-medium text-gray-800">${_escapeHtml(f.issue)}</div>
             <div class="text-xs text-gray-500 mt-0.5">出现次数: <span class="font-medium">${f.count}</span> 次</div>
           </div>
         </div>
-        <button onclick="showModal('${(f.suggestion || '建议人工复核').replace(/'/g, "\\'")}', '改进建议: ${f.issue}')"
+        <button onclick="showFailureSuggestion(${i})"
           class="flex-shrink-0 text-blue-600 text-xs hover:underline">改进建议 →</button>
       </div>
     </div>
@@ -880,18 +886,18 @@ function renderUsersPage() {
   pageData.forEach(u => {
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td><span class="truncate-id font-mono text-xs text-gray-600">${u.user_id || '--'}</span></td>
+      <td><span class="truncate-id font-mono text-xs text-gray-600">${_escapeHtml(u.user_id || '--')}</span></td>
       <td class="text-gray-500 text-xs">${(u.first_seen || '').slice(0, 10)}</td>
       <td class="text-gray-500 text-xs">${(u.last_seen || '').slice(0, 10)}</td>
       <td class="font-medium text-sm">${u.session_count || 0}</td>
       <td>${u.total_turns ? `<span class="text-xs text-gray-500">${u.total_turns}轮</span>` : '--'}</td>
       <td>${u.avg_rating ? '<span class="text-yellow-500 text-xs">★ ' + u.avg_rating + '</span>' : '<span class="text-gray-300 text-xs">--</span>'}</td>
-      <td>${u.subscription_plan ? (u.subscription_plan === "free" ? '<span class="text-gray-400 text-xs">免费</span>' : '<span class="text-blue-500 text-xs">' + u.subscription_plan + '</span>') : '<span class="text-gray-300 text-xs">--</span>'}</td>
+      <td>${u.subscription_plan ? (u.subscription_plan === "free" ? '<span class="text-gray-400 text-xs">免费</span>' : '<span class="text-blue-500 text-xs">' + _escapeHtml(u.subscription_plan) + '</span>') : '<span class="text-gray-300 text-xs">--</span>'}</td>
       <td>
-        <button class="text-red-500 text-xs hover:underline mr-1" onclick="deleteUser('${(u.user_id || '').replace(/'/g, "\'")}')">删除</button>
-        <button class="text-orange-500 text-xs hover:underline mr-1" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\'")}', 'disable')">禁用</button>
-        <button class="text-green-600 text-xs hover:underline mr-1" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\'")}', 'enable')">启用</button>
-        <button class="text-blue-600 text-xs hover:underline" onclick="showUserDetail('${(u.user_id || '').replace(/'/g, "\'")}')">详情</button>
+        <button class="text-red-500 text-xs hover:underline mr-1" onclick="deleteUser('${(u.user_id || '').replace(/'/g, "\\'")}')">删除</button>
+        <button class="text-orange-500 text-xs hover:underline mr-1" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\\'")}', 'disable')">禁用</button>
+        <button class="text-green-600 text-xs hover:underline mr-1" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\\'")}', 'enable')">启用</button>
+        <button class="text-blue-600 text-xs hover:underline" onclick="showUserDetail('${(u.user_id || '').replace(/'/g, "\\'")}')">详情</button>
       </td>
 
     `;
@@ -908,7 +914,8 @@ function renderPagination(current, total, count) {
   for (let i = 1; i <= total; i++) html += `<button class="${i === current ? 'active' : ''}" onclick="goUsersPage(${i})">${i}</button>`;
   html += `<button ${current === total ? 'disabled' : ''} onclick="goUsersPage(${current + 1})">下一页</button>`;
   html += '</div>';
-  html += `<span class="pagination-info">${start = (current-1)*USERS_PER_PAGE+1}-${Math.min(current*USERS_PER_PAGE,count)} / 共 ${count} 条</span>`;
+  const startIdx = (current - 1) * USERS_PER_PAGE + 1;
+  html += `<span class="pagination-info">${startIdx}-${Math.min(current*USERS_PER_PAGE,count)} / 共 ${count} 条</span>`;
   container.innerHTML = html;
 }
 
@@ -920,10 +927,10 @@ async function showUserDetail(userId) {
   const html = sessions.length ? sessions.map(s => `
     <div class="py-2.5 border-b border-gray-100 text-sm">
       <div class="flex justify-between items-center">
-        <span class="text-gray-400 text-xs font-mono">${s.session_id?.slice(0, 35) || ''}</span>
+        <span class="text-gray-400 text-xs font-mono">${_escapeHtml(s.session_id?.slice(0, 35) || '')}</span>
         <span class="text-gray-400 text-xs">${(s.start_time || '').slice(0, 16)}</span>
       </div>
-      ${s.user_preview ? `<div class="mt-1 text-xs text-gray-600 bg-gray-50 rounded px-2 py-1 truncate">👤 ${s.user_preview}</div>` : ''}
+      ${s.user_preview ? `<div class="mt-1 text-xs text-gray-600 bg-gray-50 rounded px-2 py-1 truncate">👤 ${_escapeHtml(s.user_preview)}</div>` : ''}
       <div class="flex gap-3 mt-1.5 items-center">
         <span class="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">${s.turn_count || 0} 轮</span>
         <span class="text-xs text-gray-500">估算时长: <span class="font-medium">${s.duration_min || 0}min</span></span>
@@ -941,7 +948,7 @@ async function showUserDetail(userId) {
         <button onclick="this.closest('.modal-overlay').remove()" class="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
       </div>
       <div class="modal-body overflow-auto flex-1">
-        <p class="text-xs text-gray-400 font-mono mb-3 break-all">${userId}</p>
+        <p class="text-xs text-gray-400 font-mono mb-3 break-all">${_escapeHtml(userId)}</p>
         <div class="grid grid-cols-3 gap-2 mb-3">
           <div class="bg-gray-50 rounded p-2 text-center"><div class="text-gray-500 text-xs">总会话</div><div class="font-bold text-gray-800 text-sm mt-0.5">${data.total_sessions || 0}</div></div>
           <div class="bg-gray-50 rounded p-2 text-center"><div class="text-gray-500 text-xs">首次使用</div><div class="font-bold text-gray-800 text-sm mt-0.5">${(data.first_seen || '').slice(0, 10) || '--'}</div></div>
@@ -993,7 +1000,7 @@ async function loadHealth() {
     if (issues.length === 0) {
       issuesEl.innerHTML = '<p class="text-green-600">✓ 全部正常</p>';
     } else {
-      issuesEl.innerHTML = issues.map(i => '<p class="text-red-500">✗ ' + i + '</p>').join('');
+      issuesEl.innerHTML = issues.map(i => '<p class="text-red-500">✗ ' + _escapeHtml(i) + '</p>').join('');
     }
   }
   // System metrics
@@ -1165,10 +1172,10 @@ async function loadSleepDashboard(days = 30) {
     } else {
       riskBody.innerHTML = risks.map(u => `
         <tr class="border-b border-gray-100">
-          <td class="py-1 truncate-id font-mono text-xs text-gray-600">${(u.user_id || '').slice(0, 20)}</td>
+          <td class="py-1 truncate-id font-mono text-xs text-gray-600">${_escapeHtml((u.user_id || '').slice(0, 20))}</td>
           <td class="text-red-600 font-medium">${u.avg_se}%</td>
           <td class="text-xs">${u.avg_tst_hours}h</td>
-          <td class="text-xs">${phaseLabels[u.phase] || u.phase}</td>
+          <td class="text-xs">${_escapeHtml(phaseLabels[u.phase] || u.phase || '')}</td>
         </tr>
       `).join('');
     }
@@ -1182,7 +1189,7 @@ async function loadSleepDashboard(days = 30) {
       recBody.innerHTML = recs.map(r => `
         <tr class="border-b border-gray-100">
           <td class="py-1 text-xs text-gray-500">${r.date || '--'}</td>
-          <td class="truncate-id font-mono text-xs text-gray-600">${(r.user_id || '').slice(0, 16)}</td>
+          <td class="truncate-id font-mono text-xs text-gray-600">${_escapeHtml((r.user_id || '').slice(0, 16))}</td>
           <td class="font-medium">${r.se}%</td>
           <td class="text-xs">${r.tst_hours}h</td>
           <td class="text-xs">${r.quality || '--'}</td>
@@ -1209,8 +1216,8 @@ async function loadKB() {
     } else {
       corpusBody.innerHTML = Object.entries(hashes).map(([name, h]) => `
         <tr class="border-b border-gray-100">
-          <td class="py-1 text-xs">${name}</td>
-          <td class="font-mono text-xs text-gray-500">${h}</td>
+          <td class="py-1 text-xs">${_escapeHtml(name)}</td>
+          <td class="font-mono text-xs text-gray-500">${_escapeHtml(h)}</td>
         </tr>
       `).join('');
     }
@@ -1224,14 +1231,14 @@ async function loadKB() {
     } else {
       vBody.innerHTML = versions.map(v => `
         <tr class="border-b border-gray-100">
-          <td class="py-1 font-mono text-xs">${v.version_id}</td>
+          <td class="py-1 font-mono text-xs">${_escapeHtml(v.version_id)}</td>
           <td class="text-xs text-gray-500">${(v.created_at || '').slice(0, 16)}</td>
-          <td class="text-xs">${v.operator || 'admin'}</td>
+          <td class="text-xs">${_escapeHtml(v.operator || 'admin')}</td>
           <td class="text-xs">${Object.keys(v.corpus_hashes || {}).length}</td>
           <td class="text-xs">${(v.index_metrics || {}).total_size_mb || 0} MB</td>
-          <td class="text-xs text-gray-600">${v.notes || '--'}</td>
+          <td class="text-xs text-gray-600">${_escapeHtml(v.notes || '--')}</td>
           <td>
-            ${status.current_version === v.version_id ? '<span class="text-green-600 text-xs font-medium">当前</span>' : `<button onclick="rollbackKB('${v.version_id}')" class="text-blue-600 text-xs hover:underline">回滚</button>`}
+            ${status.current_version === v.version_id ? '<span class="text-green-600 text-xs font-medium">当前</span>' : `<button onclick="rollbackKB('${encodeURIComponent(v.version_id)}')" class="text-blue-600 text-xs hover:underline">回滚</button>`}
           </td>
         </tr>
       `).join('');
@@ -1301,8 +1308,8 @@ async function loadABConfig() {
       tbody.innerHTML = logs.map(l => `
         <tr class="border-b border-gray-100">
           <td class="py-1 text-gray-500 text-xs">${(l.timestamp || '').slice(0, 16)}</td>
-          <td class="text-xs">${l.operator || 'admin'}</td>
-          <td class="text-xs text-gray-600">${Object.keys(l.changes || {}).join(', ') || '重置为默认'}</td>
+          <td class="text-xs">${_escapeHtml(l.operator || 'admin')}</td>
+          <td class="text-xs text-gray-600">${_escapeHtml(Object.keys(l.changes || {}).join(', ') || '重置为默认')}</td>
         </tr>
       `).join('');
     }
