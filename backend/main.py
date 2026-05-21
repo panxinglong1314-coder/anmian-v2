@@ -33,7 +33,7 @@ import redis
 
 from infra.settings import settings, ADMIN_TOKEN, BACKEND_VERSION
 from infra.redis_client import redis_client, async_redis_client
-from services.auth import create_jwt_token, verify_jwt_token, AuthUser, create_admin_jwt, verify_admin_jwt
+from services.auth import create_jwt_token, create_jwt_for_user, verify_jwt_token, AuthUser, create_admin_jwt, verify_admin_jwt
 from services.admin_audit import log_admin_action
 from services.sleep_stats import update_streak, get_streak_days, get_user_sleep_stats, get_sleep_diary, save_sleep_diary
 from services.srt_engine import (
@@ -207,8 +207,12 @@ def validate_startup():
         errors.append("MiniMax API Key 未配置（AI 对话不可用）")
     if settings.jwt_secret == "dev-secret-change-in-prod":
         errors.append("JWT_SECRET 使用了默认值（dev-secret-change-in-prod）！严重安全风险，请立即修改 .env 中的 JWT_SECRET")
+    _env = os.getenv("ENV", "production").lower()
     if settings.admin_token == "":
-        warnings.append("ADMIN_TOKEN 为空（运营后台不可用）")
+        if _env in ("dev", "development", "local"):
+            warnings.append("ADMIN_TOKEN 为空（开发环境，运营后台不可用）")
+        else:
+            errors.append("ADMIN_TOKEN 未配置！生产环境必须设置，否则运营后台将对任何人开放")
     if errors:
         print("\n".join([f"[ERROR] {e}" for e in errors]))
         raise RuntimeError(f"启动检查失败：{'；'.join(errors)}")
@@ -471,17 +475,44 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
                 # 兼容旧 X-Admin-Token + query token（EventSource 无法自定义 header）
                 if not jwt_valid:
                     old_token = request.headers.get("X-Admin-Token", "")
-                    jwt_valid = (old_token == ADMIN_TOKEN)
+                    jwt_valid = bool(old_token) and hmac.compare_digest(old_token, ADMIN_TOKEN)
                     if not jwt_valid:
                         # SSE endpoint passes token via query param
                         query_token = request.query_params.get("token", "")
-                        jwt_valid = (query_token == ADMIN_TOKEN)
+                        jwt_valid = bool(query_token) and hmac.compare_digest(query_token, ADMIN_TOKEN)
                 if not jwt_valid:
                     from fastapi.responses import JSONResponse
                     return JSONResponse({"error": "未授权"}, status_code=401)
         return await call_next(request)
 
+class UserAuthMiddleware(BaseHTTPMiddleware):
+    """全局用户鉴权：所有 /api/v1/* 接口（admin 除外）必须携带有效 JWT。
+    兜底防护——即使个别 endpoint 漏挂 Depends(get_current_user)，匿名请求也会在此被拦截。
+    WebSocket 不经 BaseHTTPMiddleware，各 ws 路由自行校验 query token。"""
+
+    _WHITELIST = {
+        "/api/v1/auth/wx_login",
+        "/api/v1/auth/email/request",
+        "/api/v1/auth/email/verify",
+        "/api/v1/version",
+    }
+
+    async def dispatch(self, request, call_next):
+        path = request.url.path
+        if (not path.startswith("/api/v1/")
+                or path.startswith("/api/v1/admin/")
+                or path in self._WHITELIST
+                or request.method == "OPTIONS"):
+            return await call_next(request)
+        auth = request.headers.get("Authorization", "")
+        if not auth.lower().startswith("bearer ") or not verify_jwt_token(auth[7:].strip()):
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"error": "未授权，请先登录"}, status_code=401)
+        return await call_next(request)
+
+
 app.add_middleware(AdminAuthMiddleware)
+app.add_middleware(UserAuthMiddleware)
 app.add_middleware(UserRateLimitMiddleware)
 app.add_middleware(ApiStatsMiddleware)
 
@@ -499,6 +530,10 @@ async def rate_limit_handler(request, exc):
 
 # 运营后台静态文件
 app.mount("/admin", StaticFiles(directory=str(Path(__file__).parent.parent / "static/admin"), html=True), name="admin")
+
+# 公共静态资源（白噪音音频、头像等）—— Nginx 将 / 全量反代到后端，故由后端直接托管。
+# 路径不以 /api/v1/ 开头，UserAuthMiddleware 自动放行，保持公开可访问。
+app.mount("/static", StaticFiles(directory=str(Path(__file__).parent.parent / "static")), name="static")
 
 
 # ==================== 微信登录 & 数据迁移 ====================
@@ -524,7 +559,8 @@ async def wx_login(body: dict = Body(...)):
             resp = await client.get(wx_url)
             wx_data = resp.json()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"微信接口调用失败: {e}")
+        print(f"[wx_login error] {e}")
+        raise HTTPException(status_code=502, detail="微信登录失败，请稍后重试")
 
     if wx_data.get("errcode"):
         raise HTTPException(status_code=400, detail=f"微信登录失败: {wx_data.get('errmsg')}")
@@ -540,11 +576,115 @@ async def wx_login(body: dict = Body(...)):
     is_new_user = not redis_client.exists(f"chat:history:{user_id}:*")
 
     # 如果有 temp_id，迁移数据
+    # temp_id 来自未鉴权请求体，必须严格校验格式 —— 否则通配符（*?[]）会让
+    # scan_iter(match=f"*{temp_id}*") 命中并改写其他用户的 Redis 键。
     if temp_id and temp_id != user_id:
-        migrated = _migrate_user_data(temp_id, user_id)
-        if migrated:
-            print(f"[wx_login] 数据迁移: {temp_id} -> {user_id}, 迁移键数: {migrated}")
+        if re.fullmatch(r'[A-Za-z0-9_-]{1,64}', temp_id):
+            migrated = _migrate_user_data(temp_id, user_id)
+            if migrated:
+                print(f"[wx_login] 数据迁移: {temp_id} -> {user_id}, 迁移键数: {migrated}")
+        else:
+            print(f"[wx_login] 拒绝非法 temp_id: {temp_id!r}")
 
+    return {"token": token, "user_id": user_id, "is_new_user": is_new_user}
+
+
+# ==================== 邮箱验证码登录（Web 出海 / 海外英文市场）====================
+import secrets as _secrets
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _email_user_id(email: str) -> str:
+    h = hashlib.sha256(email.strip().lower().encode()).hexdigest()[:16]
+    return f"em_{h}"
+
+
+async def _send_email_code(email: str, code: str) -> bool:
+    """通过 Resend 发送验证码邮件。未配置 RESEND_API_KEY 则返回 False（开发态回显验证码）。"""
+    api_key = getattr(settings, "resend_api_key", "") or os.getenv("RESEND_API_KEY", "")
+    if not api_key:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "from": getattr(settings, "auth_from_email", "ZhiMian <noreply@sleepai.chat>"),
+                    "to": [email],
+                    "subject": f"Your ZhiMian sign-in code: {code}",
+                    "text": f"Your ZhiMian verification code is {code}. It expires in 10 minutes.\n\nIf you didn't request this, you can ignore this email.",
+                },
+            )
+            return resp.status_code in (200, 201)
+    except Exception as e:
+        print(f"[email send error] {e}")
+        return False
+
+
+class EmailRequestBody(BaseModel):
+    email: str
+
+
+class EmailVerifyBody(BaseModel):
+    email: str
+    code: str
+
+
+@app.post("/api/v1/auth/email/request")
+async def auth_email_request(body: EmailRequestBody):
+    """请求邮箱验证码：生成 6 位码，存 Redis（10 分钟），发邮件。60s 内同邮箱限一次。"""
+    email = (body.email or "").strip().lower()
+    if not _EMAIL_RE.match(email) or len(email) > 254:
+        raise HTTPException(status_code=400, detail="Invalid email address")
+
+    rl_key = f"email_code_rl:{email}"
+    if redis_client.get(rl_key):
+        raise HTTPException(status_code=429, detail="Please wait before requesting another code")
+
+    code = f"{_secrets.randbelow(1000000):06d}"
+    redis_client.setex(f"email_code:{email}", 600, code)   # 10 分钟有效
+    redis_client.setex(rl_key, 60, "1")                    # 60s 冷却
+
+    sent = await _send_email_code(email, code)
+    resp = {"status": "ok", "sent": sent}
+    # 无邮件提供商 + 非生产环境 → 回显验证码,便于开发/内测
+    if not sent and (getattr(settings, "env", "production") or "production").lower() in ("dev", "development", "local"):
+        resp["dev_code"] = code
+        print(f"[email auth][DEV] code for {email}: {code}")
+    return resp
+
+
+@app.post("/api/v1/auth/email/verify")
+async def auth_email_verify(body: EmailVerifyBody):
+    """校验验证码 → 签发 JWT。user_id = em_<sha256(email)[:16]>。"""
+    email = (body.email or "").strip().lower()
+    code = (body.code or "").strip()
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="Invalid email address")
+
+    stored = redis_client.get(f"email_code:{email}")
+    if stored is None:
+        raise HTTPException(status_code=401, detail="Code expired or not found. Request a new one.")
+    stored_str = stored.decode() if isinstance(stored, bytes) else str(stored)
+    if not code or not hmac.compare_digest(stored_str, code):
+        raise HTTPException(status_code=401, detail="Incorrect code")
+
+    redis_client.delete(f"email_code:{email}")
+    redis_client.delete(f"email_code_rl:{email}")
+
+    user_id = _email_user_id(email)
+    pkey = f"user_profile:{user_id}"
+    is_new_user = not redis_client.exists(pkey)
+    if is_new_user:
+        from datetime import datetime as _dt
+        redis_client.set(pkey, json.dumps({
+            "user_id": user_id, "email": email, "auth": "email",
+            "created_at": _dt.now().isoformat(),
+        }, ensure_ascii=False))
+
+    token = create_jwt_for_user(user_id, openid=email)
     return {"token": token, "user_id": user_id, "is_new_user": is_new_user}
 
 
@@ -582,7 +722,7 @@ async def update_user_profile(req: UserProfileRequest, user: AuthUser = Depends(
         return {"nickname": existing.get("nickname", ""), "avatar_url": existing.get("avatar_url", "")}
     except Exception as e:
         print(f"[update_user_profile error] {e}")
-        raise HTTPException(status_code=500, detail=f"保存失败: {e}")
+        raise HTTPException(status_code=500, detail="保存失败，请稍后再试")
 
 
 # ---------- 头像上传 ----------
@@ -624,7 +764,7 @@ async def upload_user_avatar(file: UploadFile = File(...), user: AuthUser = Depe
         raise
     except Exception as e:
         print(f"[upload_user_avatar error] {e}")
-        raise HTTPException(status_code=500, detail=f"上传失败: {e}")
+        raise HTTPException(status_code=500, detail="上传失败，请稍后再试")
 
 
 # ---------- 紧急联系人（危机干预用） ----------
@@ -786,11 +926,20 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     session_id: Optional[str] = Field(default=None, max_length=64)
     skip_tts: bool = False  # ✅ 文本模式下跳过 TTS 合成，加速响应
+    locale: Optional[str] = Field(default="zh", max_length=10)  # 'zh' (default) | 'en' (US 市场)
 
     @field_validator("message", mode="before")
     @classmethod
     def strip_message(cls, v):
         return v.strip() if isinstance(v, str) else v
+
+    @field_validator("locale", mode="before")
+    @classmethod
+    def normalize_locale_field(cls, v):
+        if not v:
+            return "zh"
+        code = str(v).lower().split("-")[0].split("_")[0]
+        return code if code in ("zh", "en") else "zh"
 
     @field_validator("session_id", mode="before")
     @classmethod
@@ -1653,11 +1802,52 @@ def _get_sleep_summary(user_id: str, days: int = 7) -> str:
 
 def _build_enhanced_system_prompt(
     user_id: str, session_id: str, cbt_result: dict, user_message: str, memory: dict = None,
-    profile: dict = None
+    profile: dict = None, locale: str = "zh"
 ) -> str:
     """构建 RAG 增强后的系统提示词（统一供 chat_cbt 和 chat_cbt_stream 使用）"""
     current_phase = cbt_result.get('next_phase')
-    cbt_base_prompt = cbt_manager.get_cbt_system_prompt(user_id, session_id, phase=current_phase, profile=profile)
+    cbt_base_prompt = cbt_manager.get_cbt_system_prompt(user_id, session_id, phase=current_phase, profile=profile, locale=locale)
+
+    # 英文路径:base prompt + 英文 LSA RAG + 英文 strict rules
+    # 跳过中文 memory/sleep_summary/emotion/style_label (它们都是 hardcoded 中文)
+    if locale == "en":
+        state_update_en = cbt_result.get('state_update', {})
+        user_style_en = state_update_en.get('user_style', 'NORMAL')
+        rag_context_en = ""
+        if RAG_AVAILABLE:
+            try:
+                _alvl_en = state_update_en.get('anxiety_level', 5)
+                if isinstance(_alvl_en, AnxietyLevel):
+                    _alvl_map_en = {"severe": 8, "moderate": 5, "mild": 2, "normal": 0}
+                    _alvl_en = _alvl_map_en.get(_alvl_en.value, 5)
+                rag_context_en = build_rag_system_prompt(
+                    user_id=user_id,
+                    session_context=memory or {},
+                    current_phase=cbt_result["next_phase"],
+                    user_message=user_message,
+                    anxiety_level=_alvl_en,
+                    user_style=user_style_en,
+                    locale="en",
+                )
+            except Exception as e:
+                print(f"[RAG/en] build failed: {e}")
+                rag_context_en = ""
+        strict_rules_en = (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "[OUTPUT RULES — TOP PRIORITY]\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "1. ALWAYS reply in English. Never produce Chinese characters.\n"
+            "2. Keep replies short and natural: 5-15 words for chitchat, 20-40 for deeper emotion.\n"
+            "3. No tags, no markdown formatting. Warm, steady, not saccharine.\n"
+            "4. Don't judge, don't ask 'why', don't give advice, don't analyze. Stay present.\n"
+            "5. No template phrasing, no mentioning 'sleep' or 'anxiety' every sentence. Never sound impatient.\n"
+            "6. When emotion runs high, get shorter and gentler.\n"
+        )
+        parts_en = [cbt_base_prompt]
+        if rag_context_en:
+            parts_en.append("\n" + rag_context_en)
+        parts_en.append(strict_rules_en)
+        return "".join(parts_en)
     if memory is None:
         memory = get_user_memory(user_id)
 
@@ -1680,7 +1870,8 @@ def _build_enhanced_system_prompt(
                 current_phase=cbt_result["next_phase"],
                 user_message=user_message,
                 anxiety_level=_alvl,
-                user_style=user_style
+                user_style=user_style,
+                locale=locale,
             )
         except Exception as e:
             import traceback; print(f"[RAG] 构建系统提示词失败: {e}\n{traceback.format_exc()}")
@@ -1873,22 +2064,34 @@ EDGE_TTS_VOICES = {
     "female_young": "zh-CN-XiaoyiNeural",     # 轻柔女声
 }
 
+# 英文音色(US, Edge TTS Neural,免费)
+EDGE_TTS_VOICES_EN = {
+    "female_warm":  "en-US-AriaNeural",       # 温暖女声(默认,自然语气)
+    "male_calm":    "en-US-GuyNeural",        # 平静男声
+    "female_young": "en-US-JennyNeural",      # 轻柔女声
+}
+
+EDGE_TTS_VOICES_BY_LOCALE = {"zh": EDGE_TTS_VOICES, "en": EDGE_TTS_VOICES_EN}
+
 EDGE_TTS_RATE_MAP = {
     "female_warm":  "-5%",
     "male_calm":    "+0%",
     "female_young": "-10%",
 }
 
-async def edge_tts(text: str, voice: str = "female_warm", speed: float = 0.9) -> bytes:
+async def edge_tts(text: str, voice: str = "female_warm", speed: float = 0.9, locale: str = "zh") -> bytes:
     """
     调用 Edge TTS（免费），返回 mp3 音频字节
     voice: female_warm | male_calm | female_young
     speed: 0.5-2.0
+    locale: 'zh' (default zh-CN-*Neural) | 'en' (en-US-*Neural)
     """
     import edge_tts
     import tempfile, os
 
-    voice_id = EDGE_TTS_VOICES.get(voice, EDGE_TTS_VOICES["female_warm"])
+    _loc = (locale or "zh").lower().split("-")[0]
+    voices_map = EDGE_TTS_VOICES_BY_LOCALE.get(_loc, EDGE_TTS_VOICES)
+    voice_id = voices_map.get(voice, voices_map["female_warm"])
     rate_pct = int((speed - 1.0) * 100)
     rate_str = f"{rate_pct:+d}%" if rate_pct != 0 else "+0%"
 
@@ -2251,9 +2454,25 @@ async def tencent_tts_stream(text: str, voice: str = "female_warm", speed: int =
 
 
 
-async def tencent_tts_stream_sse(text: str, voice: str = "female_warm", speed: int = 0):
-    """流式 TTS：带缓存 + 并发控制 + 多账号负载均衡"""
+async def tencent_tts_stream_sse(text: str, voice: str = "female_warm", speed: int = 0, locale: str = "zh"):
+    """流式 TTS：带缓存 + 并发控制 + 多账号负载均衡。
+    locale='en' 时绕过腾讯云,改用 Edge TTS(en-US Neural)单段返回,因为腾讯流式 TTS 英文音色支持差。"""
     import base64
+
+    _loc = (locale or "zh").lower().split("-")[0]
+    if _loc == "en":
+        # 英文路径:用 Edge TTS 一次性合成,包成单条 tts_sentence 事件返回
+        try:
+            edge_speed = max(0.5, min(2.0, 1.0 + (speed * 0.05)))   # speed -2~6 → 0.9~1.3
+            audio_bytes = await edge_tts(text[:500], voice=voice, speed=edge_speed, locale="en")
+            audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+            yield {"event": "tts_sentence", "index": 0, "audio_base64": audio_b64, "text": text, "done": False}
+            yield {"event": "tts_sentence", "index": 1, "audio_base64": "", "text": "", "done": True}
+        except Exception as e:
+            print(f"[TTS/en edge_tts error] {e}")
+            yield {"event": "tts_error", "error": "tts_failed"}
+        return
+
     cache_key = _get_tts_cache_key(text, voice, speed)
 
     # ✅ 1. 内存缓存命中
@@ -2310,7 +2529,7 @@ async def tencent_tts_stream_sse(text: str, voice: str = "female_warm", speed: i
 
 # ==================== 腾讯云实时 ASR ====================
 
-async def tencent_asr_stream(audio_data: bytes, filename: str = "audio.mp3") -> str:
+async def tencent_asr_stream(audio_data: bytes, filename: str = "audio.mp3", locale: str = "zh") -> str:
     """
     腾讯云 ASR（SDK 短句识别，稳定可靠）
     使用腾讯云 SDK SentenceRecognition API，上传音频并同步返回识别结果。
@@ -2367,7 +2586,8 @@ async def tencent_asr_stream(audio_data: bytes, filename: str = "audio.mp3") -> 
     req = models.SentenceRecognitionRequest()
     req.SubServiceType = 2
     req.VoiceFormat = voice_format
-    req.EngSerViceType = "16k_zh"
+    _loc = (locale or "zh").lower().split("-")[0]
+    req.EngSerViceType = "16k_en" if _loc == "en" else "16k_zh"
     req.SourceType = 1
     req.Data = base64.b64encode(asr_data).decode()
     req.DataLen = len(asr_data)
@@ -2432,7 +2652,7 @@ async def asr_quick_upload(file: UploadFile = File(...)):
         return {"text": text, "confidence": "high", "engine": "tencent", "source": "quick_upload"}
     except Exception as e:
         print(f"[ASR-Quick] 识别失败: {e}")
-        raise HTTPException(status_code=500, detail=f"识别失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="语音识别失败，请重试")
 
 
 
@@ -2568,7 +2788,8 @@ async def chat_cbt(req: ChatRequest, user: AuthUser = Depends(get_current_user))
         session_id=session_id,
         user_message=req.message,
         conversation_history=[{"role": m.role, "content": m.content} for m in history],
-        profile=profile
+        profile=profile,
+        locale=req.locale,
     )
 
     #音色偏好注入：用户设定音色覆盖 response_type 默认
@@ -2640,7 +2861,7 @@ async def chat_cbt(req: ChatRequest, user: AuthUser = Depends(get_current_user))
 
     # 5. 否则调用 LLM 生成响应（RAG增强）
     cbt_system_prompt = _build_enhanced_system_prompt(
-        user_id, session_id, cbt_result, req.message, memory=memory, profile=profile
+        user_id, session_id, cbt_result, req.message, memory=memory, profile=profile, locale=req.locale
     )
 
     full_messages = [
@@ -2709,7 +2930,8 @@ async def _chat_events(req: ChatRequest, user_id: str):
         session_id=session_id,
         user_message=req.message,
         conversation_history=[{"role": m.role, "content": m.content} for m in history],
-        profile=profile
+        profile=profile,
+        locale=req.locale,
     )
 
     # 音色偏好注入：用户设定音色覆盖 response_type 默认
@@ -2771,7 +2993,7 @@ async def _chat_events(req: ChatRequest, user_id: str):
         if not skip_tts:
             try:
                 sent_any = False
-                async for evt in tencent_tts_stream_sse(cbt_result['content'][:120], voice=base_tts_voice, speed=base_tts_speed):
+                async for evt in tencent_tts_stream_sse(cbt_result['content'][:120], voice=base_tts_voice, speed=base_tts_speed, locale=req.locale):
                     yield evt
                     sent_any = True
                 if sent_any:
@@ -2812,7 +3034,7 @@ async def _chat_events(req: ChatRequest, user_id: str):
         sent = False
         if not skip_tts:
             try:
-                async for evt in tencent_tts_stream_sse(quick_greeting[:120], voice=base_tts_voice, speed=base_tts_speed):
+                async for evt in tencent_tts_stream_sse(quick_greeting[:120], voice=base_tts_voice, speed=base_tts_speed, locale=req.locale):
                     yield evt
                     sent = True
             except Exception as e:
@@ -2823,7 +3045,7 @@ async def _chat_events(req: ChatRequest, user_id: str):
     # 4. 调用 LLM 流式生成（RAG增强）
     memory = get_user_memory(user_id)
     cbt_system_prompt = _build_enhanced_system_prompt(
-        user_id, session_id, cbt_result, req.message, memory=memory, profile=profile
+        user_id, session_id, cbt_result, req.message, memory=memory, profile=profile, locale=req.locale
     )
 
     full_messages = [
@@ -2889,7 +3111,7 @@ async def _chat_events(req: ChatRequest, user_id: str):
                             import time as _ttp
                             _tts_t0 = _ttp.time()
                             sent_any = False
-                            async for evt in tencent_tts_stream_sse(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed):
+                            async for evt in tencent_tts_stream_sse(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed, locale=req.locale):
                                 yield evt
                                 if not sent_any:
                                     _tts_first_yield = _ttp.time() - _tts_t0
@@ -2939,7 +3161,7 @@ async def _chat_events(req: ChatRequest, user_id: str):
             if should_flush and flush_text:
                 try:
                     sent_any = False
-                    async for evt in tencent_tts_stream_sse(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed):
+                    async for evt in tencent_tts_stream_sse(flush_text[:MAX_TTS_CHARS], voice=base_tts_voice, speed=base_tts_speed, locale=req.locale):
                         yield evt
                         sent_any = True
                     if sent_any:
@@ -2952,7 +3174,7 @@ async def _chat_events(req: ChatRequest, user_id: str):
         # 流结束：刷新剩余文本
         if not skip_tts and tts_buffer.strip():
             try:
-                async for evt in tencent_tts_stream_sse(tts_buffer[:MAX_TTS_CHARS].strip(), voice=base_tts_voice, speed=base_tts_speed):
+                async for evt in tencent_tts_stream_sse(tts_buffer[:MAX_TTS_CHARS].strip(), voice=base_tts_voice, speed=base_tts_speed, locale=req.locale):
                     yield evt
                     has_yielded_tts = True
             except Exception as e:
@@ -3368,16 +3590,20 @@ async def tts_stream_v2(
 
 # ---------- ASR ----------
 @app.post("/api/v1/asr")
-async def asr(file: UploadFile = File(...)):
+async def asr(file: UploadFile = File(...), locale: str = Query("zh")):
     """
-    语音转文字（支持 mp3/wav/m4a/amr，千问 ASR）
+    语音转文字（支持 mp3/wav/m4a/amr，腾讯云 ASR;locale='en' 走 16k_en）
     """
     audio_data = await file.read()
     if len(audio_data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="音频文件不能超过10MB")
     if not _validate_audio_content(audio_data, file.filename or ""):
         raise HTTPException(status_code=400, detail="不支持的文件类型，仅支持 mp3/wav/pcm")
-    text = await qwen_asr(audio_data, file.filename or "audio.mp3")
+    # qwen_asr 仅中文;英文路径直接走腾讯 16k_en
+    if (locale or "zh").lower().split("-")[0] == "en":
+        text = await tencent_asr_stream(audio_data, file.filename or "audio.mp3", locale="en")
+    else:
+        text = await qwen_asr(audio_data, file.filename or "audio.mp3")
     return {"text": text, "confidence": "high"}
 
 
@@ -3689,7 +3915,19 @@ async def asr_websocket(websocket: WebSocket):
     - 后端 → 前端：{"done": true}  识别完成
 
     实现：收到前端帧立即转发给腾讯云 ASR v2，结果实时回传前端
+
+    鉴权：连接时须通过 query 参数携带 JWT —— ws://host/api/v1/asr/ws?token=<jwt>
     """
+    # 鉴权必须在 accept() 之前 —— 否则任何人都能空耗腾讯云 ASR 付费额度
+    token = websocket.query_params.get("token", "")
+    if not token or not verify_jwt_token(token):
+        await websocket.close(code=4001, reason="Token 无效或已过期")
+        return
+
+    # locale 决定 ASR 模型:'en' → '16k_en',其他 → '16k_zh'
+    _locale_raw = (websocket.query_params.get("locale", "zh") or "zh").lower().split("-")[0]
+    asr_engine_model = "16k_en" if _locale_raw == "en" else "16k_zh"
+
     await websocket.accept()
 
     appid = settings.tencentcloud_app_id
@@ -3733,10 +3971,10 @@ async def asr_websocket(websocket: WebSocket):
                     frame_count += 1
                     # 第一个帧：创建 connector 并连接腾讯云
                     if v2_connector is None:
-                        print(f"[ASR-WS] first frame {pcm_len}B, connecting to Tencent ASR v2...")
+                        print(f"[ASR-WS] first frame {pcm_len}B engine={asr_engine_model}, connecting to Tencent ASR v2...")
                         v2_connector = TencentASRStreamConnector(
                             str(appid), secret_id, secret_key,
-                            engine_model_type="16k_zh"
+                            engine_model_type=asr_engine_model
                         )
                         await v2_connector.connect(timeout=3.0)
                         result_task = asyncio.create_task(result_forwarder())
@@ -4109,6 +4347,7 @@ class WorryRecordRequest(BaseModel):
     user_id: str
     worry_text: str
     session_id: Optional[str] = None
+    locale: Optional[str] = "zh"
 
 
 async def _classify_worry_async(user_id: str, timestamp_ms: int, worry_text: str):
@@ -4222,7 +4461,7 @@ async def create_worry(req: WorryRecordRequest, background_tasks: BackgroundTask
     crisis_result = {}
     try:
         analyzer = get_emotion_analyzer()
-        crisis_result = analyzer._detect_crisis(worry_text)
+        crisis_result = analyzer._detect_crisis(worry_text, locale=req.locale or "zh")
         crisis_level = crisis_result.get("level", "none")
         if crisis_level in ("severe", "high", "medium"):
             session_id = req.session_id or ""
@@ -4244,6 +4483,18 @@ async def create_worry(req: WorryRecordRequest, background_tasks: BackgroundTask
 
     # 危机内容：不存为普通担忧，返回标记让前端弹紧急资源
     if crisis_triggered:
+        _locale = (req.locale or "zh").lower().split("-")[0]
+        if _locale == "en":
+            return {
+                "status": "crisis",
+                "crisis_level": crisis_result.get("level"),
+                "crisis_types": crisis_result.get("types", []),
+                "message": "It sounds like you may be in serious pain right now. You're not alone. If you're thinking about hurting yourself, please reach out: call or text 988 (24/7 Suicide & Crisis Lifeline).",
+                "hotlines": [
+                    {"name": "988 Suicide & Crisis Lifeline", "phone": "988", "text": "Text 988"},
+                    {"name": "Crisis Text Line", "text": "Text HOME to 741741"},
+                ],
+            }
         return {
             "status": "crisis",
             "crisis_level": crisis_result.get("level"),
@@ -4708,7 +4959,8 @@ async def rag_build(force: bool = False):
             "vocab_size": len(rag_index.chunks),
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[rag status error] {e}")
+        raise HTTPException(status_code=500, detail="操作失败")
 
 @app.get("/api/v1/training/stats")
 async def training_stats(min_score: float = 6.0):
@@ -4746,7 +4998,8 @@ async def training_export(min_score: float = 6.0, limit: int = Query(500, le=200
             "message": f"共 {len(data)} 条，可用 /api/v1/training/download 下载完整文件"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[training export error] {e}")
+        raise HTTPException(status_code=500, detail="导出失败")
 
 
 # ==================== Sleep Diary APIs ====================
@@ -5168,7 +5421,8 @@ async def evaluate_session(session_data: dict):
         result = dialogue_evaluator.evaluate_session(session_data)
         return dialogue_evaluator.to_dict(result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[evaluate_session error] {e}")
+        raise HTTPException(status_code=500, detail="评估失败")
 
 
 @app.get("/api/v1/evaluate/recent")
@@ -5315,18 +5569,25 @@ async def submit_rating(session_id: str, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[session detail error] {e}")
+        raise HTTPException(status_code=500, detail="获取失败")
 
 
 @app.get("/api/v1/sessions/{session_id}/report")
-async def get_session_report(session_id: str):
+async def get_session_report(session_id: str, user: AuthUser = Depends(get_current_user)):
     """获取单个会话的《知眠AI沟通质量评估表》格式报告"""
+    # session_id 仅允许字母数字下划线连字符 —— 阻断路径穿越（../）
+    if not re.fullmatch(r'[A-Za-z0-9_-]+', session_id):
+        raise HTTPException(status_code=400, detail="无效的会话 ID")
     try:
         log_file = LOG_DIR / f"{session_id}.json"
         if not log_file.exists():
-            raise HTTPException(status_code=404, detail=f"未找到会话 {session_id}")
+            raise HTTPException(status_code=404, detail="未找到该会话")
         with open(log_file, 'r', encoding='utf-8') as f:
             log = json.load(f)
+        # 归属校验：只能查看自己的会话
+        if log.get("user_id") != user.user_id:
+            raise HTTPException(status_code=403, detail="无权访问该会话")
         quality = log.get("quality_evaluation", {})
         report = quality.get("report", {})
         if not report:
@@ -5342,7 +5603,8 @@ async def get_session_report(session_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[get_session_report error] {e}")
+        raise HTTPException(status_code=500, detail="获取报告失败")
 
 
 @app.post("/api/v1/evaluate/llm_review")
@@ -5366,7 +5628,8 @@ async def llm_review_endpoint(session_data: dict):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[llm_review error] {e}")
+        raise HTTPException(status_code=500, detail="复核失败")
 
 
 
@@ -5392,7 +5655,7 @@ async def admin_login(request: Request):
         jwt_token = create_admin_jwt()
         return {"success": True, "message": "未配置认证，直接访问", "token": jwt_token}
 
-    if token == ADMIN_TOKEN:
+    if token and hmac.compare_digest(token, ADMIN_TOKEN):
         # 验证成功，清除失败计数，签发 JWT
         redis_client.delete(rate_key)
         jwt_token = create_admin_jwt()
@@ -5484,6 +5747,52 @@ async def admin_users(days: int = Query(30, le=90), limit: int = Query(500, le=2
 async def admin_user_detail(user_id: str, limit: int = Query(20, le=100)):
     """用户详情"""
     return get_user_detail(user_id, limit=limit)
+
+
+# user_id 仅允许字母数字与 _ : . - —— 阻断 Redis 通配符注入(*?[])
+_ADMIN_UID_RE = re.compile(r"^[A-Za-z0-9_:.\-]+$")
+
+
+@app.delete("/api/v1/admin/users/{user_id}")
+async def admin_user_delete(user_id: str):
+    """删除用户全部数据(运营后台)。返回 {success, deleted_keys}。"""
+    if not _ADMIN_UID_RE.match(user_id) or len(user_id) > 80:
+        raise HTTPException(status_code=400, detail="无效的 user_id")
+    try:
+        deleted = 0
+        for key in redis_client.scan_iter(match=f"*{user_id}*", count=200):
+            redis_client.delete(key)
+            deleted += 1
+        # 头像文件(若有)
+        try:
+            import glob as _glob
+            for fp in _glob.glob(f"/home/ubuntu/anmian/static/avatars/{user_id}_*"):
+                os.remove(fp)
+        except Exception:
+            pass
+        print(f"[admin_user_delete] user={user_id} keys_deleted={deleted}")
+        return {"success": True, "user_id": user_id, "deleted_keys": deleted}
+    except Exception as e:
+        print(f"[admin_user_delete error] {e}")
+        return {"success": False, "error": "删除失败"}
+
+
+@app.post("/api/v1/admin/users/{user_id}/toggle")
+async def admin_user_toggle(user_id: str, action: str = Query(...)):
+    """禁用/启用用户。action=disable|enable。用 user:disabled:{user_id} 标记。"""
+    if not _ADMIN_UID_RE.match(user_id) or len(user_id) > 80:
+        raise HTTPException(status_code=400, detail="无效的 user_id")
+    if action not in ("disable", "enable"):
+        raise HTTPException(status_code=400, detail="action 必须是 disable 或 enable")
+    try:
+        if action == "disable":
+            redis_client.setex(f"user:disabled:{user_id}", 365 * 24 * 3600, "1")
+        else:
+            redis_client.delete(f"user:disabled:{user_id}")
+        return {"success": True, "user_id": user_id, "action": action}
+    except Exception as e:
+        print(f"[admin_user_toggle error] {e}")
+        return {"success": False, "error": "操作失败"}
 
 
 # ==================== 睡眠数据大盘 Admin API ====================
@@ -5588,6 +5897,7 @@ class UserFeedbackRequest(BaseModel):
     """用户提交的文字反馈"""
     content: str
     platform: Optional[str] = None
+    locale: Optional[str] = "zh"
 
 
 @app.post("/api/v1/user/feedback")
@@ -5606,7 +5916,7 @@ async def submit_user_feedback(req: UserFeedbackRequest, user: AuthUser = Depend
 
     # 反馈文字也可能藏有危机信号（如「用着用着更不想活了」），同步告警运营
     try:
-        crisis_result = get_emotion_analyzer()._detect_crisis(req.content or "")
+        crisis_result = get_emotion_analyzer()._detect_crisis(req.content or "", locale=req.locale or "zh")
         if crisis_result.get("level") in ("severe", "high", "medium"):
             emit_crisis_alert(
                 user_id=user.user_id,
@@ -5953,7 +6263,8 @@ async def track_evaluation(request: Request):
         record_evaluation(session_id, auto_report, llm_report)
         return {"success": True, "session_id": session_id}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[evaluate track error] {e}")
+        raise HTTPException(status_code=500, detail="记录失败")
 
 
 @app.get("/api/v1/evaluate/bias")
@@ -5981,7 +6292,8 @@ async def test_alert(request: Request):
         success = send_alert(report)
         return {"success": success, "webhook_configured": bool(os.getenv("ALERT_WEBHOOK_URL", ""))}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[alert test error] {e}")
+        raise HTTPException(status_code=500, detail="发送失败")
 
 
 @app.post("/api/v1/alerts/daily")
@@ -6036,7 +6348,8 @@ async def push_daily_report(days: int = 1):
         success = send_daily_report(summary)
         return {"success": success, "summary": summary}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[daily report error] {e}")
+        raise HTTPException(status_code=500, detail="发送失败")
 # Actions test 3 - PEM key
 # debug deploy test
 # test deploy v2
@@ -6062,4 +6375,4 @@ async def emotion_analyze(req: EmotionAnalyzeRequest):
         return analyzer.to_dict(result)
     except Exception as e:
         print(f"[EmotionAPI] 分析失败: {e}")
-        raise HTTPException(status_code=500, detail=f"情感分析失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="情感分析失败")

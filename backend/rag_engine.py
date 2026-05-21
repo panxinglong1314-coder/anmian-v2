@@ -319,20 +319,48 @@ def _insomnia_desc(subtype: str) -> str:
     }.get(subtype, "一般失眠")
 
 
+_PHASE_STRATEGY_EN = {
+    "assessment": "Briefly check in on tonight's state. One short question max.",
+    "worry_capture": "Acknowledge the feeling, help them name the worry, then transition out.",
+    "cognitive": "Use a gentle Socratic question to loosen a thought. Don't lecture.",
+    "relaxation": "Pull attention to breath or body. Don't over-explain.",
+    "closure": "Soft wind-down. Sleep permission. No problem-solving.",
+    "normal_chat": "Friendly, short reply.",
+    "safety": "Calm, non-judgmental. Share 988 / Crisis Text Line.",
+}
+
+_STYLE_MAP_EN = {
+    "HIGHLY_ANXIOUS": "Highly anxious — keep replies very short, reassure safety, prioritize breathing.",
+    "VENTING": "Venting — listen first, don't interrupt, gently invite them to name the feeling.",
+    "ANALYTICAL": "Analytical — structured phrasing, Socratic questions.",
+    "AVOIDANT": "Avoidant — don't ask about emotion directly, start from body/environment.",
+    "NORMAL": "Normal — natural conversation is fine.",
+}
+
+
 def build_rag_system_prompt(
     user_id: str,
     session_context: Dict[str, Any],
     current_phase: str,
     user_message: str,
     anxiety_level: int = 5,
-    user_style: str = "NORMAL"
+    user_style: str = "NORMAL",
+    locale: str = "zh",
 ) -> str:
-    """构建 PageIndex 增强的 RAG 标签提示"""
-    cache_key = f"{user_message[:40]}:{current_phase}:{anxiety_level}:{user_style}"
+    """构建 RAG 增强的 system prompt 注入。中文走 PageIndex+LSA;英文 MVP 走 LSA-only。"""
+    locale = (locale or "zh").lower().split("-")[0]
+    if locale not in ("zh", "en"):
+        locale = "zh"
+
+    cache_key = f"{locale}:{user_message[:40]}:{current_phase}:{anxiety_level}:{user_style}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
 
+    if locale == "en":
+        return _build_rag_system_prompt_en(cache_key, current_phase, user_message, anxiety_level, user_style)
+
+    # 中文路径(原逻辑)
     result = _page_index_retrieve(
         user_message,
         ctx={
@@ -384,3 +412,51 @@ def build_rag_system_prompt(
     result_text = "\n".join(lines)
     _cache_set(cache_key, result_text)
     return result_text
+
+
+def _build_rag_system_prompt_en(cache_key: str, current_phase: str, user_message: str,
+                                  anxiety_level: int, user_style: str) -> str:
+    """英文 RAG 提示构造:LSA-only(英文索引),不调用中文 PageIndex/LLM 树导航。"""
+    from hybrid_rag_index import get_hybrid_rag, LSA_MIN_SCORE
+    rag_en = get_hybrid_rag("en")
+    # 懒加载索引
+    if rag_en.vectorizer is None or rag_en.svd is None:
+        try:
+            rag_en.load_index()
+        except Exception as e:
+            print(f"[RAG/en] load failed: {e}")
+
+    lines = ["[RAG REFERENCE — style cues and example phrasing. Do NOT quote any of this verbatim to the user.]"]
+    lines.append(f"User style: {_STYLE_MAP_EN.get(user_style, user_style)}")
+    lines.append(f"Anxiety: {_anxiety_desc_en(anxiety_level)}")
+
+    try:
+        hits = rag_en.retrieve(query=user_message, top_k=4)
+    except Exception as e:
+        print(f"[RAG/en] retrieve failed: {e}")
+        hits = []
+
+    if hits:
+        lines.append(f"\nTop {len(hits)} retrieved snippets:")
+        for h in hits:
+            chunk = h.get("chunk", {})
+            src = chunk.get("source", "?")
+            snippet = (h.get("text", "") or "")[:200].replace("\n", " ")
+            lines.append(f"  [{src} | score={h.get('score','?')}] {snippet}")
+
+    lines.append(f"\nCurrent phase: {current_phase} | Strategy: {_PHASE_STRATEGY_EN.get(current_phase, 'Stay natural.')}")
+    result_text = "\n".join(lines)
+    _cache_set(cache_key, result_text)
+    return result_text
+
+
+def _anxiety_desc_en(level: int) -> str:
+    if level >= 8:
+        return "severe — keep responses very short, reassure safety"
+    if level >= 6:
+        return "moderate-to-high — slower pacing, gentler"
+    if level >= 4:
+        return "moderate — supportive normal tone"
+    if level >= 2:
+        return "mild — natural conversation"
+    return "calm — settle-into-sleep tone"

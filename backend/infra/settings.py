@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     # 运营后台
     admin_token: str = ""
 
+    # 邮箱登录(Web 出海)。配置 resend_api_key 即发真邮件;否则开发态返回验证码
+    resend_api_key: str = ""
+    auth_from_email: str = "ZhiMian <noreply@sleepai.chat>"
+    env: str = "production"
+
     @field_validator("tts_warmup_phrases", mode="before")
     @classmethod
     def _strip_tts_phrases(cls, v):

@@ -35,7 +35,7 @@ class EmotionAnalyzer:
         # 默认空结构
         return {"emotion_categories": {}, "worry_domains": {}, "cognitive_distortion_signals": {}}
     
-    # 分级危机关键词库
+    # 分级危机关键词库（中文）
     CRISIS_KEYWORDS = {
         "suicide": {
             "high": ["想死", "不想活了", "活着没意思", "死了算了", "自杀", "结束生命", "了结自己", "没有活下去的理由"],
@@ -64,14 +64,100 @@ class EmotionAnalyzer:
         },
     }
 
-    def _detect_crisis(self, text: str) -> Dict[str, Any]:
-        """分级危机检测：返回危机类型、等级、分数"""
-        max_level = "none"  # none / low / medium / high
+    # 分级危机关键词库（英文,US 市场,C-SSRS 风格分级）
+    # DRAFT — 临床复核 + 红队测试后才能上线
+    CRISIS_KEYWORDS_EN = {
+        "suicide": {
+            "high": [
+                "kill myself", "killing myself", "going to kill myself",
+                "end my life", "end it all", "take my own life",
+                "i want to die", "want to die tonight", "i'm going to die",
+                "commit suicide", "suicidal", "plan to end",
+            ],
+            "medium": [
+                "wish i was dead", "wish i were dead", "better off dead",
+                "rather be dead", "don't want to live", "no reason to live",
+                "can't go on", "can't take it anymore", "can't do this anymore",
+            ],
+            "low": [
+                "what's the point", "nothing matters", "just want to disappear",
+                "want to vanish", "tired of living",
+            ],
+        },
+        "self_harm": {
+            "high": [
+                "cut myself", "cutting myself", "burn myself", "burning myself",
+                "going to overdose", "overdose on", "hang myself", "hanging myself",
+            ],
+            "medium": [
+                "hurt myself", "harm myself", "self-harm", "self harm",
+                "punch myself", "hit myself", "scratch myself",
+            ],
+            "low": [
+                "want to feel pain", "want to bleed",
+            ],
+        },
+        "violence": {
+            "high": [
+                "kill them", "kill him", "kill her",
+                "want to kill", "going to kill someone",
+            ],
+            "medium": [
+                "want to hurt someone", "want to punch", "want to break something",
+                "want revenge", "going to lose it",
+            ],
+            "low": [
+                "so angry", "want to scream", "want to fight",
+            ],
+        },
+        "acute_psychosis": {
+            "high": [
+                "voices in my head", "hearing voices", "they're watching me",
+                "being controlled", "my thoughts aren't mine",
+            ],
+            "medium": [
+                "feels unreal", "dissociating", "disconnected from reality", "out of body",
+            ],
+            "low": [
+                "something feels off", "feels weird", "strange feeling",
+            ],
+        },
+        "child_abuse": {
+            "high": [
+                "hurting a child", "hitting my child", "child abuse",
+            ],
+            "medium": [
+                "domestic violence", "being beaten", "elder abuse",
+            ],
+            "low": [
+                "kid is scared", "afraid to go home",
+            ],
+        },
+    }
+
+    CRISIS_KEYWORDS_BY_LOCALE = {
+        "zh": CRISIS_KEYWORDS,
+        "en": CRISIS_KEYWORDS_EN,
+    }
+
+    @staticmethod
+    def _normalize_locale(locale: Optional[str]) -> str:
+        if not locale:
+            return "zh"
+        code = str(locale).lower().split("-")[0].split("_")[0]
+        return code if code in ("zh", "en") else "zh"
+
+    def _detect_crisis(self, text: str, locale: str = "zh") -> Dict[str, Any]:
+        """分级危机检测:按 locale 选词表 (英文走小写匹配)。返回类型、等级、分数。"""
+        locale = self._normalize_locale(locale)
+        keywords = self.CRISIS_KEYWORDS_BY_LOCALE.get(locale, self.CRISIS_KEYWORDS)
+        haystack = (text or "").lower() if locale == "en" else (text or "")
+        max_level = "none"
         max_score = 0
         detected_types = []
-        for crisis_type, levels in self.CRISIS_KEYWORDS.items():
+        for crisis_type, levels in keywords.items():
             for level, kws in levels.items():
-                score = sum(1 for kw in kws if kw in text)
+                score = sum(1 for kw in kws if kw in haystack)
                 if score > 0:
                     detected_types.append(crisis_type)
                     level_score = {"low": 1, "medium": 2, "high": 3}.get(level, 0) * score
@@ -82,6 +168,7 @@ class EmotionAnalyzer:
             "level": max_level,
             "score": min(max_score * 0.15, 1.0),
             "types": list(set(detected_types)),
+            "locale": locale,
         }
 
     def analyze(self, text: str) -> EmotionResult:

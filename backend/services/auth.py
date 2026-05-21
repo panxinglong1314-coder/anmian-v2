@@ -24,6 +24,16 @@ def create_jwt_token(openid: str) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
+def create_jwt_for_user(user_id: str, openid: Optional[str] = None, days: int = 30) -> str:
+    """通用 JWT 签发：显式指定 user_id（用于邮箱/Apple/Google 等非微信身份源）。"""
+    payload = {
+        "openid": openid or user_id,
+        "user_id": user_id,
+        "exp": datetime.utcnow() + timedelta(days=days),
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+
+
 def verify_jwt_token(token: str) -> Optional[AuthUser]:
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])

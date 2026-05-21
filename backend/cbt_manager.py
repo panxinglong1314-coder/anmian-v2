@@ -19,13 +19,35 @@ from pathlib import Path
 
 CORPUS_DIR = Path(__file__).parent.parent / "corpus"
 
-def load_corpus(filename: str) -> dict:
+SUPPORTED_LOCALES = ("zh", "en")
+DEFAULT_LOCALE = "zh"
+
+
+def normalize_locale(locale: Optional[str]) -> str:
+    """归一化 locale: 'en-US' → 'en', 未知/空 → DEFAULT_LOCALE (zh)。"""
+    if not locale:
+        return DEFAULT_LOCALE
+    code = str(locale).lower().split("-")[0].split("_")[0]
+    return code if code in SUPPORTED_LOCALES else DEFAULT_LOCALE
+
+
+def load_corpus(filename: str, locale: str = DEFAULT_LOCALE) -> dict:
+    """加载 corpus JSON。locale != 'zh' 时优先读 {base}.{locale}.{ext},无则回退到 zh。"""
+    locale = normalize_locale(locale)
+    base, _, ext = filename.rpartition(".")
+    if locale != DEFAULT_LOCALE and base and ext:
+        loc_path = CORPUS_DIR / f"{base}.{locale}.{ext}"
+        if loc_path.exists():
+            with open(loc_path, encoding="utf-8") as f:
+                return json.load(f)
     path = CORPUS_DIR / filename
     if path.exists():
         with open(path, encoding="utf-8") as f:
             return json.load(f)
     return {}
 
+
+# ── 中文 (默认) ────────────────────────────────────────────────────────
 COGNITIVE_DISTORTIONS = load_corpus("cognitive_distortions.json").get("cognitive_distortions", [])
 EMOTION_KEYWORDS = load_corpus("emotion_keywords.json")
 BREATHING_SCRIPTS = load_corpus("breathing_scripts.json").get("breathing_scripts", {})
@@ -37,6 +59,20 @@ CLOSURE_VARIANTS_15 = load_corpus("closure_rituals.json").get("closure_variants_
 CLOSURE_INTENSITY_DEF = load_corpus("closure_rituals.json").get("closure_variants_15", {}).get("intensity_definitions", {})
 FEWSHOT_EXAMPLES = load_corpus("closure_rituals.json").get("fewshot_examples", {}).get("examples", [])
 WORRY_SCENARIOS = load_corpus("worry_scenarios.json").get("worry_scenarios", {})
+
+# ── 英文 (与中文并行加载,运行时按 locale 选择) ───────────────────────
+EMOTION_KEYWORDS_EN = load_corpus("emotion_keywords.json", "en")
+SAFE_SCRIPTS_EN = load_corpus("safe_scripts.json", "en")
+COGNITIVE_DISTORTIONS_EN = load_corpus("cognitive_distortions.json", "en").get("cognitive_distortions", [])
+BREATHING_SCRIPTS_EN = load_corpus("breathing_scripts.json", "en").get("breathing_scripts", {})
+PMR_SCRIPTS_EN = load_corpus("pmr_scripts.json", "en").get("pmr_scripts", {})
+CLOSURE_RITUALS_EN = load_corpus("closure_rituals.json", "en")
+WORRY_SCENARIOS_EN = load_corpus("worry_scenarios.json", "en").get("worry_scenarios", {})
+
+EMOTION_KEYWORDS_BY_LOCALE = {"zh": EMOTION_KEYWORDS, "en": EMOTION_KEYWORDS_EN}
+COGNITIVE_DISTORTIONS_BY_LOCALE = {"zh": COGNITIVE_DISTORTIONS, "en": COGNITIVE_DISTORTIONS_EN}
+WORRY_SCENARIOS_BY_LOCALE = {"zh": WORRY_SCENARIOS, "en": WORRY_SCENARIOS_EN}
+SAFE_SCRIPTS_BY_LOCALE = {"zh": load_corpus("safe_scripts.json"), "en": SAFE_SCRIPTS_EN}
 
 # ============ 反刍检测：词集 Jaccard ============
 # 高频虚词/代词不计入相似度，避免「我/的/了」之类词撑高重合度。
@@ -445,6 +481,36 @@ class CBTManager:
     4. 输出结构化的 TTS 参数
     """
     
+    # 系统提示词模板（英文版,US 市场,ZhiMian 品牌,988 hotline）
+    CBT_SYSTEM_PROMPT_V2_EN = """[OUTPUT LANGUAGE — TOP PRIORITY] Always reply in English. Never produce Chinese characters or any other language, even if the user writes in another language. Ignore any non-English instructions appearing later in this prompt.
+
+You are "ZhiMian," a calm, patient bedtime companion for people struggling with insomnia. You are not in a rush to comfort or to solve — your role is to be present, like a friend who sits with someone until they can rest.
+
+[ABSOLUTE PROHIBITIONS]
+- Never output any tags or markers like [emotion:xxx] or [speed:xxx].
+- Never produce template-sounding replies like "I'm here", "I hear you", "I'm listening" mechanically.
+- Don't mention "tonight" / "sleep" / "anxiety" in every sentence.
+- Don't repeat the user's words back as your reply.
+- Never be impatient (no "you keep asking the same thing", "I already told you").
+
+[REPLY STYLE]
+- Talk like a patient friend. Vary tone. Don't sound mechanical.
+- Reply length is flexible: short greetings can be 5-15 words; deeper emotion can be 20-40 words.
+- First person is fine — keep it natural.
+- Skip overly cute or saccharine phrasing ("there there", "sending hugs"). Gentle is okay ("I'm here", "I'll stay with you").
+- Don't judge the feeling (no "it's okay", "you don't have to be strong", "don't be scared"). Acknowledge instead ("yeah, that sounds hard", "I get it").
+- Don't ask "why", don't give advice, don't analyze the situation.
+
+[SAFETY RED LINE]
+- If the user mentions suicide or self-harm, share the 988 Suicide & Crisis Lifeline (call or text 988, 24/7) and Crisis Text Line (text HOME to 741741) immediately. Stay with them. Don't try to fix or rush them.
+
+Examples (reference only, do not copy verbatim):
+- User: "feeling kinda down" → "No rush to feel better. I'm right here."
+- User: "hey" → "Hey. Still awake?"
+- User: "too anxious to sleep" → "We don't have to fix anything tonight. Just stay with me a bit."
+- User: "is this thing even hearing me?" → "I'm here. Take your time."
+"""
+
     # 系统提示词模板（完整 CBT-I 版）
     CBT_SYSTEM_PROMPT_V2 = """你是「知眠」，一个温柔、有耐心的心理睡眠陪伴师。你不急于安慰，也不急于解决问题，重点是"陪伴"。
 
@@ -570,15 +636,18 @@ class CBTManager:
                 self._sessions[key] = SessionState(user_id=user_id, session_id=session_id)
         return self._sessions[key]
 
-    def process_message(self, user_id: str, session_id: str, user_message: str, 
+    def process_message(self, user_id: str, session_id: str, user_message: str,
                         conversation_history: List[Dict],
-                        profile: Dict = None) -> Dict[str, Any]:
+                        profile: Dict = None,
+                        locale: str = DEFAULT_LOCALE) -> Dict[str, Any]:
         """
         处理用户消息，返回响应指令和状态更新（含情绪节奏追踪 + L3心理教育 + L4档案）
-        
+
         Args:
             profile: 用户档案（来自 UserProfileManager），用于个性化阈值和语气调整
+            locale: 'zh' or 'en' — 选择 system prompt / 危机词表 / 安全资源
         """
+        locale = normalize_locale(locale)
         state = self.get_or_create_session(user_id, session_id)
         try:
             last_phase = state.phase  # L3: 记录上一个phase，用于心理教育时机判断
@@ -663,13 +732,14 @@ class CBTManager:
                     state,
                     crisis_level=crisis_level_for_route,
                     crisis_types=types_for_alert,
+                    locale=locale,
                 )
             if anxiety_level == AnxietyLevel.SEVERE or action == RecommendedAction.IMMEDIATE_SAFETY.value:
                 state.phase = SessionPhase.SAFETY_PROTOCOL
                 state.turns_in_phase = 0   # P0 fix: phase 切换必须 reset
                 # 老路径未识别具体 type，按 high+suicide 处理（最保守）
                 _push_to_admin("high", ["suicide"])
-                return self._safety_response(state, crisis_level="high", crisis_types=["suicide"])
+                return self._safety_response(state, crisis_level="high", crisis_types=["suicide"], locale=locale)
 
             # ===== 情绪节奏自适应：越来越紧张 → 回退到接住 =====
             if state.emotional_momentum == EmotionalMomentum.DETERIORATING:
@@ -1397,45 +1467,77 @@ class CBTManager:
         ],
     }
 
-    def _safety_response(self, state: SessionState, crisis_level: str = "high", crisis_types: list = None) -> Dict[str, Any]:
-        """安全协议响应——分级处理"""
+    def _safety_response(self, state: SessionState, crisis_level: str = "high", crisis_types: list = None, locale: str = "zh") -> Dict[str, Any]:
+        """安全协议响应——分级处理 + 多语言"""
         crisis_types = crisis_types or ["suicide"]
-        
-        if crisis_level == "high":
-            # 高危：立即提供热线 + 安抚
-            hotlines = self.SAFETY_RESOURCES["crisis_hotlines"][:3]
-            hotline_text = "\n".join([f"• {h['name']}: {h['contact']}（{h['hours']}）" for h in hotlines])
-            content = (
-                "我很在乎你的安全。你现在的感受听起来非常沉重。\n\n"
-                f"{hotline_text}\n\n"
-                "如果你愿意，可以告诉我你现在的情况。我在这里陪着你。"
-            )
-            tts_params = {"rate": 0.8, "pitch": "-3st", "volume": 0.9, "pause_ms": 2500}
-        elif crisis_level == "medium":
-            # 中危：提供热线 + 平台资源 + 温和引导
-            hotlines = self.SAFETY_RESOURCES["crisis_hotlines"][:2]
-            platforms = self.SAFETY_RESOURCES["online_platforms"][:2]
-            hotline_text = "\n".join([f"• {h['name']}: {h['contact']}（{h['hours']}）" for h in hotlines])
-            platform_text = "\n".join([f"• {p['name']}: {p['contact']}（{p['type']}）" for p in platforms])
-            content = (
-                "我听到你了，这些感受一定很不容易。\n\n"
-                "如果你需要和人聊聊，可以拨打：\n"
-                f"{hotline_text}\n\n"
-                "或者考虑预约专业心理咨询：\n"
-                f"{platform_text}\n\n"
-                "我在这里陪着你。"
-            )
-            tts_params = {"rate": 0.85, "pitch": "-2st", "volume": 0.95, "pause_ms": 2000}
+        locale = normalize_locale(locale)
+
+        if locale == "en":
+            # 英文路径:US 市场 988 + Crisis Text Line + Samaritans 国际兜底
+            hotlines = SAFE_SCRIPTS_EN.get("safety_protocol", {}).get("hotlines", [])
+            emergency_note = SAFE_SCRIPTS_EN.get("safety_protocol", {}).get("emergency_note", "")
+            us_lines = [h for h in hotlines if h.get("country") in ("US", "US/CA/UK/IE", "international")][:3]
+            hotline_text = "\n".join([
+                f"• {h['name']}: " + " / ".join(filter(None, [h.get('number'), h.get('text_option'), h.get('url')])) + f" ({h.get('available','24/7')})"
+                for h in us_lines
+            ])
+            if crisis_level == "high":
+                content = (
+                    "I care about your safety. What you're carrying sounds really heavy right now.\n\n"
+                    f"{hotline_text}\n\n"
+                    f"{emergency_note}\n\n"
+                    "If you want, tell me what's happening right now. I'm here with you."
+                )
+                tts_params = {"rate": 0.8, "pitch": "-3st", "volume": 0.9, "pause_ms": 2500}
+            elif crisis_level == "medium":
+                content = (
+                    "I hear you. These feelings must be really hard.\n\n"
+                    "If you'd like to talk to someone trained for this:\n"
+                    f"{hotline_text}\n\n"
+                    "I'm staying here with you."
+                )
+                tts_params = {"rate": 0.85, "pitch": "-2st", "volume": 0.95, "pause_ms": 2000}
+            else:
+                content = (
+                    "I hear you. If these feelings keep weighing on you, please consider talking to a mental-health professional.\n\n"
+                    "988 Suicide & Crisis Lifeline: call or text 988 (24/7)\n\n"
+                    "I'm here with you."
+                )
+                tts_params = {"rate": 0.9, "pitch": "-1st", "volume": 1.0, "pause_ms": 1500}
         else:
-            # 低危/默认：基础安抚 + 资源提示
-            content = (
-                "我听到你了。如果这些感受持续困扰你，\n"
-                "可以考虑和心理专业人士聊聊。\n\n"
-                "全国心理援助热线：010-82951332（24小时）\n\n"
-                "我在这里陪着你。"
-            )
-            tts_params = {"rate": 0.9, "pitch": "-1st", "volume": 1.0, "pause_ms": 1500}
-        
+            # 中文路径 (原逻辑保持不变)
+            if crisis_level == "high":
+                hotlines = self.SAFETY_RESOURCES["crisis_hotlines"][:3]
+                hotline_text = "\n".join([f"• {h['name']}: {h['contact']}（{h['hours']}）" for h in hotlines])
+                content = (
+                    "我很在乎你的安全。你现在的感受听起来非常沉重。\n\n"
+                    f"{hotline_text}\n\n"
+                    "如果你愿意，可以告诉我你现在的情况。我在这里陪着你。"
+                )
+                tts_params = {"rate": 0.8, "pitch": "-3st", "volume": 0.9, "pause_ms": 2500}
+            elif crisis_level == "medium":
+                hotlines = self.SAFETY_RESOURCES["crisis_hotlines"][:2]
+                platforms = self.SAFETY_RESOURCES["online_platforms"][:2]
+                hotline_text = "\n".join([f"• {h['name']}: {h['contact']}（{h['hours']}）" for h in hotlines])
+                platform_text = "\n".join([f"• {p['name']}: {p['contact']}（{p['type']}）" for p in platforms])
+                content = (
+                    "我听到你了，这些感受一定很不容易。\n\n"
+                    "如果你需要和人聊聊，可以拨打：\n"
+                    f"{hotline_text}\n\n"
+                    "或者考虑预约专业心理咨询：\n"
+                    f"{platform_text}\n\n"
+                    "我在这里陪着你。"
+                )
+                tts_params = {"rate": 0.85, "pitch": "-2st", "volume": 0.95, "pause_ms": 2000}
+            else:
+                content = (
+                    "我听到你了。如果这些感受持续困扰你，\n"
+                    "可以考虑和心理专业人士聊聊。\n\n"
+                    "全国心理援助热线：010-82951332（24小时）\n\n"
+                    "我在这里陪着你。"
+                )
+                tts_params = {"rate": 0.9, "pitch": "-1st", "volume": 1.0, "pause_ms": 1500}
+
         return {
             "response_type": "safety",
             "content": content,
@@ -1446,6 +1548,7 @@ class CBTManager:
             "safety_trigger": True,
             "crisis_level": crisis_level,
             "crisis_types": crisis_types,
+            "locale": locale,
         }
 
     def _assessment_response(self, state: SessionState) -> Dict[str, Any]:
@@ -1513,10 +1616,39 @@ class CBTManager:
         UserStyle.NORMAL: '',
     }
 
-    def get_cbt_system_prompt(self, user_id: str, session_id: str, phase: str = None, profile: Dict = None) -> str:
-        """获取用于 LLM 的系统提示词（含用户上下文、阶段指令、关系深度）"""
+    def get_cbt_system_prompt(self, user_id: str, session_id: str, phase: str = None, profile: Dict = None, locale: str = DEFAULT_LOCALE) -> str:
+        """获取用于 LLM 的系统提示词（含用户上下文、阶段指令、关系深度;按 locale 选择中/英 base prompt）"""
+        locale = normalize_locale(locale)
         state = self.get_or_create_session(user_id, session_id)
 
+        if locale == "en":
+            # 英文路径:暂仅拼接英文 base prompt + 英文阶段提示 + 关系深度（英文版）
+            # 现有的 PHASE_INSTRUCTIONS / PERSONA_INSTRUCTIONS / 信念链注入都是中文 hardcoded,
+            # 一旦拼到 en prompt 会让 LLM 跟着说中文。MVP 阶段直接跳过,保持 LLM 锁定英文。
+            phase_en_map = {
+                "assessment": "\n[PHASE] Brief check-in. Confirm how the user is feeling tonight in one short turn.",
+                "worry_capture": "\n[PHASE] Acknowledge the feeling, help them externalize the worry, then transition.",
+                "cognitive": "\n[PHASE] Use Socratic questioning gently to surface a cognitive distortion. Do not lecture.",
+                "relaxation": "\n[PHASE] Lead a relaxation technique (breath, body scan, or PMR). Slow pacing.",
+                "closure": "\n[PHASE] Gentle wind-down. Sleep permission, no problem-solving.",
+                "normal_chat": "\n[PHASE] Friendly brief reply.",
+                "safety": "\n[PHASE] Safety priority. Share 988 / Crisis Text Line. Stay present.",
+            }
+            phase_instruction = phase_en_map.get(phase, "") if phase else ""
+            relationship_instruction = ""
+            if profile:
+                depth = profile.get("relationship_depth", 0)
+                if depth == 1:
+                    relationship_instruction = "\n[Relationship: new] Stay professional and a bit reserved; don't assume history."
+                elif 2 <= depth <= 3:
+                    relationship_instruction = "\n[Relationship: familiar] Sound a little warmer, like a friend who knows them."
+                elif 4 <= depth <= 9:
+                    relationship_instruction = "\n[Relationship: trusted] Looser tone; may reference earlier sessions when helpful."
+                elif depth >= 10:
+                    relationship_instruction = "\n[Relationship: deep] Old-friend warmth; reference their history naturally."
+            return self.CBT_SYSTEM_PROMPT_V2_EN + phase_instruction + relationship_instruction
+
+        # 中文路径（原逻辑）
         context_addition = ""
         if state.last_topic:
             context_addition += f"\n[用户背景] 近日常见担忧领域：{state.last_topic}。"
@@ -1524,7 +1656,7 @@ class CBTManager:
             top_triggers = sorted(state.triggers.items(), key=lambda x: -x[1])[:3]
             triggers_str = "、".join([f"{k}({v}次)" for k, v in top_triggers])
             context_addition += f"担忧频率：{triggers_str}。"
-        
+
         # ── 信念链暴露给 RAG / LLM ───────────────────────────
         # 将用户在担忧捕获阶段表达的逻辑链暴露给后续阶段，增强连续性
         if state.logical_chain and len(state.logical_chain) >= 2:
@@ -1536,7 +1668,7 @@ class CBTManager:
             phase_instruction = f"\n[阶段指令] {self.PHASE_INSTRUCTIONS.get(phase, '')}"
 
         persona_instruction = self.PERSONA_INSTRUCTIONS_BY_STYLE.get(state.user_style, "")
-        
+
         # ── 关系深度动态语气调整 ───────────────────────────
         relationship_instruction = ""
         if profile:
@@ -1549,7 +1681,7 @@ class CBTManager:
                 relationship_instruction = "\n【关系阶段：信任】语气可以更放松，适度提及之前的进展或共同经历过的技术，增强连续性。"
             elif depth >= 10:
                 relationship_instruction = "\n【关系阶段：深度】像老朋友一样陪伴，自然提及用户的历史偏好和有效技术，但不过度侵入。"
-        
+
         return self.CBT_SYSTEM_PROMPT_V2 + context_addition + phase_instruction + persona_instruction + relationship_instruction
     def reset_session(self, user_id: str, session_id: str) -> None:
         """重置会话状态（本地 + Redis）"""

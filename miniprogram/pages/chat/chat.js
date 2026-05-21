@@ -637,7 +637,7 @@ Page({
     this._aiRequestSent = false     // ✅ AI 是否已经发送过（防止重复请求）
     this._pendingRestartVAD = false // ✅ Fix 1: 重置 pending 标记
     this._wsReceivedDone = false    // ✅ Fix 2: 重置 done 标记
-    const wsUrl = `${API.replace(/^http/, 'ws')}/api/v1/asr/ws`
+    const wsUrl = `${API.replace(/^http/, 'ws')}/api/v1/asr/ws?token=${encodeURIComponent(app.getToken() || '')}`
     this._asrSocket = wx.connectSocket({ url: wsUrl })
     this._asrSocketReady = false
 
