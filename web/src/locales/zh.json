@@ -1,0 +1,47 @@
+{
+  "app": {
+    "name": "知眠",
+    "tagline": "陪你度过脑子停不下来的夜晚。"
+  },
+  "nav": {
+    "chat": "今晚聊聊",
+    "record": "我的记录",
+    "profile": "我的"
+  },
+  "login": {
+    "title": "欢迎来到知眠",
+    "subtitle": "睡前的安静陪伴。",
+    "emailPlaceholder": "your@email.com",
+    "sendCode": "发送验证码",
+    "sending": "发送中…",
+    "codeSentTo": "验证码已发送至",
+    "verify": "验证并进入",
+    "verifying": "验证中…",
+    "changeEmail": "换个邮箱",
+    "devCode": "开发验证码",
+    "error": "出错了，请稍后再试。",
+    "providerNote": "Apple、Google 登录即将上线。"
+  },
+  "chat": {
+    "greetingNew": "我在。今晚感觉怎么样？",
+    "inputPlaceholder": "说说你现在的感受…",
+    "send": "发送",
+    "thinking": "…",
+    "tapMic": "点击麦克风说话",
+    "tapToStop": "聆听中… 点击停止",
+    "listening": "聆听中…",
+    "micError": "无法访问麦克风。",
+    "newSession": "新对话",
+    "crisisTitle": "你不是一个人",
+    "crisisCta": "如有紧急危险，请立即拨打 120。",
+    "errorGeneric": "出错了，请稍后再试。",
+    "sessionExpired": "登录已过期，请重新登录。"
+  },
+  "common": {
+    "language": "语言",
+    "english": "English",
+    "chinese": "中文",
+    "signOut": "退出登录",
+    "back": "返回"
+  }
+}

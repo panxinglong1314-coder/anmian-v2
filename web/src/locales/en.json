@@ -1,0 +1,47 @@
+{
+  "app": {
+    "name": "ZhiMian",
+    "tagline": "For the nights your mind won't quiet."
+  },
+  "nav": {
+    "chat": "Tonight",
+    "record": "My Records",
+    "profile": "Profile"
+  },
+  "login": {
+    "title": "Welcome to ZhiMian",
+    "subtitle": "A calm companion before sleep.",
+    "emailPlaceholder": "your@email.com",
+    "sendCode": "Send code",
+    "sending": "Sending…",
+    "codeSentTo": "We sent a 6-digit code to",
+    "verify": "Verify & enter",
+    "verifying": "Verifying…",
+    "changeEmail": "Use a different email",
+    "devCode": "Dev code",
+    "error": "Something went wrong. Please try again.",
+    "providerNote": "Apple & Google sign-in coming soon."
+  },
+  "chat": {
+    "greetingNew": "I'm here. How's tonight feeling?",
+    "inputPlaceholder": "Type how you're feeling…",
+    "send": "Send",
+    "thinking": "…",
+    "tapMic": "Tap the mic to speak",
+    "tapToStop": "Listening… tap to stop",
+    "listening": "Listening…",
+    "micError": "Couldn't access the microphone.",
+    "newSession": "New session",
+    "crisisTitle": "You're not alone",
+    "crisisCta": "If you're in immediate danger, call 911.",
+    "errorGeneric": "Something went wrong. Please try again.",
+    "sessionExpired": "Your session expired. Please sign in again."
+  },
+  "common": {
+    "language": "Language",
+    "english": "English",
+    "chinese": "中文",
+    "signOut": "Sign out",
+    "back": "Back"
+  }
+}
