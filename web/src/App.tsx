@@ -4,6 +4,7 @@ import BottomNav from "./components/BottomNav";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Chat from "./pages/Chat";
+import Sleep from "./pages/Sleep";
 import Worries from "./pages/Worries";
 import Profile from "./pages/Profile";
 import Privacy from "./pages/Privacy";
@@ -35,6 +36,7 @@ export default function App() {
       {/* 产品(需登录),统一挂在 /app 下 */}
       <Route path="/app" element={<AppLayout />}>
         <Route index element={<Chat />} />
+        <Route path="sleep" element={<Sleep />} />
         <Route path="worries" element={<Worries />} />
         <Route path="profile" element={<Profile />} />
       </Route>

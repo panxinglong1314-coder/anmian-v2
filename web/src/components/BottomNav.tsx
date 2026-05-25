@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 const tabs = [
   { to: "/app", icon: "🌙", key: "nav.chat", end: true },
+  { to: "/app/sleep", icon: "😴", key: "nav.sleep", end: false },
   { to: "/app/worries", icon: "📥", key: "nav.worries", end: false },
   { to: "/app/profile", icon: "👤", key: "nav.profile", end: false }
 ];

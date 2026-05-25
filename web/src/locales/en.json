@@ -89,8 +89,46 @@
   },
   "nav": {
     "chat": "Tonight",
+    "sleep": "Sleep",
     "worries": "Worry Box",
     "profile": "Profile"
+  },
+  "sleep": {
+    "title": "Sleep diary",
+    "subtitle": "Log last night and watch your sleep efficiency improve.",
+    "avgSE": "Avg efficiency",
+    "avgTST": "Avg sleep",
+    "trend": "Trend",
+    "log": "Log this morning",
+    "todayLogged": "Today's entry",
+    "bedTime": "Bed time",
+    "wakeTime": "Wake time",
+    "latency": "Time to fall asleep (min)",
+    "wakeCount": "Times woke up",
+    "quality": "Sleep quality",
+    "note": "A note (optional)",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved — sleep efficiency {{se}}%",
+    "history": "Recent nights",
+    "noData": "No sleep records yet. Log this morning to get started.",
+    "error": "Something went wrong. Please try again.",
+    "level": {
+      "excellent": "🌟 Excellent sleep efficiency — your sleep quality is high.",
+      "good": "👍 Good sleep efficiency — keep it up.",
+      "fair": "💡 Fair efficiency — try a pre-sleep relaxation.",
+      "poor": "⚠️ Low efficiency — consider adjusting your sleep habits."
+    }
+  },
+  "sounds": {
+    "title": "Ambient sounds",
+    "rain": "Rain",
+    "waves": "Ocean waves",
+    "forest": "Forest",
+    "fireplace": "Fireplace",
+    "pinknoise": "Pink noise",
+    "off": "Turn off",
+    "volume": "Volume"
   },
   "worries": {
     "title": "Worry Box",

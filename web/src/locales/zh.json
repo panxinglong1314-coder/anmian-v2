@@ -89,8 +89,46 @@
   },
   "nav": {
     "chat": "今晚聊聊",
+    "sleep": "睡眠",
     "worries": "担忧箱",
     "profile": "我的"
+  },
+  "sleep": {
+    "title": "睡眠日记",
+    "subtitle": "记录昨晚的睡眠，看着睡眠效率慢慢变好。",
+    "avgSE": "平均效率",
+    "avgTST": "平均睡眠",
+    "trend": "趋势",
+    "log": "记录今早睡眠",
+    "todayLogged": "今天的记录",
+    "bedTime": "上床时间",
+    "wakeTime": "起床时间",
+    "latency": "入睡用时(分钟)",
+    "wakeCount": "夜间醒来次数",
+    "quality": "睡眠质量",
+    "note": "备注(可选)",
+    "save": "保存",
+    "saving": "保存中…",
+    "saved": "已保存 —— 睡眠效率 {{se}}%",
+    "history": "最近几晚",
+    "noData": "还没有睡眠记录。记录今早睡眠开始吧。",
+    "error": "出错了，请稍后再试。",
+    "level": {
+      "excellent": "🌟 睡眠效率优秀！你的睡眠质量很高",
+      "good": "👍 睡眠效率良好，继续保持",
+      "fair": "💡 睡眠效率一般，试试睡前放松练习",
+      "poor": "⚠️ 睡眠效率偏低，建议调整睡眠习惯"
+    }
+  },
+  "sounds": {
+    "title": "助眠音",
+    "rain": "雨声",
+    "waves": "海浪",
+    "forest": "森林",
+    "fireplace": "壁炉",
+    "pinknoise": "粉噪音",
+    "off": "关闭",
+    "volume": "音量"
   },
   "worries": {
     "title": "担忧箱",

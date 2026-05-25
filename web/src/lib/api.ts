@@ -168,6 +168,81 @@ export function addWorry(text: string, locale: string): Promise<AddWorryResult> 
   });
 }
 
+// ---------- Sleep diary / SRT ----------
+export interface SleepDiary {
+  date: string;
+  actual_bed_time?: string;
+  actual_wake_time?: string;
+  sleep_latency_minutes?: number;
+  wake_count?: number;
+  nap_minutes?: number;
+  sleep_quality?: number;
+  note?: string;
+  tib_minutes?: number;
+  tst_minutes?: number;
+  se?: number; // fraction 0-1
+}
+
+export interface SleepDiaryInput {
+  bed_time: string;
+  wake_time: string;
+  sleep_latency_minutes?: number;
+  wake_count?: number;
+  nap_minutes?: number;
+  quality?: number;
+  note?: string;
+}
+
+export function submitSleepDiary(d: SleepDiaryInput) {
+  return authRequest<{ status: string; tib_minutes: number; tst_minutes: number; se: number; message?: string }>(
+    `/api/v1/sleep/diary`,
+    { method: "POST", body: d }
+  );
+}
+
+export function getTodayDiary() {
+  return authRequest<{ exists: boolean; date: string; diary: SleepDiary | null }>(`/api/v1/sleep/diary/today`);
+}
+
+export interface SleepDashboard {
+  has_data?: boolean;
+  trend_emoji?: string;
+  trend_direction?: string;
+  stats?: {
+    avg_se?: number; // percent
+    avg_tst_hours?: number;
+    avg_quality?: number;
+    total_records?: number;
+    se_level?: string;
+    se_message?: string;
+  } | null;
+}
+
+export function getSleepDashboard(days = 7) {
+  return authRequest<SleepDashboard>(`/api/v1/sleep/dashboard?days=${days}`);
+}
+
+export function getDiaryHistory(days = 7) {
+  return authRequest<{ records: SleepDiary[]; count: number }>(`/api/v1/sleep/diary/history?days=${days}`);
+}
+
+export interface SleepWindow {
+  recommended_bedtime?: string;
+  recommended_waketime?: string;
+  window_hours?: number;
+  message?: string;
+  [k: string]: unknown;
+}
+
+export function getSleepWindow() {
+  return authRequest<SleepWindow>(`/api/v1/sleep/window/${encodeURIComponent(getUserId())}`).catch(() => ({}) as SleepWindow);
+}
+
+// ---------- White noise ----------
+export function soundUrl(name: string): string {
+  return `${API_BASE}/static/sounds/${name}.mp3`;
+}
+
 // ---------- Profile / account ----------
 export function getProfile(): Promise<{ nickname: string; avatar_url: string }> {
   return authRequest(`/api/v1/user/profile`);

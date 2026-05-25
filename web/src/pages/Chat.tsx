@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { streamChat, playBase64Mp3, AuthError, type ChatEvent } from "../lib/api";
+import { streamChat, AuthError, type ChatEvent } from "../lib/api";
 import { clearToken } from "../lib/auth";
 import { currentLocale } from "../i18n";
 import { ASRClient } from "../lib/asr";
+import { enqueueTts, unlockAudio, stopTts } from "../lib/audio";
 import LanguageToggle from "../components/LanguageToggle";
+import SoundPlayer from "../components/SoundPlayer";
 
 interface Msg {
   role: "user" | "assistant";
@@ -38,6 +40,7 @@ export default function Chat() {
   const send = async (override?: string) => {
     const text = (override ?? input).trim();
     if (!text || busy) return;
+    if (ttsOn) unlockAudio(); // this call is within a user gesture → unlock mobile audio
     setError(null);
     setCrisis(false);
     setInput("");
@@ -71,7 +74,7 @@ export default function Chat() {
             if (typeof evt.data === "string") appendToLast(evt.data);
           } else if (evt.event === "tts_sentence" && ttsOn) {
             const audio = (evt as Record<string, unknown>).audio_base64;
-            if (typeof audio === "string" && audio) playBase64Mp3(audio);
+            if (typeof audio === "string" && audio) enqueueTts(audio);
           } else if (evt.event === "error") {
             setError(typeof evt.message === "string" ? evt.message : t("chat.errorGeneric"));
           }
@@ -95,6 +98,7 @@ export default function Chat() {
   };
 
   const startNew = () => {
+    stopTts();
     sessionRef.current = newSessionId();
     setMessages([]);
     setCrisis(false);
@@ -167,8 +171,17 @@ export default function Chat() {
           <span className="font-semibold text-accent">{t("app.name")}</span>
         </div>
         <div className="flex items-center gap-2">
+          <SoundPlayer />
           <button
-            onClick={() => setTtsOn((v) => !v)}
+            onClick={() => {
+              setTtsOn((v) => {
+                const next = !v;
+                if (next) unlockAudio(); // gesture → unlock mobile audio
+                else stopTts();
+                return next;
+              });
+            }}
+            aria-label="Toggle voice"
             className={`text-xs px-2 py-1 rounded border transition ${
               ttsOn ? "border-accent text-accent" : "border-night-line text-muted"
             }`}
