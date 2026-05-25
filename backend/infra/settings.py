@@ -64,6 +64,11 @@ class Settings(BaseSettings):
     auth_from_email: str = "ZhiMian <noreply@sleepai.chat>"
     env: str = "production"
 
+    # Google 登录(Sign in with Google)。Web OAuth Client ID(xxx.apps.googleusercontent.com)
+    google_client_id: str = ""
+    # Google 公钥(JWKS)地址。中国服务器无法直连 googleapis.com,可改成可达的代理(如 Cloudflare Worker)
+    google_jwks_url: str = "https://www.googleapis.com/oauth2/v3/certs"
+
     @field_validator("tts_warmup_phrases", mode="before")
     @classmethod
     def _strip_tts_phrases(cls, v):

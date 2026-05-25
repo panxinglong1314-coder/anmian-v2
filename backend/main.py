@@ -494,6 +494,7 @@ class UserAuthMiddleware(BaseHTTPMiddleware):
         "/api/v1/auth/wx_login",
         "/api/v1/auth/email/request",
         "/api/v1/auth/email/verify",
+        "/api/v1/auth/google",
         "/api/v1/version",
     }
 
@@ -682,6 +683,80 @@ async def auth_email_verify(body: EmailVerifyBody):
         redis_client.set(pkey, json.dumps({
             "user_id": user_id, "email": email, "auth": "email",
             "created_at": _dt.now().isoformat(),
+        }, ensure_ascii=False))
+
+    token = create_jwt_for_user(user_id, openid=email)
+    return {"token": token, "user_id": user_id, "is_new_user": is_new_user}
+
+
+# ==================== Google 登录（Sign in with Google）====================
+_GOOGLE_JWKS_CLIENT = None
+
+
+def _google_jwks_client():
+    global _GOOGLE_JWKS_CLIENT
+    if _GOOGLE_JWKS_CLIENT is None:
+        from jwt import PyJWKClient
+        url = (getattr(settings, "google_jwks_url", "") or os.getenv("GOOGLE_JWKS_URL", "")
+               or "https://www.googleapis.com/oauth2/v3/certs")
+        _GOOGLE_JWKS_CLIENT = PyJWKClient(url, timeout=5)
+    return _GOOGLE_JWKS_CLIENT
+
+
+def _verify_google_credential_sync(cred: str, client_id: str) -> dict:
+    """阻塞调用(拉取 JWKS + 验签)。放线程池执行,避免阻塞事件循环。"""
+    signing_key = _google_jwks_client().get_signing_key_from_jwt(cred)
+    return jwt.decode(
+        cred, signing_key.key, algorithms=["RS256"], audience=client_id,
+        options={"require": ["exp", "iss", "sub"]},
+    )
+
+
+class GoogleLoginBody(BaseModel):
+    credential: str  # Google Identity Services 返回的 ID token (JWT)
+
+
+@app.post("/api/v1/auth/google")
+async def auth_google(body: GoogleLoginBody):
+    """验证 Google ID token → 按邮箱签发我们的 JWT。同邮箱与验证码登录共用账号。"""
+    client_id = (getattr(settings, "google_client_id", "") or os.getenv("GOOGLE_CLIENT_ID", "")).strip()
+    if not client_id:
+        raise HTTPException(status_code=503, detail="Google 登录未配置")
+    cred = (body.credential or "").strip()
+    if not cred:
+        raise HTTPException(status_code=400, detail="缺少 credential")
+    # JWKS 拉取放线程池 + 8s 超时:中国服务器连不到 Google 时快速失败,不阻塞事件循环
+    try:
+        from jwt import PyJWKClientError
+    except ImportError:
+        PyJWKClientError = Exception
+    try:
+        loop = asyncio.get_event_loop()
+        claims = await asyncio.wait_for(
+            loop.run_in_executor(None, _verify_google_credential_sync, cred, client_id),
+            timeout=8,
+        )
+    except (asyncio.TimeoutError, PyJWKClientError) as e:
+        print(f"[google auth] JWKS unreachable: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=503, detail="Google verification unavailable (server cannot reach Google)")
+    except Exception as e:
+        print(f"[google auth] verify failed: {e}")
+        raise HTTPException(status_code=401, detail="Google 登录验证失败")
+
+    if claims.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        raise HTTPException(status_code=401, detail="Google issuer 无效")
+    email = (claims.get("email") or "").strip().lower()
+    if not email or not claims.get("email_verified", False):
+        raise HTTPException(status_code=401, detail="Google 邮箱未验证")
+
+    user_id = _email_user_id(email)   # 与邮箱验证码登录共用账号(同一邮箱 = 同一账号)
+    pkey = f"user_profile:{user_id}"
+    is_new_user = not redis_client.exists(pkey)
+    if is_new_user:
+        from datetime import datetime as _dt
+        redis_client.set(pkey, json.dumps({
+            "user_id": user_id, "email": email, "auth": "google",
+            "name": claims.get("name", ""), "created_at": _dt.now().isoformat(),
         }, ensure_ascii=False))
 
     token = create_jwt_for_user(user_id, openid=email)
@@ -6376,3 +6451,27 @@ async def emotion_analyze(req: EmotionAnalyzeRequest):
     except Exception as e:
         print(f"[EmotionAPI] 分析失败: {e}")
         raise HTTPException(status_code=500, detail="情感分析失败")
+
+
+# ==================== Web SPA（官网 + 产品,统一 React 客户端）====================
+# 后端直接托管 web/dist,避免改动生产 Nginx(现配置 location / 已全量代理到后端)。
+# 非 /api、/admin、/static 的 GET 请求 → 存在的静态文件直出,否则回 index.html(SPA fallback)。
+_WEB_DIST = Path(__file__).parent.parent / "web_dist"
+
+
+@app.get("/{spa_path:path}")
+async def spa_fallback(spa_path: str):
+    # 这些前缀由前面的路由/挂载处理,不应进入 SPA
+    if spa_path.startswith(("api/", "admin", "static/")):
+        raise HTTPException(status_code=404, detail="Not Found")
+    if not _WEB_DIST.exists():
+        raise HTTPException(status_code=404, detail="Not Found")
+    base = _WEB_DIST.resolve()
+    candidate = (base / spa_path).resolve()
+    # 路径穿越防护:必须落在 web_dist 内
+    if str(candidate).startswith(str(base)) and candidate.is_file():
+        return FileResponse(candidate)
+    index = base / "index.html"
+    if index.is_file():
+        return FileResponse(index)
+    raise HTTPException(status_code=404, detail="Not Found")
