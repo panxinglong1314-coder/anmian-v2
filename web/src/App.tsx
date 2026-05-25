@@ -14,7 +14,7 @@ import Contact from "./pages/Contact";
 function AppLayout() {
   if (!isLoggedIn()) return <Navigate to="/login" replace />;
   return (
-    <div className="h-full flex flex-col max-w-2xl mx-auto">
+    <div className="starfield h-full flex flex-col max-w-2xl mx-auto">
       <main className="flex-1 min-h-0">
         <Outlet />
       </main>

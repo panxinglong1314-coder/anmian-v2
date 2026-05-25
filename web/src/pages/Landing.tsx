@@ -40,7 +40,7 @@ export default function Landing() {
   const ctaSteps = t("landing.cta.steps", { returnObjects: true }) as string[];
 
   return (
-    <div className="landing-stars min-h-full overflow-y-auto bg-deep text-text">
+    <div className="starfield min-h-full overflow-y-auto bg-deep text-text">
       {/* NAV */}
       <nav className="fixed top-0 inset-x-0 h-16 z-50 flex items-center justify-between px-5 sm:px-8 bg-deep/80 backdrop-blur border-b border-white/5">
         <a href="#top" className="font-bold tracking-wide text-text">

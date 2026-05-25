@@ -28,25 +28,25 @@ body {
 
 /* ---- Landing 星空背景 ---- */
 /* 自成层叠上下文,星空层放在 z-index:-1,位于根背景之上、内容之下 */
-.landing-stars {
+.starfield {
   isolation: isolate;
 }
 /* 两个固定层:::before 星云辉光,::after 星点(缓慢闪烁) */
-.landing-stars::before,
-.landing-stars::after {
+.starfield::before,
+.starfield::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
 }
-.landing-stars::before {
+.starfield::before {
   background:
     radial-gradient(60% 50% at 50% -8%, rgba(72, 90, 175, 0.45), transparent 70%),
     radial-gradient(45% 40% at 85% 12%, rgba(140, 100, 196, 0.26), transparent 70%),
     radial-gradient(50% 45% at 8% 78%, rgba(58, 110, 185, 0.24), transparent 70%);
 }
-.landing-stars::after {
+.starfield::after {
   background-repeat: no-repeat;
   background-image:
     radial-gradient(2.5px 2.5px at 6% 11%, rgba(255, 255, 255, 1), transparent 62%),
@@ -88,7 +88,7 @@ body {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .landing-stars::after {
+  .starfield::after {
     animation: none;
   }
 }
