@@ -6,6 +6,9 @@ import Login from "./pages/Login";
 import Chat from "./pages/Chat";
 import Worries from "./pages/Worries";
 import Profile from "./pages/Profile";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+import Contact from "./pages/Contact";
 
 function AppLayout() {
   if (!isLoggedIn()) return <Navigate to="/login" replace />;
@@ -25,6 +28,10 @@ export default function App() {
       {/* 营销官网(公开) */}
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      {/* 法律/联系页(公开,双语) */}
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/contact" element={<Contact />} />
       {/* 产品(需登录),统一挂在 /app 下 */}
       <Route path="/app" element={<AppLayout />}>
         <Route index element={<Chat />} />

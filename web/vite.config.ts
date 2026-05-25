@@ -19,15 +19,7 @@ export default defineConfig({
       workbox: {
         // SPA 与 /admin、/api 等共用同一域名:SW 的导航兜底不能吞掉这些路径,
         // 否则浏览器里打开 /admin/ 会被 SW 换成 SPA 的 index.html(后台打不开)。
-        navigateFallbackDenylist: [
-          /^\/$/,
-          /^\/admin/,
-          /^\/api\//,
-          /^\/static\//,
-          /^\/privacy/,
-          /^\/terms/,
-          /^\/contact/
-        ]
+        navigateFallbackDenylist: [/^\/admin/, /^\/api\//, /^\/static\//]
       },
       manifest: {
         name: "ZhiMian — Sleep Companion",

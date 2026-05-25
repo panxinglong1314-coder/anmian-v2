@@ -245,9 +245,9 @@ export default function Landing() {
       {/* FOOTER */}
       <footer className="px-6 py-10 text-center text-txt3 text-xs space-y-2 border-t border-white/5">
         <div className="flex gap-4 justify-center">
-          <a href="/privacy" className="hover:text-txt2">{t("landing.footer.privacy")}</a>
-          <a href="/terms" className="hover:text-txt2">{t("landing.footer.terms")}</a>
-          <a href="mailto:contact@sleepai.chat" className="hover:text-txt2">{t("landing.footer.contact")}</a>
+          <Link to="/privacy" className="hover:text-txt2">{t("landing.footer.privacy")}</Link>
+          <Link to="/terms" className="hover:text-txt2">{t("landing.footer.terms")}</Link>
+          <Link to="/contact" className="hover:text-txt2">{t("landing.footer.contact")}</Link>
         </div>
         <div>© {new Date().getFullYear()} {t("app.name")} · sleepai.chat</div>
         {locale !== "en" && (
