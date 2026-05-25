@@ -10,11 +10,17 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // 本域名根路径 "/" 是独立的静态营销站,SPA 仅在 /login、/app 下。
+      // 作用域为 "/" 的 Service Worker 会在刷新时用 SPA 外壳劫持营销首页,
+      // 且无法自更新(/sw.js 被静态站点遮蔽返回 404)。因此关闭 PWA 缓存,
+      // 改为生成「自毁」SW —— 它会注销自身并清空缓存,清除历史遗留的 SW。
+      selfDestroying: true,
       registerType: "autoUpdate",
       workbox: {
         // SPA 与 /admin、/api 等共用同一域名:SW 的导航兜底不能吞掉这些路径,
         // 否则浏览器里打开 /admin/ 会被 SW 换成 SPA 的 index.html(后台打不开)。
         navigateFallbackDenylist: [
+          /^\/$/,
           /^\/admin/,
           /^\/api\//,
           /^\/static\//,
