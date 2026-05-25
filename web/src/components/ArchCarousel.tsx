@@ -33,7 +33,7 @@ export default function ArchCarousel() {
       >
         {SLIDES.map((src, i) => (
           <figure key={i} className="snap-center shrink-0 w-full px-1">
-            <div className="rounded-2xl overflow-hidden border border-white/10 bg-cardx/60 backdrop-blur-sm">
+            <div className="rounded-2xl overflow-hidden border border-white/10">
               <img src={src} alt={captions[i] || `slide ${i + 1}`} className="w-full h-auto block" loading="lazy" />
             </div>
             {captions[i] && <figcaption className="text-center text-txt2 text-sm mt-3">{captions[i]}</figcaption>}
