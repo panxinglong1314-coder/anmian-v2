@@ -20,3 +20,32 @@ export function clearToken(): void {
 export function isLoggedIn(): boolean {
   return !!getToken();
 }
+
+interface JwtPayload {
+  user_id?: string;
+  openid?: string;
+  exp?: number;
+}
+
+/** Decode the JWT payload (no signature check — display/routing only). */
+export function getJwtPayload(): JwtPayload | null {
+  const t = getToken();
+  if (!t) return null;
+  try {
+    const seg = t.split(".")[1];
+    const json = atob(seg.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(json) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+export function getUserId(): string {
+  return getJwtPayload()?.user_id || "me";
+}
+
+/** For email-auth users, openid is the email address. */
+export function getUserEmail(): string | null {
+  const oid = getJwtPayload()?.openid || "";
+  return oid.includes("@") ? oid : null;
+}

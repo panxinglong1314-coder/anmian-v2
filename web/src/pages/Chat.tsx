@@ -139,14 +139,27 @@ export default function Chat() {
       asrRef.current = client;
       await client.start();
       setListening(true);
-    } catch {
-      setError(t("chat.micError"));
+    } catch (e) {
+      const name = e instanceof Error ? e.name : "";
+      const msg = e instanceof Error ? e.message : "";
+      let key = "chat.micError";
+      if (name === "NotAllowedError" || name === "SecurityError" || /denied|permission/i.test(msg)) {
+        key = "chat.micDenied";
+      } else if (name === "NotFoundError" || name === "OverconstrainedError" || /no microphone|not found/i.test(msg)) {
+        key = "chat.micNotFound";
+      } else if (name === "NotReadableError" || /in use|busy/i.test(msg)) {
+        key = "chat.micInUse";
+      } else if (/insecure|getusermedia|mediadevices/i.test(msg)) {
+        key = "chat.micInsecure";
+      }
+      console.error("[mic] start failed:", name, msg);
+      setError(t(key));
       asrRef.current = null;
     }
   };
 
   return (
-    <div className="min-h-full flex flex-col max-w-2xl mx-auto">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-night-line">
         <div className="flex items-center gap-2">

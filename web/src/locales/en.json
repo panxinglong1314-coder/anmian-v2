@@ -3,24 +3,134 @@
     "name": "ZhiMian",
     "tagline": "For the nights your mind won't quiet."
   },
+  "landing": {
+    "nav": { "scene": "Moments", "product": "Product", "features": "Features", "science": "Science", "cta": "Get started" },
+    "hero": {
+      "title": "For the nights your mind\nwon't switch off",
+      "brand": "ZhiMian",
+      "tagline": "CBT-I principles · AI companion · a quiet mind before sleep",
+      "ctaPrimary": "Open the app",
+      "ctaSecondary": "Learn more",
+      "scroll": "↓ Scroll to explore"
+    },
+    "scene": {
+      "label": "Sound familiar?",
+      "title": "Those restless moments before sleep",
+      "desc": "Insomnia isn't just being unable to sleep — it's a mind that won't let you rest.",
+      "note": "It's not that you won't sleep. Your mind needs to be heard.",
+      "cards": [
+        { "icon": "💼", "title": "Late-night work anxiety", "body": "Tomorrow's presentation, rehearsed a hundred times in your head. The longer you lie there, the more awake you get." },
+        { "icon": "⏰", "title": "The harder you try, the worse it gets", "body": "You check the clock — 2:17 AM. Why won't your brain just power down?" },
+        { "icon": "🧠", "title": "Thoughts that won't stop", "body": "It's not that you don't want to sleep — your mind just won't quit. Past and future, round and round." }
+      ]
+    },
+    "product": {
+      "label": "What it is",
+      "title": "What is ZhiMian",
+      "lead": "Not a sleep gadget. Not a pill to knock you out.",
+      "highlight": "A bedtime companion for your mind.",
+      "body": "ZhiMian draws on the core ideas of cognitive behavioral therapy. Through a gentle pre-sleep conversation, it helps you say the noise in your head out loud and set it down — so your mind stops fighting itself."
+    },
+    "features": {
+      "label": "Core features",
+      "title": "How ZhiMian helps",
+      "cards": [
+        { "icon": "💬", "title": "Bedtime chat", "body": "Talk it out with an AI companion. Saying the worry out loud is what lets the mind finally relax." },
+        { "icon": "📓", "title": "Sleep diary", "body": "Three simple questions a day. Let the data show you what's really going on." },
+        { "icon": "⏱️", "title": "Sleep nudge", "body": "Awake after 20 minutes in bed? A gentle prompt to get up and give your brain a reset." },
+        { "icon": "📊", "title": "Sleep efficiency", "body": "Set your time in bed scientifically. Weekly summaries make progress visible." }
+      ]
+    },
+    "science": {
+      "title": "A science-backed way to handle pre-sleep anxiety",
+      "body": "CBT-I (Cognitive Behavioral Therapy for Insomnia) is a clinically researched intervention for insomnia. ZhiMian draws on its core ideas to offer warm pre-sleep companionship — it does not replace medical diagnosis or treatment.",
+      "stats": [
+        { "k": "CBT-I", "v": "The gold-standard\nnon-drug therapy" },
+        { "k": "AASM", "v": "A first-line therapy\nper US sleep medicine" },
+        { "k": "Science", "v": "Cognitive-behavioral\nchange at the root" }
+      ]
+    },
+    "testimonials": {
+      "label": "Real feedback",
+      "title": "They come to ZhiMian at night",
+      "cards": [
+        { "quote": "I used to lie down and my brain would start writing screenplays. With ZhiMian, saying it out loud untangled it — I drifted off without noticing.", "name": "Beta user A", "role": "Lived with deep insomnia", "avatar": "A" },
+        { "quote": "3 AM and still running through slides. Ten minutes with ZhiMian got the anxiety out — and I fell asleep fast.", "name": "Beta user B", "role": "High-pressure job", "avatar": "B" },
+        { "quote": "The biggest change is I'm not afraid of not sleeping anymore. ZhiMian taught me it's not my fault — my mind just needed to be heard.", "name": "Beta user C", "role": "Long-term light sleeper", "avatar": "C" }
+      ]
+    },
+    "why": {
+      "label": "Why ZhiMian",
+      "title": "How we're different",
+      "cols": ["💊 Sleep meds", "🎧 White noise / meditation", "🌙 ZhiMian"],
+      "rows": [
+        { "f": "Built on cognitive-behavioral ideas", "a": "✗", "b": "✗", "c": "✓ CBT-I" },
+        { "f": "AI companion conversation", "a": "✗", "b": "✗", "c": "✓" },
+        { "f": "Pre-sleep anxiety focus", "a": "✗", "b": "✓", "c": "✓ deeply tailored" },
+        { "f": "Scientifically grounded", "a": "✗", "b": "✗", "c": "✓ with data" },
+        { "f": "No drug side effects", "a": "✗", "b": "✓", "c": "✓" },
+        { "f": "Warm, human tone", "a": "✗", "b": "✗", "c": "✓" }
+      ]
+    },
+    "story": {
+      "label": "Our story",
+      "title": "Where we started",
+      "quote": "It's not that we can't sleep — we just have too much to say before bed, and no one listening.",
+      "body": "ZhiMian started from something simple: people who can't sleep need a place to be heard. Not to be rushed to sleep, but to have their mind cleared. We're not a sleep-medicine startup. We're the support crew for everyone who lies awake."
+    },
+    "cta": {
+      "title": "Open ZhiMian before bed",
+      "sub": "Five minutes before sleep, and let your mind truly rest",
+      "button": "Open the app",
+      "wechatTitle": "Search \"知眠\" in WeChat",
+      "steps": [
+        "Open WeChat, tap the search bar at the top",
+        "Type \"知眠\" and choose \"Mini Program\"",
+        "Open it before bed each night and say what's on your mind"
+      ]
+    },
+    "footer": { "privacy": "Privacy", "terms": "Terms", "contact": "Contact" }
+  },
   "nav": {
     "chat": "Tonight",
-    "record": "My Records",
+    "worries": "Worry Box",
     "profile": "Profile"
+  },
+  "worries": {
+    "title": "Worry Box",
+    "subtitle": "Set tonight's worries down here. They'll wait until tomorrow.",
+    "placeholder": "What's on your mind?",
+    "add": "Add",
+    "empty": "Nothing here yet. Whatever's circling, you can put it down.",
+    "loadError": "Couldn't load your worries.",
+    "addError": "Couldn't save. Please try again."
+  },
+  "profile": {
+    "anonymous": "Signed in",
+    "aboutLine": "ZhiMian · a calm CBT-I companion",
+    "disclaimer": "ZhiMian is not a medical service and does not diagnose or treat. If you're in crisis, call or text 988 (US).",
+    "deleteAccount": "Delete account",
+    "deleteTitle": "Delete account?",
+    "deleteWarn": "This permanently erases your chats, sleep records, worries, and profile. This cannot be undone.",
+    "deleteCancel": "Keep account",
+    "deleteConfirm": "Delete forever",
+    "deleteError": "Couldn't delete. Please try again."
   },
   "login": {
     "title": "Welcome to ZhiMian",
-    "subtitle": "A calm companion before sleep.",
+    "subtitle": "Sign in or create your account — no password needed.",
+    "emailHint": "First time? Just enter your email — we'll create your account automatically.",
     "emailPlaceholder": "your@email.com",
-    "sendCode": "Send code",
+    "sendCode": "Continue with email",
     "sending": "Sending…",
     "codeSentTo": "We sent a 6-digit code to",
     "verify": "Verify & enter",
     "verifying": "Verifying…",
     "changeEmail": "Use a different email",
     "devCode": "Dev code",
+    "or": "or",
     "error": "Something went wrong. Please try again.",
-    "providerNote": "Apple & Google sign-in coming soon."
+    "providerNote": "Apple sign-in coming soon."
   },
   "chat": {
     "greetingNew": "I'm here. How's tonight feeling?",
@@ -31,6 +141,10 @@
     "tapToStop": "Listening… tap to stop",
     "listening": "Listening…",
     "micError": "Couldn't access the microphone.",
+    "micDenied": "Microphone blocked. Allow mic access for this site in your browser settings, then try again.",
+    "micNotFound": "No microphone found on this device.",
+    "micInUse": "The microphone is in use by another app.",
+    "micInsecure": "Microphone needs a secure (HTTPS) connection.",
     "newSession": "New session",
     "crisisTitle": "You're not alone",
     "crisisCta": "If you're in immediate danger, call 911.",

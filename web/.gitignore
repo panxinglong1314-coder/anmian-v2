@@ -8,3 +8,6 @@ dist-ssr/
 .DS_Store
 *.log
 .vite/
+
+# TS incremental build info
+tsconfig.tsbuildinfo

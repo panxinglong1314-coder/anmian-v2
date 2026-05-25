@@ -87,11 +87,24 @@ export class ASRClient {
       }
     };
 
-    // mic capture
+    // mic capture — guard for browsers/contexts without mediaDevices (e.g. insecure context)
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+      const err = new Error("getUserMedia unavailable (insecure context or unsupported browser)");
+      err.name = "SecurityError";
+      throw err;
+    }
     this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+      audio: { echoCancellation: true, noiseSuppression: true }
     });
-    this.ctx = new AudioContext();
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    this.ctx = new Ctx();
+    if (this.ctx.state === "suspended") {
+      try {
+        await this.ctx.resume();
+      } catch {
+        /* noop */
+      }
+    }
     this.source = this.ctx.createMediaStreamSource(this.stream);
     this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
     const inRate = this.ctx.sampleRate;

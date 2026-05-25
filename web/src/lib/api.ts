@@ -1,5 +1,5 @@
 import { API_BASE } from "./config";
-import { getToken, clearToken } from "./auth";
+import { getToken, clearToken, getUserId } from "./auth";
 
 export class AuthError extends Error {}
 
@@ -29,6 +29,14 @@ export function verifyEmailCode(email: string, code: string) {
   return postJson<{ token: string; user_id: string; is_new_user: boolean }>(
     "/api/v1/auth/email/verify",
     { email, code }
+  );
+}
+
+/** Google Sign-In: exchange the Google ID token (credential) for our JWT. */
+export function googleLogin(credential: string) {
+  return postJson<{ token: string; user_id: string; is_new_user: boolean }>(
+    "/api/v1/auth/google",
+    { credential }
   );
 }
 
@@ -124,6 +132,49 @@ export async function streamChat(
       }
     }
   }
+}
+
+// ---------- Worries (担忧箱) ----------
+export interface WorryRecord {
+  id?: string;
+  worry_text: string;
+  recorded_at: string;
+  type?: string;
+  domain?: string;
+  reviewed?: boolean;
+}
+
+export interface WorriesResponse {
+  records: WorryRecord[];
+  total: number;
+  unreviewed_count: number;
+}
+
+export function getWorries(): Promise<WorriesResponse> {
+  return authRequest<WorriesResponse>(`/api/v1/worries/${encodeURIComponent(getUserId())}?limit=50`);
+}
+
+export interface AddWorryResult {
+  status: "ok" | "crisis";
+  record?: WorryRecord;
+  message?: string;
+  hotlines?: { name: string; phone?: string; text?: string }[];
+}
+
+export function addWorry(text: string, locale: string): Promise<AddWorryResult> {
+  return authRequest<AddWorryResult>(`/api/v1/worry`, {
+    method: "POST",
+    body: { user_id: getUserId(), worry_text: text, locale }
+  });
+}
+
+// ---------- Profile / account ----------
+export function getProfile(): Promise<{ nickname: string; avatar_url: string }> {
+  return authRequest(`/api/v1/user/profile`);
+}
+
+export function deleteAccount(): Promise<{ status: string; keys_deleted?: number }> {
+  return authRequest(`/api/v1/user/delete_account`, { method: "POST" });
 }
 
 /** Play a base64 mp3 chunk returned by the TTS stream. */

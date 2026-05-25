@@ -8,3 +8,22 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+interface ImportMetaEnv {
+  readonly VITE_GOOGLE_CLIENT_ID?: string;
+}
+
+// Google Identity Services (loaded via <script> at runtime)
+interface Window {
+  google?: {
+    accounts: {
+      id: {
+        initialize: (config: {
+          client_id: string;
+          callback: (resp: { credential: string }) => void;
+        }) => void;
+        renderButton: (parent: HTMLElement | null, options: Record<string, unknown>) => void;
+      };
+    };
+  };
+}

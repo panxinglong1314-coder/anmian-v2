@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { setToken } from "../lib/auth";
-import { requestEmailCode, verifyEmailCode } from "../lib/api";
+import { requestEmailCode, verifyEmailCode, googleLogin } from "../lib/api";
+import { GOOGLE_CLIENT_ID } from "../lib/config";
 import LanguageToggle from "../components/LanguageToggle";
 
 type Step = "email" | "code";
@@ -16,6 +17,47 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
+  const gbtnRef = useRef<HTMLDivElement>(null);
+
+  // Google Identity Services — load script + render button when configured.
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    const onCredential = async (resp: { credential: string }) => {
+      setError(null);
+      setBusy(true);
+      try {
+        const r = await googleLogin(resp.credential);
+        setToken(r.token);
+        navigate("/app", { replace: true });
+      } catch {
+        setError(t("login.error"));
+        setBusy(false);
+      }
+    };
+    const init = () => {
+      window.google?.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onCredential });
+      window.google?.accounts.id.renderButton(gbtnRef.current, {
+        theme: "outline",
+        size: "large",
+        width: 320,
+        text: "continue_with",
+        shape: "pill"
+      });
+    };
+    if (window.google) {
+      init();
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.onload = init;
+    document.body.appendChild(script);
+    return () => {
+      script.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sendCode = async () => {
     setError(null);
@@ -37,7 +79,7 @@ export default function Login() {
     try {
       const r = await verifyEmailCode(email.trim(), code.trim());
       setToken(r.token);
-      navigate("/", { replace: true });
+      navigate("/app", { replace: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : t("login.error"));
     } finally {
@@ -46,7 +88,20 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-full flex flex-col items-center justify-center px-6">
+    <div
+      className="min-h-full flex flex-col items-center justify-center px-6 bg-cover bg-center bg-fixed"
+      style={{
+        backgroundImage:
+          "linear-gradient(180deg, rgba(6,6,15,0.82), rgba(6,6,15,0.92)), url('/hero.jpg')"
+      }}
+    >
+      <Link
+        to="/"
+        className="absolute top-4 left-4 flex items-center gap-1.5 text-sm text-muted hover:text-text transition"
+      >
+        <span>←</span>
+        <span className="font-semibold">🌙 {t("app.name")}</span>
+      </Link>
       <div className="absolute top-4 right-4">
         <LanguageToggle />
       </div>
@@ -55,6 +110,18 @@ export default function Login() {
       <p className="text-muted mt-2 mb-8 text-center">{t("login.subtitle")}</p>
 
       <div className="w-full max-w-sm space-y-3">
+        {/* Google Sign-In (hidden until VITE_GOOGLE_CLIENT_ID is set) */}
+        {GOOGLE_CLIENT_ID && (
+          <>
+            <div ref={gbtnRef} className="flex justify-center" />
+            <div className="flex items-center gap-3 py-1">
+              <div className="flex-1 h-px bg-night-line" />
+              <span className="text-muted/60 text-xs">{t("login.or")}</span>
+              <div className="flex-1 h-px bg-night-line" />
+            </div>
+          </>
+        )}
+
         {step === "email" && (
           <>
             <input
@@ -76,6 +143,7 @@ export default function Login() {
             >
               {busy ? t("login.sending") : t("login.sendCode")}
             </button>
+            <p className="text-muted/60 text-[11px] text-center leading-relaxed">{t("login.emailHint")}</p>
           </>
         )}
 

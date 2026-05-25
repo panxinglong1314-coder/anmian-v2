@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/i18n.ts","./src/main.tsx","./src/vite-env.d.ts","./src/components/languagetoggle.tsx","./src/lib/api.ts","./src/lib/asr.ts","./src/lib/auth.ts","./src/lib/config.ts","./src/pages/chat.tsx","./src/pages/login.tsx"],"version":"5.9.3"}
