@@ -18,17 +18,44 @@ function newSessionId() {
   return `web_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// Persist chat across tab switches / reloads within the browser session.
+const SS_MSGS = "zhimian_chat_msgs";
+const SS_SID = "zhimian_chat_sid";
+
+function loadMessages(): Msg[] {
+  try {
+    const raw = sessionStorage.getItem(SS_MSGS);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadSessionId(): string {
+  try {
+    let sid = sessionStorage.getItem(SS_SID);
+    if (!sid) {
+      sid = newSessionId();
+      sessionStorage.setItem(SS_SID, sid);
+    }
+    return sid;
+  } catch {
+    return newSessionId();
+  }
+}
+
 export default function Chat() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const [messages, setMessages] = useState<Msg[]>(loadMessages);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [ttsOn, setTtsOn] = useState(false);
   const [crisis, setCrisis] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
-  const sessionRef = useRef(newSessionId());
+  const sessionRef = useRef(loadSessionId());
   const scrollRef = useRef<HTMLDivElement>(null);
   const asrRef = useRef<ASRClient | null>(null);
   const finalTranscriptRef = useRef("");
@@ -36,6 +63,15 @@ export default function Chat() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
+
+  // persist messages so they survive tab switches / reloads within the session
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SS_MSGS, JSON.stringify(messages));
+    } catch {
+      /* noop */
+    }
+  }, [messages]);
 
   const send = async (override?: string) => {
     const text = (override ?? input).trim();
@@ -93,6 +129,13 @@ export default function Chat() {
   };
 
   const signOut = () => {
+    stopTts();
+    try {
+      sessionStorage.removeItem(SS_MSGS);
+      sessionStorage.removeItem(SS_SID);
+    } catch {
+      /* noop */
+    }
     clearToken();
     navigate("/login", { replace: true });
   };
@@ -100,6 +143,12 @@ export default function Chat() {
   const startNew = () => {
     stopTts();
     sessionRef.current = newSessionId();
+    try {
+      sessionStorage.setItem(SS_SID, sessionRef.current);
+      sessionStorage.removeItem(SS_MSGS);
+    } catch {
+      /* noop */
+    }
     setMessages([]);
     setCrisis(false);
     setError(null);
