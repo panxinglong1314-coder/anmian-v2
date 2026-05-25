@@ -51,7 +51,7 @@ export default function Landing() {
     v.startsWith("✓") ? <span className="text-gold">{v}</span> : v === "✗" ? <Cross /> : v;
 
   return (
-    <div className="min-h-full overflow-y-auto bg-deep text-text">
+    <div className="landing-stars min-h-full overflow-y-auto bg-deep text-text">
       {/* NAV */}
       <nav className="fixed top-0 inset-x-0 h-16 z-50 flex items-center justify-between px-5 sm:px-8 bg-deep/80 backdrop-blur border-b border-white/5">
         <a href="#top" className="font-bold tracking-wide text-text">
@@ -104,7 +104,7 @@ export default function Landing() {
         <p className="text-center text-txt2 mt-3 max-w-xl mx-auto">{t("landing.scene.desc")}</p>
         <div className="grid sm:grid-cols-3 gap-4 mt-10">
           {scenes.map((c, i) => (
-            <div key={i} className="rounded-2xl bg-cardx border border-white/5 p-6">
+            <div key={i} className="rounded-2xl bg-cardx/70 backdrop-blur-sm border border-white/5 p-6">
               <div className="text-3xl mb-3">{c.icon}</div>
               <h3 className="font-semibold text-text">{c.title}</h3>
               <p className="text-txt2 text-sm mt-2 leading-relaxed">{c.body}</p>
@@ -115,7 +115,7 @@ export default function Landing() {
       </section>
 
       {/* PRODUCT */}
-      <section id="product" className="px-6 py-20 bg-navyx">
+      <section id="product" className="px-6 py-20 bg-navyx/50">
         <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-10 items-center">
           <div className="rounded-2xl overflow-hidden border border-white/5 aspect-[4/3] bg-cover bg-center" style={{ backgroundImage: "url('/product.jpg')" }} />
           <div>
@@ -134,7 +134,7 @@ export default function Landing() {
         <h2 className="text-center text-2xl sm:text-3xl font-bold mt-2">{t("landing.features.title")}</h2>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-10">
           {features.map((c, i) => (
-            <div key={i} className="rounded-2xl bg-cardx border border-white/5 p-6">
+            <div key={i} className="rounded-2xl bg-cardx/70 backdrop-blur-sm border border-white/5 p-6">
               <div className="text-3xl mb-3">{c.icon}</div>
               <h3 className="font-semibold text-text">{c.title}</h3>
               <p className="text-txt2 text-sm mt-2 leading-relaxed">{c.body}</p>
@@ -144,13 +144,13 @@ export default function Landing() {
       </section>
 
       {/* SCIENCE */}
-      <section id="science" className="px-6 py-20 bg-navyx text-center">
+      <section id="science" className="px-6 py-20 bg-navyx/50 text-center">
         <span className="inline-block rounded-full border border-gold/30 text-gold text-xs px-3 py-1">CBT-I</span>
         <h2 className="text-2xl sm:text-3xl font-bold mt-4">{t("landing.science.title")}</h2>
         <p className="text-txt2 mt-4 max-w-xl mx-auto leading-relaxed">{t("landing.science.body")}</p>
         <div className="grid grid-cols-3 gap-4 mt-10 max-w-2xl mx-auto">
           {stats.map((s, i) => (
-            <div key={i} className="rounded-2xl bg-cardx border border-white/5 p-5">
+            <div key={i} className="rounded-2xl bg-cardx/70 backdrop-blur-sm border border-white/5 p-5">
               <div className="text-gold text-xl font-bold">{s.k}</div>
               <p className="text-txt2 text-xs mt-2">{lines(s.v)}</p>
             </div>
@@ -164,7 +164,7 @@ export default function Landing() {
         <h2 className="text-center text-2xl sm:text-3xl font-bold mt-2">{t("landing.testimonials.title")}</h2>
         <div className="grid sm:grid-cols-3 gap-4 mt-10">
           {testimonials.map((tm, i) => (
-            <div key={i} className="rounded-2xl bg-cardx border border-white/5 p-6 flex flex-col">
+            <div key={i} className="rounded-2xl bg-cardx/70 backdrop-blur-sm border border-white/5 p-6 flex flex-col">
               <p className="text-text/90 text-sm leading-relaxed flex-1">"{tm.quote}"</p>
               <div className="flex items-center gap-3 mt-4">
                 <div className="w-9 h-9 rounded-full bg-gold/20 text-gold flex items-center justify-center font-semibold">{tm.avatar}</div>
@@ -179,7 +179,7 @@ export default function Landing() {
       </section>
 
       {/* WHY */}
-      <section className="px-6 py-20 bg-navyx">
+      <section className="px-6 py-20 bg-navyx/50">
         <p className="text-center text-gold text-sm tracking-widest uppercase">{t("landing.why.label")}</p>
         <h2 className="text-center text-2xl sm:text-3xl font-bold mt-2">{t("landing.why.title")}</h2>
         <div className="max-w-3xl mx-auto mt-10 overflow-x-auto">
@@ -215,7 +215,7 @@ export default function Landing() {
       </section>
 
       {/* CTA */}
-      <section className="px-6 py-20 bg-navyx text-center">
+      <section className="px-6 py-20 bg-navyx/50 text-center">
         <h2 className="text-2xl sm:text-3xl font-bold">{t("landing.cta.title")}</h2>
         <p className="text-txt2 mt-3">{t("landing.cta.sub")}</p>
         {locale === "en" ? (
@@ -224,7 +224,7 @@ export default function Landing() {
           </Link>
         ) : (
           <div className="mt-8 max-w-md mx-auto">
-            <div className="rounded-2xl bg-cardx border border-gold/20 p-6">
+            <div className="rounded-2xl bg-cardx/70 backdrop-blur-sm border border-gold/20 p-6">
               <p className="text-text font-medium">{t("landing.cta.wechatTitle")} 🌙</p>
               <ol className="text-left text-txt2 text-sm mt-4 space-y-2">
                 {ctaSteps.map((s, i) => (
