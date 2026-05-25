@@ -59,17 +59,13 @@
         { "quote": "The biggest change is I'm not afraid of not sleeping anymore. ZhiMian taught me it's not my fault — my mind just needed to be heard.", "name": "Beta user C", "role": "Long-term light sleeper", "avatar": "C" }
       ]
     },
-    "why": {
-      "label": "Why ZhiMian",
-      "title": "How we're different",
-      "cols": ["💊 Sleep meds", "🎧 White noise / meditation", "🌙 ZhiMian"],
-      "rows": [
-        { "f": "Built on cognitive-behavioral ideas", "a": "✗", "b": "✗", "c": "✓ CBT-I" },
-        { "f": "AI companion conversation", "a": "✗", "b": "✗", "c": "✓" },
-        { "f": "Pre-sleep anxiety focus", "a": "✗", "b": "✓", "c": "✓ deeply tailored" },
-        { "f": "Scientifically grounded", "a": "✗", "b": "✗", "c": "✓ with data" },
-        { "f": "No drug side effects", "a": "✗", "b": "✓", "c": "✓" },
-        { "f": "Warm, human tone", "a": "✗", "b": "✗", "c": "✓" }
+    "arch": {
+      "label": "Under the hood",
+      "title": "How ZhiMian is built",
+      "captions": [
+        "System architecture",
+        "Chat request pipeline · SSE",
+        "CBT-I state machine · 6 phases"
       ]
     },
     "story": {

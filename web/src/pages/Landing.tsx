@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { currentLocale } from "../i18n";
 import LanguageToggle from "../components/LanguageToggle";
+import ArchCarousel from "../components/ArchCarousel";
 
 interface Card {
   icon: string;
@@ -17,12 +18,6 @@ interface Testimonial {
   name: string;
   role: string;
   avatar: string;
-}
-interface WhyRow {
-  f: string;
-  a: string;
-  b: string;
-  c: string;
 }
 
 function lines(s: string) {
@@ -42,13 +37,7 @@ export default function Landing() {
   const features = t("landing.features.cards", { returnObjects: true }) as Card[];
   const stats = t("landing.science.stats", { returnObjects: true }) as Stat[];
   const testimonials = t("landing.testimonials.cards", { returnObjects: true }) as Testimonial[];
-  const whyCols = t("landing.why.cols", { returnObjects: true }) as string[];
-  const whyRows = t("landing.why.rows", { returnObjects: true }) as WhyRow[];
   const ctaSteps = t("landing.cta.steps", { returnObjects: true }) as string[];
-
-  const Cross = () => <span className="text-txt3">✗</span>;
-  const cell = (v: string) =>
-    v.startsWith("✓") ? <span className="text-gold">{v}</span> : v === "✗" ? <Cross /> : v;
 
   return (
     <div className="landing-stars min-h-full overflow-y-auto bg-deep text-text">
@@ -178,32 +167,11 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* WHY */}
-      <section className="px-6 py-20 bg-navyx/50">
-        <p className="text-center text-gold text-sm tracking-widest uppercase">{t("landing.why.label")}</p>
-        <h2 className="text-center text-2xl sm:text-3xl font-bold mt-2">{t("landing.why.title")}</h2>
-        <div className="max-w-3xl mx-auto mt-10 overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="text-txt2">
-                <th className="text-left p-3"></th>
-                {whyCols.map((c, i) => (
-                  <th key={i} className="p-3 font-medium whitespace-nowrap">{c}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {whyRows.map((r, i) => (
-                <tr key={i} className="border-t border-white/5">
-                  <td className="p-3 text-txt2">{r.f}</td>
-                  <td className="p-3 text-center">{cell(r.a)}</td>
-                  <td className="p-3 text-center">{cell(r.b)}</td>
-                  <td className="p-3 text-center">{cell(r.c)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* ARCHITECTURE — 左右滚动的架构图 */}
+      <section id="architecture" className="px-6 py-20 bg-navyx/50">
+        <p className="text-center text-gold text-sm tracking-widest uppercase">{t("landing.arch.label")}</p>
+        <h2 className="text-center text-2xl sm:text-3xl font-bold mt-2">{t("landing.arch.title")}</h2>
+        <ArchCarousel />
       </section>
 
       {/* STORY */}
