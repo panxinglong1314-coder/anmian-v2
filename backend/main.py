@@ -1047,6 +1047,24 @@ def save_session_history(user_id: str, session_id: str, history: List[Message]):
         print(f"[Redis save history error] {e}")
 # ── 订阅与每日用量管理 ───────────────────────────────────────
 # ── 订阅与每日用量管理 ───────────────────────────────────────
+def _parse_dt(s):
+    """宽松解析日期时间：兼容 JS 的 'Z' 后缀、含毫秒、纯日期等格式。失败返回 None（按朴素本地时间，去时区）。"""
+    if not s:
+        return None
+    txt = str(s).strip()
+    try:
+        dt = datetime.fromisoformat(txt.replace("Z", "+00:00"))
+        return dt.replace(tzinfo=None) if dt.tzinfo else dt
+    except Exception:
+        pass
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(txt[:len(fmt) + 2], fmt)
+        except Exception:
+            continue
+    return None
+
+
 def _get_subscription(user_id: str) -> dict:
     """从 Redis 读取用户订阅信息"""
     key = f"subscription:{user_id}"
@@ -1064,11 +1082,8 @@ def _get_tier(user_id: str) -> str:
     sub = _get_subscription(user_id)
     if not sub.get('is_active'):
         return 'free'
-    try:
-        expire = datetime.strptime(sub['expire_date'], '%Y-%m-%d')
-        if expire.date() < datetime.now().date():
-            return 'free'
-    except:
+    expire = _parse_dt(sub.get('expire_date'))
+    if expire is None or expire < datetime.now():
         return 'free'
     plan = sub.get('plan', '').lower()
     if plan in ('basic', 'pro', 'basic_pro'):
@@ -4744,10 +4759,11 @@ async def get_subscription(user: AuthUser = Depends(get_current_user)):
     if not raw:
         return {"is_active": False}
     data = json.loads(raw)
-    expire = datetime.fromisoformat(data["expire_date"])
-    if datetime.now() > expire:
-        data["is_active"] = False
-        redis_client.set(key, json.dumps(data, ensure_ascii=False))
+    expire = _parse_dt(data.get("expire_date"))
+    if expire is None or datetime.now() > expire:
+        if data.get("is_active"):
+            data["is_active"] = False
+            redis_client.set(key, json.dumps(data, ensure_ascii=False))
     return data
 
 
