@@ -7,7 +7,7 @@ import { clearToken } from "../lib/auth";
 type Cycle = "monthly" | "yearly";
 
 // Prices match the WeChat mini-program (CNY): monthly base, yearly = monthly * 12 * 0.85.
-const PRICE = { basic: 30, core: 45 };
+const PRICE = { basic: 60, core: 100 };
 
 function fmtPrice(plan: "basic" | "core", cycle: Cycle): string {
   const m = PRICE[plan];

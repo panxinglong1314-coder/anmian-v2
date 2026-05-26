@@ -17,8 +17,8 @@ const PLANS = {
     name: '基础 Pro',
     voice: '15小时/月',
     text: '15小时/月',
-    priceMonthly: 30,
-    priceYearly: Math.round(30 * 12 * 0.85),
+    priceMonthly: 60,
+    priceYearly: Math.round(60 * 12 * 0.85),
     recommended: true,
   },
   core: {
@@ -26,8 +26,8 @@ const PLANS = {
     name: '核心 Pro',
     voice: '30小时/月',
     text: '30小时/月',
-    priceMonthly: 45,
-    priceYearly: Math.round(45 * 12 * 0.85),
+    priceMonthly: 100,
+    priceYearly: Math.round(100 * 12 * 0.85),
   },
 }
 
