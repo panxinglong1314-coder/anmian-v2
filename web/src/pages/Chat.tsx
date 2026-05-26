@@ -18,13 +18,14 @@ function newSessionId() {
   return `web_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// Persist chat across tab switches / reloads within the browser session.
+// Persist chat across tab switches, reloads, and browser restarts (localStorage).
 const SS_MSGS = "zhimian_chat_msgs";
 const SS_SID = "zhimian_chat_sid";
+const MAX_PERSIST = 100; // cap stored history to avoid unbounded growth
 
 function loadMessages(): Msg[] {
   try {
-    const raw = sessionStorage.getItem(SS_MSGS);
+    const raw = localStorage.getItem(SS_MSGS);
     const arr = raw ? JSON.parse(raw) : [];
     return Array.isArray(arr) ? arr : [];
   } catch {
@@ -34,10 +35,10 @@ function loadMessages(): Msg[] {
 
 function loadSessionId(): string {
   try {
-    let sid = sessionStorage.getItem(SS_SID);
+    let sid = localStorage.getItem(SS_SID);
     if (!sid) {
       sid = newSessionId();
-      sessionStorage.setItem(SS_SID, sid);
+      localStorage.setItem(SS_SID, sid);
     }
     return sid;
   } catch {
@@ -64,10 +65,10 @@ export default function Chat() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
 
-  // persist messages so they survive tab switches / reloads within the session
+  // persist messages so they survive tab switches, reloads, and browser restarts
   useEffect(() => {
     try {
-      sessionStorage.setItem(SS_MSGS, JSON.stringify(messages));
+      localStorage.setItem(SS_MSGS, JSON.stringify(messages.slice(-MAX_PERSIST)));
     } catch {
       /* noop */
     }
@@ -131,8 +132,8 @@ export default function Chat() {
   const signOut = () => {
     stopTts();
     try {
-      sessionStorage.removeItem(SS_MSGS);
-      sessionStorage.removeItem(SS_SID);
+      localStorage.removeItem(SS_MSGS);
+      localStorage.removeItem(SS_SID);
     } catch {
       /* noop */
     }
@@ -144,8 +145,8 @@ export default function Chat() {
     stopTts();
     sessionRef.current = newSessionId();
     try {
-      sessionStorage.setItem(SS_SID, sessionRef.current);
-      sessionStorage.removeItem(SS_MSGS);
+      localStorage.setItem(SS_SID, sessionRef.current);
+      localStorage.removeItem(SS_MSGS);
     } catch {
       /* noop */
     }
