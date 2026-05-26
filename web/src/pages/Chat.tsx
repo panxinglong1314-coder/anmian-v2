@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { streamChat, AuthError, type ChatEvent } from "../lib/api";
+import { Link } from "react-router-dom";
+import { streamChat, AuthError, QuotaError, type ChatEvent } from "../lib/api";
 import { clearToken } from "../lib/auth";
 import { currentLocale } from "../i18n";
 import { ASRClient } from "../lib/asr";
@@ -54,6 +55,7 @@ export default function Chat() {
   const [busy, setBusy] = useState(false);
   const [ttsOn, setTtsOn] = useState(false);
   const [crisis, setCrisis] = useState(false);
+  const [quotaReached, setQuotaReached] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const sessionRef = useRef(loadSessionId());
@@ -80,6 +82,7 @@ export default function Chat() {
     if (ttsOn) unlockAudio(); // this call is within a user gesture → unlock mobile audio
     setError(null);
     setCrisis(false);
+    setQuotaReached(false);
     setInput("");
     setMessages((m) => [...m, { role: "user", text }, { role: "assistant", text: "" }]);
     setBusy(true);
@@ -121,6 +124,10 @@ export default function Chat() {
       if (e instanceof AuthError) {
         setError(t("chat.sessionExpired"));
         setTimeout(() => navigate("/login", { replace: true }), 1200);
+      } else if (e instanceof QuotaError) {
+        // remove the empty assistant placeholder; show an upgrade banner instead
+        setMessages((m) => (m.length && m[m.length - 1].role === "assistant" && !m[m.length - 1].text ? m.slice(0, -1) : m));
+        setQuotaReached(true);
       } else {
         setError(t("chat.errorGeneric"));
       }
@@ -279,6 +286,18 @@ export default function Chat() {
               <br />Crisis Text Line — text <strong>HOME to 741741</strong>
             </p>
             <p className="text-muted text-xs mt-1">{t("chat.crisisCta")}</p>
+          </div>
+        )}
+        {quotaReached && (
+          <div className="rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-center">
+            <p className="text-accent font-medium">{t("chat.quotaTitle")}</p>
+            <p className="text-text/90 mt-1">{t("chat.quotaBody")}</p>
+            <Link
+              to="/app/subscribe"
+              className="inline-block mt-3 rounded-full bg-accent text-night font-medium px-5 py-2 hover:opacity-90 transition"
+            >
+              {t("chat.quotaCta")}
+            </Link>
           </div>
         )}
         {error && <p className="text-coral text-sm text-center">{error}</p>}

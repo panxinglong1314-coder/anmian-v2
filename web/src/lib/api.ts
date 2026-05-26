@@ -3,6 +3,25 @@ import { getToken, clearToken, getUserId } from "./auth";
 
 export class AuthError extends Error {}
 
+export interface Quota {
+  tier?: string;
+  period?: string;
+  text_remaining?: number;
+  text_limit?: number;
+  voice_remaining?: number;
+  voice_limit?: number;
+}
+
+/** Thrown when the chat stream is blocked by the server-side usage quota (HTTP 403). */
+export class QuotaError extends Error {
+  quota?: Quota;
+  constructor(quota?: Quota) {
+    super("quota_reached");
+    this.name = "QuotaError";
+    this.quota = quota;
+  }
+}
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -103,6 +122,11 @@ export async function streamChat(
   if (res.status === 401) {
     clearToken();
     throw new AuthError("Unauthorized");
+  }
+  if (res.status === 403) {
+    const data = (await res.json().catch(() => ({}))) as { detail?: { error?: string; quota?: Quota } };
+    if (data?.detail?.error === "quota_reached") throw new QuotaError(data.detail.quota);
+    throw new Error(`Chat stream forbidden (403)`);
   }
   if (!res.ok || !res.body) {
     throw new Error(`Chat stream failed (${res.status})`);
@@ -236,6 +260,19 @@ export interface SleepWindow {
 
 export function getSleepWindow() {
   return authRequest<SleepWindow>(`/api/v1/sleep/window/${encodeURIComponent(getUserId())}`).catch(() => ({}) as SleepWindow);
+}
+
+// ---------- Usage / subscription ----------
+export interface Usage {
+  tier: string;
+  tier_name?: string;
+  period: string; // "day" | "month"
+  text: { used: number; limit: number; remaining: number; limit_minutes?: number; remaining_minutes?: number };
+  voice: { used: number; limit: number; remaining: number; limit_minutes?: number; remaining_minutes?: number };
+}
+
+export function getUsage() {
+  return authRequest<Usage>(`/api/v1/usage`).catch(() => null);
 }
 
 // ---------- White noise ----------

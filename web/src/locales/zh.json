@@ -180,10 +180,42 @@
     "micInUse": "麦克风正被其他应用占用。",
     "micInsecure": "麦克风需要安全(HTTPS)连接。",
     "newSession": "新对话",
+    "quotaTitle": "今日免费额度已用完",
+    "quotaBody": "今天的免费 AI 时长用完啦。升级可获得更多，或明天再来。",
+    "quotaCta": "查看方案",
     "crisisTitle": "你不是一个人",
     "crisisCta": "如有紧急危险，请立即拨打 120。",
     "errorGeneric": "出错了，请稍后再试。",
     "sessionExpired": "登录已过期，请重新登录。"
+  },
+  "subscribe": {
+    "title": "方案与用量",
+    "subtitle": "内测期间免费使用。以下为升级方案。",
+    "current": "当前方案",
+    "currentPlan": "当前方案",
+    "text": "文字",
+    "voice": "语音",
+    "minutes": "分钟",
+    "perDay": "每天",
+    "perMonth": "每月",
+    "perMonthShort": "/月",
+    "perYearShort": "/年",
+    "monthly": "按月",
+    "yearly": "按年",
+    "save15": "省15%",
+    "recommended": "推荐",
+    "comingSoon": "即将上线",
+    "note": "价格仅供参考。内测期间暂未开放付费 —— 知眠免费使用。升级开放后会在应用内通知。",
+    "tier": {
+      "free": "免费版",
+      "basic": "基础 Pro",
+      "core": "核心 Pro"
+    },
+    "feat": {
+      "free": { "text": "文字 10 分钟/天", "voice": "语音 3 分钟/天" },
+      "basic": { "text": "文字 15 小时/月", "voice": "语音 15 小时/月" },
+      "core": { "text": "文字 30 小时/月", "voice": "语音 30 小时/月" }
+    }
   },
   "common": {
     "language": "语言",

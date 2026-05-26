@@ -180,10 +180,42 @@
     "micInUse": "The microphone is in use by another app.",
     "micInsecure": "Microphone needs a secure (HTTPS) connection.",
     "newSession": "New session",
+    "quotaTitle": "You've reached today's free limit",
+    "quotaBody": "Your free daily AI time is used up. Upgrade for more, or come back tomorrow.",
+    "quotaCta": "See plans",
     "crisisTitle": "You're not alone",
     "crisisCta": "If you're in immediate danger, call 911.",
     "errorGeneric": "Something went wrong. Please try again.",
     "sessionExpired": "Your session expired. Please sign in again."
+  },
+  "subscribe": {
+    "title": "Plans & usage",
+    "subtitle": "Free to use during beta. Upgrade options below.",
+    "current": "Current plan",
+    "currentPlan": "Current plan",
+    "text": "Text",
+    "voice": "Voice",
+    "minutes": "min",
+    "perDay": "per day",
+    "perMonth": "per month",
+    "perMonthShort": "/mo",
+    "perYearShort": "/yr",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "save15": "-15%",
+    "recommended": "Popular",
+    "comingSoon": "Coming soon",
+    "note": "Pricing shown for reference. Paid plans aren't available yet during beta — ZhiMian is free to use. We'll announce upgrades in-app.",
+    "tier": {
+      "free": "Free",
+      "basic": "Basic Pro",
+      "core": "Core Pro"
+    },
+    "feat": {
+      "free": { "text": "10 min text / day", "voice": "3 min voice / day" },
+      "basic": { "text": "15 hrs text / month", "voice": "15 hrs voice / month" },
+      "core": { "text": "30 hrs text / month", "voice": "30 hrs voice / month" }
+    }
   },
   "common": {
     "language": "Language",

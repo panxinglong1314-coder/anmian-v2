@@ -7,6 +7,7 @@ import Chat from "./pages/Chat";
 import Sleep from "./pages/Sleep";
 import Worries from "./pages/Worries";
 import Profile from "./pages/Profile";
+import Subscribe from "./pages/Subscribe";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
@@ -37,6 +38,7 @@ export default function App() {
       <Route path="/app" element={<AppLayout />}>
         <Route index element={<Chat />} />
         <Route path="sleep" element={<Sleep />} />
+        <Route path="subscribe" element={<Subscribe />} />
         <Route path="worries" element={<Worries />} />
         <Route path="profile" element={<Profile />} />
       </Route>
