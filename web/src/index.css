@@ -95,29 +95,29 @@ body {
 
 /* ---- 暗色变体:用于登录后 App,更深更暗、亮点更少(更助眠) ---- */
 .starfield-dim::before {
-  /* 更深的底色铺满视口 + 更克制的星云辉光 */
-  background-color: #070a12;
+  /* 较深的底色铺满视口 + 适度的星云辉光 */
+  background-color: #090e1a;
   background-image:
-    radial-gradient(60% 50% at 50% -8%, rgba(40, 52, 110, 0.2), transparent 70%),
-    radial-gradient(45% 40% at 85% 12%, rgba(80, 60, 120, 0.1), transparent 70%),
-    radial-gradient(50% 45% at 8% 78%, rgba(34, 64, 110, 0.1), transparent 70%);
+    radial-gradient(60% 50% at 50% -8%, rgba(48, 62, 130, 0.28), transparent 70%),
+    radial-gradient(45% 40% at 85% 12%, rgba(96, 72, 142, 0.15), transparent 70%),
+    radial-gradient(50% 45% at 8% 78%, rgba(40, 76, 130, 0.14), transparent 70%);
 }
 .starfield-dim::after {
-  /* 星点大幅调暗、去掉发光,亮点更少更柔 */
-  filter: none;
+  /* 比落地页柔,但保留一点微光与亮点 */
+  filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.35));
   animation-name: twinkle-dim;
 }
 @keyframes twinkle-dim {
   0% {
-    opacity: 0.12;
+    opacity: 0.3;
   }
   100% {
-    opacity: 0.32;
+    opacity: 0.58;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .starfield-dim::after {
     animation: none;
-    opacity: 0.28;
+    opacity: 0.5;
   }
 }
