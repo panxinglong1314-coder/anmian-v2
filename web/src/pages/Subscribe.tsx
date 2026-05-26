@@ -3,29 +3,21 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getUsage, AuthError, type Usage } from "../lib/api";
 import { clearToken } from "../lib/auth";
-import { currentLocale } from "../i18n";
 
 type Cycle = "monthly" | "yearly";
 
-// Monthly base price per currency; yearly = monthly * 12 * 0.85 (15% off).
-const PRICE = {
-  basic: { zh: 30, en: 4.99 },
-  core: { zh: 45, en: 6.99 }
-};
+// Prices match the WeChat mini-program (CNY): monthly base, yearly = monthly * 12 * 0.85.
+const PRICE = { basic: 30, core: 45 };
 
-function fmtPrice(plan: "basic" | "core", cycle: Cycle, locale: "en" | "zh"): string {
-  const m = PRICE[plan][locale];
-  if (cycle === "monthly") {
-    return locale === "zh" ? `¥${m}` : `$${m.toFixed(2)}`;
-  }
-  const y = m * 12 * 0.85;
-  return locale === "zh" ? `¥${Math.round(y)}` : `$${y.toFixed(2)}`;
+function fmtPrice(plan: "basic" | "core", cycle: Cycle): string {
+  const m = PRICE[plan];
+  if (cycle === "monthly") return `¥${m}`;
+  return `¥${Math.round(m * 12 * 0.85)}`;
 }
 
 export default function Subscribe() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const locale = currentLocale();
   const [cycle, setCycle] = useState<Cycle>("monthly");
   const [usage, setUsage] = useState<Usage | null>(null);
 
@@ -49,9 +41,9 @@ export default function Subscribe() {
     price: string;
     recommended?: boolean;
   }[] = [
-    { id: "free", price: locale === "zh" ? "¥0" : "$0" },
-    { id: "basic", price: fmtPrice("basic", cycle, locale), recommended: true },
-    { id: "core", price: fmtPrice("core", cycle, locale) }
+    { id: "free", price: "¥0" },
+    { id: "basic", price: fmtPrice("basic", cycle), recommended: true },
+    { id: "core", price: fmtPrice("core", cycle) }
   ];
 
   return (
