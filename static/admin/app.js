@@ -154,6 +154,7 @@ const pageTitles = {
   users: '用户列表', health: '服务器监控', retention: '留存分析',
   crisis: '🚨 危机告警',
   abconfig: 'A/B 配置',
+  pricing: '💰 定价',
   sleep: '🌙 睡眠数据',
   kb: '📚 知识库',
   feedback: '📮 用户反馈',
@@ -168,7 +169,7 @@ function showPage(name) {
   document.getElementById('page-title').textContent = pageTitles[name] || name;
   const loaders = { dashboard: loadDashboard, safety: loadSafety, quality: loadQuality,
                      users: loadUsers, health: loadHealth, retention: loadRetention,
-                     crisis: loadCrisis, abconfig: loadABConfig,
+                     crisis: loadCrisis, abconfig: loadABConfig, pricing: loadPricing,
                      sleep: loadSleepDashboard, kb: loadKB, feedback: loadFeedback };
   if (loaders[name]) loaders[name](loaders[name] === loadDashboard ? 7 : 30);
 
@@ -1361,10 +1362,64 @@ async function resetABConfig() {
   } catch(e) { toast('重置失败: ' + e.message, 'error'); }
 }
 
+// ============================================================
+// 💰 定价管理
+// ============================================================
+function _pricingPreview() {
+  const b = parseFloat(document.getElementById('price-basic').value) || 0;
+  const c = parseFloat(document.getElementById('price-core').value) || 0;
+  const d = parseFloat(document.getElementById('price-discount').value) || 0.85;
+  const yb = Math.round(b * 12 * d), yc = Math.round(c * 12 * d);
+  document.getElementById('price-preview').textContent = `年付预览：基础 Pro ¥${yb}/年 · 核心 Pro ¥${yc}/年`;
+}
+
+async function loadPricing() {
+  try {
+    const data = await fetchJSON(`${API_BASE}/pricing`);
+    const plans = data.plans || {};
+    document.getElementById('price-basic').value = plans.basic?.monthly ?? 60;
+    document.getElementById('price-core').value = plans.core?.monthly ?? 100;
+    document.getElementById('price-discount').value = data.yearly_discount ?? 0.85;
+    _pricingPreview();
+  } catch (e) { toast('加载定价失败: ' + e.message, 'error'); }
+}
+
+async function savePricing() {
+  const payload = {
+    basic_monthly: parseFloat(document.getElementById('price-basic').value),
+    core_monthly: parseFloat(document.getElementById('price-core').value),
+    yearly_discount: parseFloat(document.getElementById('price-discount').value),
+  };
+  try {
+    const r = await fetch(`${API_BASE}/pricing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
+      body: JSON.stringify(payload),
+    });
+    if (r.ok) { toast('定价已保存', 'success'); loadPricing(); }
+    else { const d = await r.json().catch(() => ({})); toast('保存失败: ' + (d.detail || '未知错误'), 'error'); }
+  } catch (e) { toast('保存失败: ' + e.message, 'error'); }
+}
+
+async function resetPricing() {
+  if (!confirm('确定要重置为默认定价吗？')) return;
+  try {
+    const r = await fetch(`${API_BASE}/pricing/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
+    });
+    if (r.ok) { toast('已重置为默认定价', 'success'); loadPricing(); }
+    else { const d = await r.json().catch(() => ({})); toast('重置失败: ' + (d.detail || '未知错误'), 'error'); }
+  } catch (e) { toast('重置失败: ' + e.message, 'error'); }
+}
+
 // 实时字数统计
 document.addEventListener('input', (e) => {
   if (e.target.id === 'ab-system-prompt') {
     document.getElementById('ab-prompt-len').textContent = e.target.value.length;
+  }
+  if (['price-basic', 'price-core', 'price-discount'].includes(e.target.id)) {
+    _pricingPreview();
   }
 });
 

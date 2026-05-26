@@ -1,25 +1,26 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getUsage, AuthError, type Usage } from "../lib/api";
+import { getUsage, getPricing, AuthError, type Usage, type Pricing } from "../lib/api";
 import { clearToken } from "../lib/auth";
 
 type Cycle = "monthly" | "yearly";
 
-// Prices match the WeChat mini-program (CNY): monthly base, yearly = monthly * 12 * 0.85.
-const PRICE = { basic: 60, core: 100 };
+// Fallback if the pricing API is unavailable (matches current defaults).
+const FALLBACK: Pricing = {
+  currency: "CNY",
+  yearly_discount: 0.85,
+  plans: { basic: { monthly: 60, yearly: 612 }, core: { monthly: 100, yearly: 1020 } }
+};
 
-function fmtPrice(plan: "basic" | "core", cycle: Cycle): string {
-  const m = PRICE[plan];
-  if (cycle === "monthly") return `¥${m}`;
-  return `¥${Math.round(m * 12 * 0.85)}`;
-}
+const SYMBOL: Record<string, string> = { CNY: "¥", USD: "$" };
 
 export default function Subscribe() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [cycle, setCycle] = useState<Cycle>("monthly");
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [pricing, setPricing] = useState<Pricing>(FALLBACK);
 
   useEffect(() => {
     getUsage()
@@ -30,7 +31,16 @@ export default function Subscribe() {
           navigate("/login", { replace: true });
         }
       });
+    getPricing().then((p) => {
+      if (p && p.plans) setPricing(p);
+    });
   }, [navigate]);
+
+  const sym = SYMBOL[pricing.currency] || "¥";
+  const fmtPrice = (plan: "basic" | "core", c: Cycle): string => {
+    const p = pricing.plans[plan] || FALLBACK.plans[plan];
+    return `${sym}${c === "monthly" ? p.monthly : p.yearly}`;
+  };
 
   const tier = usage?.tier ?? "free";
   const cycleLabel = (c: Cycle) => (c === "monthly" ? t("subscribe.monthly") : t("subscribe.yearly"));
@@ -41,7 +51,7 @@ export default function Subscribe() {
     price: string;
     recommended?: boolean;
   }[] = [
-    { id: "free", price: "¥0" },
+    { id: "free", price: `${sym}0` },
     { id: "basic", price: fmtPrice("basic", cycle), recommended: true },
     { id: "core", price: fmtPrice("core", cycle) }
   ];

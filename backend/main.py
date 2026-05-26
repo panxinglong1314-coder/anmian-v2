@@ -5812,6 +5812,86 @@ async def admin_ab_config_history(limit: int = Query(20, le=50)):
     return {"history": get_ab_config_history(limit=limit)}
 
 
+# ==================== 定价配置（admin 可改，客户端读取）====================
+PRICING_KEY = "pricing:config"
+PRICING_DEFAULT = {
+    "currency": "CNY",
+    "yearly_discount": 0.85,
+    "plans": {
+        "basic": {"monthly": 60},
+        "core": {"monthly": 100},
+    },
+}
+
+
+def _compute_pricing(cfg: dict) -> dict:
+    """补全 yearly 价格（月价 × 12 × (1-折扣) 取整）。"""
+    disc = float(cfg.get("yearly_discount", 0.85))
+    plans = {}
+    for pid, p in (cfg.get("plans") or {}).items():
+        m = float(p.get("monthly", 0))
+        plans[pid] = {"monthly": round(m, 2) if m % 1 else int(m), "yearly": int(round(m * 12 * disc))}
+    return {
+        "currency": cfg.get("currency", "CNY"),
+        "yearly_discount": disc,
+        "plans": plans,
+    }
+
+
+def _get_pricing() -> dict:
+    try:
+        raw = redis_client.get(PRICING_KEY)
+        if raw:
+            cfg = json.loads(raw)
+            # 合并默认，避免缺字段
+            merged = json.loads(json.dumps(PRICING_DEFAULT))
+            merged.update({k: v for k, v in cfg.items() if k != "plans"})
+            merged["plans"] = {**PRICING_DEFAULT["plans"], **(cfg.get("plans") or {})}
+            return _compute_pricing(merged)
+    except Exception as e:
+        print(f"[_get_pricing error] {e}")
+    return _compute_pricing(PRICING_DEFAULT)
+
+
+@app.get("/api/v1/pricing")
+async def get_pricing(user: AuthUser = Depends(get_current_user)):
+    """客户端读取当前定价（含月/年价）。"""
+    return _get_pricing()
+
+
+@app.get("/api/v1/admin/pricing")
+async def admin_get_pricing():
+    return _get_pricing()
+
+
+@app.post("/api/v1/admin/pricing")
+async def admin_update_pricing(request: Request):
+    """更新定价（admin）。body: {basic_monthly, core_monthly, yearly_discount}"""
+    data = await request.json()
+    cur = _get_pricing()
+    try:
+        basic = float(data.get("basic_monthly", cur["plans"]["basic"]["monthly"]))
+        core = float(data.get("core_monthly", cur["plans"]["core"]["monthly"]))
+        disc = float(data.get("yearly_discount", cur["yearly_discount"]))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="invalid pricing values")
+    if basic < 0 or core < 0 or not (0 < disc <= 1):
+        raise HTTPException(status_code=400, detail="pricing out of range")
+    cfg = {
+        "currency": data.get("currency", cur.get("currency", "CNY")),
+        "yearly_discount": disc,
+        "plans": {"basic": {"monthly": basic}, "core": {"monthly": core}},
+    }
+    redis_client.set(PRICING_KEY, json.dumps(cfg))
+    return {"status": "ok", "pricing": _get_pricing()}
+
+
+@app.post("/api/v1/admin/pricing/reset")
+async def admin_reset_pricing():
+    redis_client.delete(PRICING_KEY)
+    return {"status": "ok", "pricing": _get_pricing()}
+
+
 @app.get("/api/v1/admin/users")
 async def admin_users(days: int = Query(30, le=90), limit: int = Query(500, le=2000)):
     """用户列表"""

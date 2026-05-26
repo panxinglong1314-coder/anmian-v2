@@ -46,6 +46,33 @@ Page({
   onLoad() {
     this.checkSubscription()
     this.updatePriceDisplay()
+    this.loadPricing()
+  },
+
+  // 从后端读取可由 admin 后台修改的最新定价
+  loadPricing() {
+    if (!app.globalData.userId) return
+    app.authRequest({
+      url: `${app.globalData.apiBaseUrl}/api/v1/pricing`,
+      success: res => {
+        const p = res.data && res.data.plans
+        if (res.statusCode !== 200 || !p) return
+        const plans = this.data.plans
+        if (p.basic) {
+          plans.basic.priceMonthly = p.basic.monthly
+          plans.basic.priceYearly = p.basic.yearly
+        }
+        if (p.core) {
+          plans.core.priceMonthly = p.core.monthly
+          plans.core.priceYearly = p.core.yearly
+        }
+        this.setData({
+          plans,
+          planList: [plans.free, plans.basic, plans.core],
+        }, () => this.updatePriceDisplay())
+      },
+      fail: err => console.warn('[loadPricing] fail:', err)
+    })
   },
 
   onShow() {

@@ -275,6 +275,16 @@ export function getUsage() {
   return authRequest<Usage>(`/api/v1/usage`).catch(() => null);
 }
 
+export interface Pricing {
+  currency: string;
+  yearly_discount: number;
+  plans: Record<string, { monthly: number; yearly: number }>;
+}
+
+export function getPricing() {
+  return authRequest<Pricing>(`/api/v1/pricing`).catch(() => null);
+}
+
 // ---------- White noise ----------
 export function soundUrl(name: string): string {
   return `${API_BASE}/static/sounds/${name}.mp3`;
