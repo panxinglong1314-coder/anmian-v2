@@ -77,20 +77,8 @@ body {
     radial-gradient(1.5px 1.5px at 74% 64%, rgba(255, 255, 255, 0.85), transparent 62%),
     radial-gradient(2px 2px at 17% 84%, rgba(255, 255, 255, 0.9), transparent 62%);
   filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
-  animation: twinkle 6s ease-in-out infinite alternate;
-}
-@keyframes twinkle {
-  0% {
-    opacity: 0.75;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .starfield::after {
-    animation: none;
-  }
+  /* 静态星点(不做持续动画):避免 Speed Index 因全屏持续变化而虚高 */
+  opacity: 0.92;
 }
 
 /* ---- 暗色变体:用于登录后 App,更深更暗、亮点更少(更助眠) ---- */
@@ -103,21 +91,7 @@ body {
     radial-gradient(50% 45% at 8% 78%, rgba(40, 76, 130, 0.14), transparent 70%);
 }
 .starfield-dim::after {
-  /* 比落地页柔,但保留一点微光与亮点 */
+  /* 比落地页柔;静态,不做持续动画 */
   filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.35));
-  animation-name: twinkle-dim;
-}
-@keyframes twinkle-dim {
-  0% {
-    opacity: 0.3;
-  }
-  100% {
-    opacity: 0.58;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .starfield-dim::after {
-    animation: none;
-    opacity: 0.5;
-  }
+  opacity: 0.5;
 }

@@ -70,7 +70,7 @@ export default function Landing() {
             "linear-gradient(180deg, rgba(6,6,15,0.78), rgba(6,6,15,0.9)), url('/hero.jpg')"
         }}
       >
-        <div className="text-[5rem] mb-6 drop-shadow-[0_0_60px_rgba(201,149,106,0.45)] animate-pulse">🌙</div>
+        <div className="text-[5rem] mb-6 drop-shadow-[0_0_60px_rgba(201,149,106,0.45)]">🌙</div>
         <h1 className="text-3xl sm:text-5xl font-bold leading-tight max-w-3xl bg-gradient-to-br from-text to-goldlight bg-clip-text text-transparent">
           {lines(t("landing.hero.title"))}
         </h1>
