@@ -25,6 +25,15 @@ from infra.redis_client import redis_client
 # ===== Redis Keys =====
 KEY_PENDING = "crisis_alerts:pending"
 KEY_RESOLVED = "crisis_alerts:resolved"
+
+
+def _is_test_user(uid: str) -> bool:
+    """测试用户命名约定（与 admin_routes.is_test_user 保持一致）。
+    测试/开发账号不产生危机告警,避免污染安全面板。"""
+    if not uid:
+        return False
+    u = uid.lower()
+    return ("webtest" in u) or u.startswith(("test_", "demo_", "em_test", "wx_test", "em_demo"))
 KEY_EVENT_PREFIX = "crisis_alert:"
 
 # 已处理事件保留 90 天
@@ -53,6 +62,10 @@ def emit_crisis_alert(
     此函数应在 try/except 包裹下调用，**永远不应阻塞主对话流**。
     """
     if not redis_client:
+        return None
+    # 测试用户不写入危机告警（保持安全面板只含真实用户）
+    if _is_test_user(user_id):
+        logging.info(f"[CrisisAlert] skip test user {user_id}")
         return None
     try:
         event_id = uuid.uuid4().hex[:16]
