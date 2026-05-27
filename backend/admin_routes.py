@@ -682,6 +682,15 @@ def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
 
 # ==================== 用户管理 ====================
 
+def is_test_user(uid: str) -> bool:
+    """测试用户识别：命名约定。开发/测试账号请用带 'webtest' 标记的 id，
+    或 test_/demo_ 前缀,即可在后台被识别并默认隐藏。"""
+    if not uid:
+        return False
+    u = uid.lower()
+    return ("webtest" in u) or u.startswith(("test_", "demo_", "em_test", "wx_test", "em_demo"))
+
+
 def get_user_list(days: int = 30, limit: int = 500) -> List[Dict]:
     eval_records = _load_evaluation_records(days=days)
     sessions = _get_all_sessions(days=days)
@@ -759,6 +768,9 @@ def get_user_list(days: int = 30, limit: int = 500) -> List[Dict]:
             users[uid]["subscription_plan"] = "free"
             users[uid]["subscription_active"] = None
             users[uid]["subscription_expire"] = ""
+    # 标记测试用户（命名约定）
+    for uid in users:
+        users[uid]["is_test"] = is_test_user(uid)
     return list(users.values())[:limit]
 
 def toggle_user_status(user_id: str, action: str = "disable") -> Dict[str, Any]:

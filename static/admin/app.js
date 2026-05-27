@@ -865,8 +865,11 @@ async function loadUsers() {
 
 function getFilteredUsers() {
   const q = (document.getElementById('users-search')?.value || '').trim().toLowerCase();
-  if (!q) return usersCache;
-  return usersCache.filter(u => (u.user_id || '').toLowerCase().includes(q));
+  const hideTest = document.getElementById('users-hide-test')?.checked;
+  let list = usersCache;
+  if (hideTest) list = list.filter(u => !u.is_test);
+  if (q) list = list.filter(u => (u.user_id || '').toLowerCase().includes(q));
+  return list;
 }
 
 function renderUsersPage() {
@@ -887,7 +890,7 @@ function renderUsersPage() {
   pageData.forEach(u => {
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td><span class="truncate-id font-mono text-xs text-gray-600">${_escapeHtml(u.user_id || '--')}</span></td>
+      <td><span class="truncate-id font-mono text-xs text-gray-600">${_escapeHtml(u.user_id || '--')}</span>${u.is_test ? ' <span class="text-[10px] px-1 py-0.5 rounded bg-purple-100 text-purple-600">🧪测试</span>' : ''}</td>
       <td class="text-gray-500 text-xs">${(u.first_seen || '').slice(0, 10)}</td>
       <td class="text-gray-500 text-xs">${(u.last_seen || '').slice(0, 10)}</td>
       <td class="font-medium text-sm">${u.session_count || 0}</td>
