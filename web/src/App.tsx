@@ -1,16 +1,27 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { isLoggedIn } from "./lib/auth";
 import BottomNav from "./components/BottomNav";
-import Landing from "./pages/Landing";
-import Login from "./pages/Login";
-import Chat from "./pages/Chat";
-import Sleep from "./pages/Sleep";
-import Worries from "./pages/Worries";
-import Profile from "./pages/Profile";
-import Subscribe from "./pages/Subscribe";
-import Privacy from "./pages/Privacy";
-import Terms from "./pages/Terms";
-import Contact from "./pages/Contact";
+import Landing from "./pages/Landing"; // eager: landing is the LCP entry route
+
+// Code-split everything else so the landing page ships minimal JS.
+const Login = lazy(() => import("./pages/Login"));
+const Chat = lazy(() => import("./pages/Chat"));
+const Sleep = lazy(() => import("./pages/Sleep"));
+const Worries = lazy(() => import("./pages/Worries"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Subscribe = lazy(() => import("./pages/Subscribe"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const Terms = lazy(() => import("./pages/Terms"));
+const Contact = lazy(() => import("./pages/Contact"));
+
+function Loading() {
+  return (
+    <div className="h-full flex items-center justify-center text-muted text-sm">
+      <span className="text-2xl animate-pulse">🌙</span>
+    </div>
+  );
+}
 
 function AppLayout() {
   if (!isLoggedIn()) return <Navigate to="/login" replace />;
@@ -26,23 +37,25 @@ function AppLayout() {
 
 export default function App() {
   return (
-    <Routes>
-      {/* 营销官网(公开) */}
-      <Route path="/" element={<Landing />} />
-      <Route path="/login" element={<Login />} />
-      {/* 法律/联系页(公开,双语) */}
-      <Route path="/privacy" element={<Privacy />} />
-      <Route path="/terms" element={<Terms />} />
-      <Route path="/contact" element={<Contact />} />
-      {/* 产品(需登录),统一挂在 /app 下 */}
-      <Route path="/app" element={<AppLayout />}>
-        <Route index element={<Chat />} />
-        <Route path="sleep" element={<Sleep />} />
-        <Route path="subscribe" element={<Subscribe />} />
-        <Route path="worries" element={<Worries />} />
-        <Route path="profile" element={<Profile />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense fallback={<Loading />}>
+      <Routes>
+        {/* 营销官网(公开) */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        {/* 法律/联系页(公开,双语) */}
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/contact" element={<Contact />} />
+        {/* 产品(需登录),统一挂在 /app 下 */}
+        <Route path="/app" element={<AppLayout />}>
+          <Route index element={<Chat />} />
+          <Route path="sleep" element={<Sleep />} />
+          <Route path="subscribe" element={<Subscribe />} />
+          <Route path="worries" element={<Worries />} />
+          <Route path="profile" element={<Profile />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

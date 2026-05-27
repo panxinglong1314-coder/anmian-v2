@@ -60,6 +60,7 @@ export default function Landing() {
         </div>
       </nav>
 
+      <main>
       {/* HERO */}
       <section
         id="top"
@@ -210,12 +211,14 @@ export default function Landing() {
         )}
       </section>
 
+      </main>
+
       {/* FOOTER */}
-      <footer className="px-6 py-10 text-center text-txt3 text-xs space-y-2 border-t border-white/5">
-        <div className="flex gap-4 justify-center">
-          <Link to="/privacy" className="hover:text-txt2">{t("landing.footer.privacy")}</Link>
-          <Link to="/terms" className="hover:text-txt2">{t("landing.footer.terms")}</Link>
-          <Link to="/contact" className="hover:text-txt2">{t("landing.footer.contact")}</Link>
+      <footer className="px-6 py-10 text-center text-txt2 text-xs space-y-2 border-t border-white/5">
+        <div className="flex gap-2 justify-center">
+          <Link to="/privacy" className="px-3 py-2 inline-block hover:text-text">{t("landing.footer.privacy")}</Link>
+          <Link to="/terms" className="px-3 py-2 inline-block hover:text-text">{t("landing.footer.terms")}</Link>
+          <Link to="/contact" className="px-3 py-2 inline-block hover:text-text">{t("landing.footer.contact")}</Link>
         </div>
         <div>© {new Date().getFullYear()} {t("app.name")} · sleepai.chat</div>
         {locale !== "en" && (

@@ -18,8 +18,8 @@ export default {
         cardx: "#111128",
         gold: "#c9956a",
         goldlight: "#e8c9a0",
-        txt2: "#8888a0",
-        txt3: "#55556a"
+        txt2: "#9a9ab2",
+        txt3: "#82829c"
       }
     }
   },
