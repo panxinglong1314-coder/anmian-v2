@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+const NotFound = lazy(() => import("./pages/NotFound"));
 import { isLoggedIn } from "./lib/auth";
 import BottomNav from "./components/BottomNav";
 import Landing from "./pages/Landing"; // eager: landing is the LCP entry route
@@ -54,7 +55,7 @@ export default function App() {
           <Route path="worries" element={<Worries />} />
           <Route path="profile" element={<Profile />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
   );
