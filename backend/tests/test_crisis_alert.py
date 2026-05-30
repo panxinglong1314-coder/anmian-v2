@@ -26,7 +26,7 @@ class TestEmit:
     def test_emit_writes_to_pending_zset(self, crisis_redis):
         from services.crisis_alert import emit_crisis_alert, get_unread_count
         eid = emit_crisis_alert(
-            user_id="wx_test_user_001",
+            user_id="wx_realuser_abc1",  # 避开 _is_test_user 命名约定(原 "wx_test_*" 会被跳过)
             session_id="sess_001",
             level="high",
             types=["suicide"],
