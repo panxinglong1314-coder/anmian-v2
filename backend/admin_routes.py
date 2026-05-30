@@ -661,6 +661,32 @@ def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
         for k, v in top_failures
     ]
 
+    # 咨询微技能覆盖率聚合（v2.2）
+    ms_records = [r for r in eval_records if r.get("microskills_coverage") is not None]
+    if ms_records:
+        cov_values = [r["microskills_coverage"] for r in ms_records]
+        var_values = [r.get("microskills_variety", 0) for r in ms_records]
+        skill_counts = defaultdict(int)
+        for r in ms_records:
+            for s in (r.get("microskills_used") or []):
+                skill_counts[s] += 1
+        # 12 个标准微技能 id（与 dialogue_evaluator.COUNSELING_MICROSKILLS 顺序一致）
+        all_skills = [
+            "reflection_of_feeling", "reflection_of_content", "open_question",
+            "minimal_encourager", "normalization", "validation", "self_anchoring",
+            "naming_emotion", "summarizing", "gentle_challenge", "silence",
+            "permission_to_be_unwell",
+        ]
+        microskills_block = {
+            "sessions_with_data": len(ms_records),
+            "mean_coverage": round(sum(cov_values) / len(cov_values), 3),
+            "mean_variety": round(sum(var_values) / len(var_values), 3),
+            "skill_frequency": {s: skill_counts.get(s, 0) for s in all_skills},
+            "underused_skills": [s for s in all_skills if skill_counts.get(s, 0) == 0],
+        }
+    else:
+        microskills_block = None
+
     return {
         "period_days": days,
         "total_evaluated": len(eval_records),
@@ -677,6 +703,7 @@ def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
             "mean": round(sum(coherence_scores) / len(coherence_scores), 1) if coherence_scores else 0,
             "distribution": {str(i): coherence_scores.count(i) for i in range(6)} if coherence_scores else {},
         },
+        "microskills": microskills_block,
         "top_failure_modes": top_failure_modes,
     }
 

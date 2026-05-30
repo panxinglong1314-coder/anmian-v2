@@ -757,6 +757,7 @@ async function loadQuality() {
     ['q-empathy', 'q-tech', 'q-coherence'].forEach(id => setMetricCard(id, '--', '暂无数据', 0, '#3b82f6'));
     ['chart-empathy-dist', 'chart-tech-dist'].forEach(id => renderChart(id, null, emptyStateHTML('暂无数据', '', '📊')));
     document.getElementById('quality-failures').innerHTML = emptyStateHTML('数据积累中', '预计 10 条会话后展示高频失败模式', '🔧');
+    _renderMicroskills(null);
     return;
   }
 
@@ -795,6 +796,9 @@ async function loadQuality() {
     });
   }
 
+  // 咨询招式覆盖率（v2.2）
+  _renderMicroskills(data.microskills);
+
   // 失败模式（带改进建议）
   const failures = data.top_failure_modes || [];
   _qualityFailures = failures;
@@ -818,6 +822,70 @@ async function loadQuality() {
       </div>
     </div>
   `).join('');
+}
+
+// ---------- 招式覆盖率（v2.2） ----------
+const _MICROSKILL_LABELS = {
+  reflection_of_feeling: '情感反映',
+  reflection_of_content: '内容复述',
+  open_question: '开放提问',
+  minimal_encourager: '最小鼓励',
+  normalization: '普同化',
+  validation: '情感确认',
+  self_anchoring: '扎根/着陆',
+  naming_emotion: '情绪命名',
+  summarizing: '总结',
+  gentle_challenge: '温和挑战',
+  silence: '适当沉默',
+  permission_to_be_unwell: '允许不好',
+};
+
+function _renderMicroskills(ms) {
+  const summaryEl = document.getElementById('q-microskills-summary');
+  const emptyEl = document.getElementById('q-microskills-empty');
+  const underusedEl = document.getElementById('q-microskills-underused');
+  if (!ms || !ms.sessions_with_data) {
+    if (summaryEl) summaryEl.textContent = '';
+    if (emptyEl) emptyEl.classList.remove('hidden');
+    if (underusedEl) underusedEl.textContent = '';
+    renderChart('chart-microskills', null, '');
+    return;
+  }
+  if (emptyEl) emptyEl.classList.add('hidden');
+  const covPct = Math.round((ms.mean_coverage || 0) * 100);
+  if (summaryEl) {
+    summaryEl.textContent = `${ms.sessions_with_data} 次会话 · 平均覆盖 ${covPct}% · 多样性 ${(ms.mean_variety || 0).toFixed(2)}`;
+  }
+  // 水平条形图（按使用频次降序）
+  const entries = Object.entries(ms.skill_frequency || {})
+    .map(([id, n]) => ({ id, label: _MICROSKILL_LABELS[id] || id, n }))
+    .sort((a, b) => a.n - b.n); // echarts y 轴从下往上,小到大
+  renderChart('chart-microskills', {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: '3%', right: '6%', bottom: '3%', top: '8%', containLabel: true },
+    xAxis: { type: 'value', minInterval: 1 },
+    yAxis: {
+      type: 'category',
+      data: entries.map(e => e.label),
+      axisLabel: { fontSize: 11 },
+    },
+    series: [{
+      type: 'bar',
+      data: entries.map(e => ({
+        value: e.n,
+        itemStyle: { color: e.n === 0 ? '#e5e7eb' : '#06b6d4', borderRadius: [0, 4, 4, 0] },
+      })),
+      barWidth: '60%',
+      label: { show: true, position: 'right', fontSize: 11, color: '#6b7280' },
+    }],
+  });
+  // 未使用的技能
+  const underused = (ms.underused_skills || []).map(id => _MICROSKILL_LABELS[id] || id);
+  if (underusedEl) {
+    underusedEl.textContent = underused.length
+      ? `📌 周期内未出现:${underused.join(' / ')} —— 提示 AI 在这些情境可补招。`
+      : '✓ 12 项微技能在周期内都被使用过。';
+  }
 }
 
 // ========== 用户管理 ==========

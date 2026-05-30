@@ -94,6 +94,13 @@ def record_session_evaluation(
         "auto_technical_raw": report.get("technical", {}).get("total"),
     }
 
+    # 咨询微技能覆盖率（v2.2,与 corpus/counseling_strategies.json 对应）
+    ms = report.get("microskills") or {}
+    if ms:
+        entry["microskills_used"] = ms.get("skills_used", [])
+        entry["microskills_coverage"] = ms.get("coverage", 0)
+        entry["microskills_variety"] = ms.get("variety", 0)
+
     # 推断 user_id 和 session_date
     if not user_id:
         # session_id 格式: chat:history:{user_id}:session_{date}_{ts}

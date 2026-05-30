@@ -260,6 +260,10 @@ class DialogueEvaluator:
         # 生成文档对齐报告
         report = self._generate_report(session_log, dimensions, overall, safety)
 
+        # 附加咨询微技能覆盖率(独立信号,不影响 dimension 评分)
+        ai_texts = [t.get("content", "") for t in turns if t.get("role") == "assistant"]
+        report["microskills"] = microskill_coverage(ai_texts)
+
         # 生成摘要
         summary = self._generate_summary(dimensions, overall)
 
