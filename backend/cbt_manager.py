@@ -765,23 +765,31 @@ Examples (reference only, do not copy verbatim):
                 state.consecutive_rumination = 0
 
             # ===== 担忧处理 =====
-            # 治疗联盟优先（Bordin task-agreement）：第 1 轮只用来在场/共情,
-            # 不直接进 WORRY_CAPTURE,除非有"已经在情绪里"的强信号
-            # （SEVERE 焦虑 / 反刍）。给用户被听见的回合,再推进到工作阶段。
+            # 治疗联盟门禁（Bordin task-agreement）:在进入工作阶段之前先看用户是否愿意。
+            # - 用户明确拒绝("不想说"/"现在不")→ 一律不推进,留在 ASSESSMENT 共情;
+            # - 用户明确同意("我想试试"/"帮我看看")→ 算强信号,允许立刻推进;
+            # - 其他情况:第 1 轮只用来在场,第 2 轮起且用户给出实质内容才推进;
+            # - 反刍/SEVERE 焦虑仍按"已在情绪里"逻辑跳过等待。
             if state.phase == SessionPhase.ASSESSMENT and not state.worry_expressed:
+                from services.alliance_detector import alliance_state
+                alliance = alliance_state(user_message)
                 enter_worry = False
-                strong_signal = (
-                    anxiety_level == AnxietyLevel.SEVERE
-                    or state.consecutive_rumination > 0
-                )
-                if strong_signal:
-                    enter_worry = True  # 已在情绪里,跳过等待
-                elif state.total_turns >= 2 and anxiety_level in [AnxietyLevel.MILD, AnxietyLevel.MODERATE]:
-                    enter_worry = True  # 第 2 轮起,中度焦虑可进
-                elif state.total_turns >= 2 and domain and domain != "general":
-                    enter_worry = True  # 第 2 轮起,有具体担忧领域可进
-                elif state.total_turns >= 3:
-                    enter_worry = True  # 多轮后用户还在 ASSESSMENT,主动推进
+                if alliance["decline"]:
+                    pass  # 明确不想做,任何信号都不推进
+                else:
+                    strong_signal = (
+                        anxiety_level == AnxietyLevel.SEVERE
+                        or state.consecutive_rumination > 0
+                        or alliance["consent"]   # 明确同意 = 强信号
+                    )
+                    if strong_signal:
+                        enter_worry = True
+                    elif state.total_turns >= 2 and alliance["substantive"] and anxiety_level in [AnxietyLevel.MILD, AnxietyLevel.MODERATE]:
+                        enter_worry = True  # 第 2 轮起,中度焦虑 + 实质内容
+                    elif state.total_turns >= 2 and alliance["substantive"] and domain and domain != "general":
+                        enter_worry = True  # 第 2 轮起,具体担忧领域 + 实质内容
+                    elif state.total_turns >= 3:
+                        enter_worry = True  # 多轮后兜底推进
                 if enter_worry:
                     state.worry_topic = domain if (domain and domain != "general") else state.worry_topic
                     state.phase = SessionPhase.WORRY_CAPTURE
@@ -823,13 +831,17 @@ Examples (reference only, do not copy verbatim):
 
             if state.phase in [SessionPhase.WORRY_CAPTURE, SessionPhase.COGNITIVE_RESTRUCTURING]:
                 if state.turns_in_phase >= personalized_relax_threshold:
-                    state.phase = SessionPhase.RELAXATION_INDUCTION
-                    state.turns_in_phase = 0   # P0 fix
-                    state.relaxation_technique = self._select_relaxation_technique(
-                        anxiety_level, worry_category=worry_category,
-                        user_style=state.user_style, scenario=state.detected_scenario
-                    )
-                    return self._relaxation_response(state)
+                    # 联盟门禁:若用户此刻明确说"不想做/不要",不强行推进到放松练习,
+                    # 多陪一回合。其他情况(默认配合或主动同意)正常推进。
+                    from services.alliance_detector import user_signals_decline
+                    if not user_signals_decline(user_message):
+                        state.phase = SessionPhase.RELAXATION_INDUCTION
+                        state.turns_in_phase = 0   # P0 fix
+                        state.relaxation_technique = self._select_relaxation_technique(
+                            anxiety_level, worry_category=worry_category,
+                            user_style=state.user_style, scenario=state.detected_scenario
+                        )
+                        return self._relaxation_response(state)
 
             # ===== 情绪节奏加速：越来越放松 → 可提前关闭 =====
             # 关闭阈值也基于用户历史动态调整（历史平均 + 1 轮缓冲）
