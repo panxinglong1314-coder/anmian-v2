@@ -604,6 +604,45 @@ def _load_chat_quality_records(days: int = 30) -> List[Dict]:
         })
     return records
 
+def _load_session_outcomes(days: int = 30) -> Dict[str, Any]:
+    """从 conversation_logs/sess_*.json 读真实 outcome 分布,
+    驱动 admin/quality 的"关闭仪式完成率"指标。
+    end_session 写的 outcome ∈ {
+        completed_closure, sleep_reported, idle_timeout,
+        interrupted, completed, ...
+    }"""
+    from pathlib import Path
+    log_dir = Path(__file__).parent.parent / "conversation_logs"
+    if not log_dir.exists():
+        return {"total": 0, "by_outcome": {}, "completion_rate": None}
+    cutoff = datetime.now() - timedelta(days=days)
+    by_outcome: Dict[str, int] = {}
+    total = 0
+    for fp in log_dir.glob("sess_*.json"):
+        try:
+            mtime = datetime.fromtimestamp(fp.stat().st_mtime)
+            if mtime < cutoff:
+                continue
+            d = json.loads(fp.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        out = d.get("outcome") or "unknown"
+        by_outcome[out] = by_outcome.get(out, 0) + 1
+        total += 1
+    # 完成率 = 走完关闭仪式或晨间打卡 / 全部
+    good = by_outcome.get("completed_closure", 0) + by_outcome.get("sleep_reported", 0)
+    completion_rate = round(good / total * 100, 1) if total > 0 else None
+    # 流失率 = 中途中断或空转 / 全部
+    drop = by_outcome.get("interrupted", 0) + by_outcome.get("idle_timeout", 0)
+    drop_rate = round(drop / total * 100, 1) if total > 0 else None
+    return {
+        "total": total,
+        "by_outcome": by_outcome,
+        "completion_rate": completion_rate,  # %
+        "drop_rate": drop_rate,              # %
+    }
+
+
 def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
     eval_records = _load_evaluation_records(days=days)
     source = "evaluation_tracking"
@@ -708,6 +747,7 @@ def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
             "distribution": {str(i): coherence_scores.count(i) for i in range(6)} if coherence_scores else {},
         },
         "microskills": microskills_block,
+        "session_outcomes": _load_session_outcomes(days=days),
         "top_failure_modes": top_failure_modes,
     }
 

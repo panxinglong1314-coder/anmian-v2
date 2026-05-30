@@ -351,6 +351,23 @@
             <div id="q-microskills-underused" class="mt-3 text-xs text-gray-500"></div>
           </div>
         </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📊 会话归属 / 完成率（v2.4）</span>
+            <span id="q-outcomes-summary" class="text-xs text-gray-500"></span>
+          </div>
+          <div class="card-body">
+            <div id="chart-outcomes" style="height:280px"></div>
+            <div id="q-outcomes-empty" class="hidden">
+              <p class="text-sm text-gray-400 text-center py-6">暂无会话归属数据。生产用户会话结束后会自动出现。</p>
+            </div>
+            <div class="mt-3 text-xs text-gray-500 leading-relaxed">
+              <span class="text-emerald-600">完成率</span> = 走完关闭仪式或次日打卡。
+              <span class="text-rose-500">流失率</span> = 中途切走/15 分钟空转。
+              用于回看 retention 真实信号。
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 用户管理 -->

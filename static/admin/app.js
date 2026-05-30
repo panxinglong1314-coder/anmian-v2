@@ -799,6 +799,9 @@ async function loadQuality() {
   // 咨询招式覆盖率（v2.2）
   _renderMicroskills(data.microskills);
 
+  // 会话归属 outcome 分布 + 完成率（v2.4）
+  _renderSessionOutcomes(data.session_outcomes);
+
   // 失败模式（带改进建议）
   const failures = data.top_failure_modes || [];
   _qualityFailures = failures;
@@ -886,6 +889,61 @@ function _renderMicroskills(ms) {
       ? `📌 周期内未出现:${underused.join(' / ')} —— 提示 AI 在这些情境可补招。`
       : '✓ 12 项微技能在周期内都被使用过。';
   }
+}
+
+// ---------- 会话归属分布(v2.4) ----------
+const _OUTCOME_LABELS = {
+  completed_closure: '完成关闭仪式',
+  sleep_reported: '次日打卡',
+  idle_timeout: '空转超时',
+  interrupted: '中途中断',
+  completed: '完成(legacy)',
+  unknown: '未知',
+};
+const _OUTCOME_COLORS = {
+  completed_closure: '#10b981',  // 绿:健康完成
+  sleep_reported: '#06b6d4',     // 青:有打卡
+  idle_timeout: '#f59e0b',       // 黄:超时(可改进)
+  interrupted: '#ef4444',        // 红:被打断(流失)
+  completed: '#94a3b8',
+  unknown: '#cbd5e1',
+};
+
+function _renderSessionOutcomes(so) {
+  const summaryEl = document.getElementById('q-outcomes-summary');
+  const chartEl = document.getElementById('chart-outcomes');
+  const emptyEl = document.getElementById('q-outcomes-empty');
+  if (!so || so.total === 0) {
+    if (summaryEl) summaryEl.textContent = '';
+    if (chartEl) renderChart('chart-outcomes', null, '');
+    if (emptyEl) emptyEl.classList.remove('hidden');
+    return;
+  }
+  if (emptyEl) emptyEl.classList.add('hidden');
+  if (summaryEl) {
+    const cr = so.completion_rate;
+    const dr = so.drop_rate;
+    summaryEl.innerHTML = `${so.total} 次会话 · `
+      + `<span class="text-emerald-600 font-medium">完成率 ${cr ?? '—'}%</span>`
+      + ` · <span class="text-rose-500 font-medium">流失率 ${dr ?? '—'}%</span>`;
+  }
+  const byOutcome = so.by_outcome || {};
+  const data = Object.entries(byOutcome).map(([k, v]) => ({
+    name: _OUTCOME_LABELS[k] || k,
+    value: v,
+    itemStyle: { color: _OUTCOME_COLORS[k] || '#94a3b8' },
+  }));
+  renderChart('chart-outcomes', {
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { type: 'scroll', bottom: 0, textStyle: { fontSize: 11 } },
+    series: [{
+      type: 'pie',
+      radius: ['38%', '62%'],
+      avoidLabelOverlap: true,
+      label: { show: true, fontSize: 11, formatter: '{b}\n{c}' },
+      data,
+    }],
+  });
 }
 
 // ========== 用户管理 ==========

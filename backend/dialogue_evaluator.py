@@ -87,102 +87,130 @@ BAD_ADVICE_PATTERNS = [
 # ============ 咨询微技能检测（v2.2,配合 corpus/counseling_strategies.json） ============
 # 每个微技能配一组识别用的"特征短语"。仅作为评估信号,不替代 AI 的语义判断。
 # 用法:detect_microskills(ai_text) -> List[str] 返回命中的 skill_id 列表。
+# 注:检测使用大小写不敏感(see detect_microskills)。EN 短语小写存放。
 COUNSELING_MICROSKILLS = {
     "reflection_of_feeling": [
         # zh
         "听起来", "你似乎", "看起来你", "感觉你", "这种感觉",
         "确实不", "确实挺", "委屈", "累坏", "压得",
-        # en
+        # en — 反映情绪的特征是"以 you sound/seem/look + 情绪"或"that feeling/it"
         "it sounds like", "sounds like", "it seems", "you seem",
-        "that feeling", "that's heavy", "that's a lot", "feels like",
+        "you sound", "you look", "that feeling", "that's heavy",
+        "that's a lot", "feels like", "feels heavy", "that's hard",
+        "must be hard", "must feel", "hear how", "i can hear",
     ],
     "reflection_of_content": [
         "所以", "你说的是", "也就是说", "意思是",
-        # en
-        "so what you're saying", "so you're saying", "in other words",
-        "what i'm hearing", "you mean",
+        # en — 复述/确认对方原话
+        "so what you're saying", "so you're saying", "so you are saying",
+        "in other words", "what i'm hearing", "what i hear", "you mean",
+        "if i'm hearing right", "let me make sure", "so it's about",
     ],
     "open_question": [
         "怎么样", "什么", "能多说", "怎么", "在转什么",
         "在想什么", "什么样的", "哪一",
-        # en
-        "what's", "what was", "how was", "tell me more",
-        "can you say more", "what comes up", "how does it",
+        # en — 开放问句
+        "what's", "what was", "what does", "what comes up",
+        "how was", "how does", "how do you", "tell me more",
+        "say more", "can you say more", "what's that like",
+        "where in", "when did", "what else",
     ],
     "minimal_encourager": [
         "嗯。", "然后呢", "我在听", "我在", "继续",
-        # en
-        "mm", "go on", "i'm here", "i'm listening", "and then",
+        # en — 简短承接
+        "mm", "mhm", "go on", "i'm here", "i am here",
+        "i'm listening", "and then", "yeah", "uh huh", "right",
     ],
     "normalization": [
         "你不是一个人", "很多人", "我听过很多次", "正常",
         "很常见", "都会有", "并不孤单",
-        # en
+        # en — 普同化(many people / it's common)
         "you're not alone", "you are not alone", "many people",
-        "a lot of people", "it's common", "that's common",
-        "this happens a lot",
+        "a lot of people", "lots of people", "it's common",
+        "that's common", "this happens", "happens a lot",
+        "anyone would", "most people",
     ],
     "validation": [
         "你那样想很合理", "换我也会", "说得通", "理解你",
         "可以理解", "情有可原",
-        # en
-        "that makes sense", "it makes sense", "i understand",
-        "i can understand", "that's understandable", "fair enough",
-        "of course you'd",
+        # en — 承认对方反应合情合理
+        "that makes sense", "it makes sense", "makes sense",
+        "i understand", "i can understand", "that's understandable",
+        "fair enough", "of course you'd", "of course you would",
+        "no wonder", "you have every right", "it's okay you feel",
     ],
     "self_anchoring": [
         "你现在", "感受一下", "动一动", "深呼吸", "踩在地上",
         "把脚", "把手", "你在这里",
-        # en
-        "feet on the floor", "right now", "notice", "take a breath",
-        "place your hand", "feel your", "you are here",
+        # en — 引导回身体/此刻
+        "feet on the floor", "feet on the ground", "right now",
+        "take a breath", "one breath", "slow breath",
+        "place your hand", "hand on your", "feel your",
+        "you are here", "ground yourself", "notice your",
+        "let's pause", "just for a moment",
     ],
     "naming_emotion": [
         "无力", "委屈", "愤怒", "焦虑", "悲伤", "失望",
         "卡住", "压抑", "孤单", "被忽视",
-        # en
+        # en — 直接命名情绪
         "powerless", "stuck", "lonely", "angry", "sad",
         "anxious", "overwhelmed", "exhausted", "frustrated",
-        "disappointed", "hurt", "shut down",
+        "disappointed", "hurt", "shut down", "numb",
+        "scared", "ashamed", "guilty", "abandoned", "rejected",
     ],
     "summarizing": [
         "我听下来", "今天有", "整理一下", "总结一下",
         "三件事", "几件事",
-        # en
-        "so far i'm hearing", "to recap", "let me sum",
-        "putting that together", "a few things",
+        # en — 阶段性整理
+        "so far i'm hearing", "so far", "to recap", "let me sum",
+        "putting that together", "a few things", "a couple things",
+        "so what's coming up", "if i pull this together",
     ],
     "gentle_challenge": [
         "我想问一下", "如果是你朋友", "真的是", "或许",
         "另一种可能", "会不会其实",
-        # en
-        "i'm curious", "what if a friend", "is it possible",
-        "another way to see", "could it also be",
+        # en — 温和挑战(but-style 软话术)
+        "i'm curious", "i wonder if", "what if a friend",
+        "is it possible", "another way to see", "could it also be",
+        "what would you say if", "what if it weren't",
     ],
     "silence": [
         "嗯。", "...", "慢慢说", "你说",
-        # en
+        # en — 留白
         "take your time", "no rush", "whenever you're ready",
+        "no need to rush", "we have time",
     ],
     "permission_to_be_unwell": [
         "也可以", "不用现在就", "睡不着也", "难过就难过",
         "不用急着好", "不用为难自己",
-        # en
-        "you don't have to", "it's okay to", "doesn't have to be now",
-        "no pressure", "you can just",
+        # en — 给"现在不必好起来"的许可
+        "you don't have to", "you do not have to",
+        "it's okay to", "it is okay to", "doesn't have to be now",
+        "no pressure", "you can just", "you don't need to be",
+        "no need to fix", "not tonight",
     ],
 }
 
 
 def detect_microskills(ai_text: str) -> List[str]:
     """检测 AI 回复中出现了哪些咨询微技能(基于特征短语)。
-    返回命中的 skill_id 去重列表,按 COUNSELING_MICROSKILLS 字典顺序。"""
+    返回命中的 skill_id 去重列表,按 COUNSELING_MICROSKILLS 字典顺序。
+    EN 短语小写存放,检测时大小写不敏感。"""
     if not ai_text:
         return []
+    text_lower = ai_text.lower()
     hits = []
     for sk_id, phrases in COUNSELING_MICROSKILLS.items():
-        if any(p in ai_text for p in phrases):
-            hits.append(sk_id)
+        # ZH 短语直接 in 原文;EN 短语 in 小写
+        for p in phrases:
+            if any(ord(c) > 127 for c in p):
+                if p in ai_text:
+                    hits.append(sk_id)
+                    break
+            else:
+                if p in text_lower:
+                    hits.append(sk_id)
+                    break
     return hits
 
 

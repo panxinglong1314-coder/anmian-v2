@@ -190,7 +190,7 @@ except ImportError as e:
     def init_rag(): pass
     def build_rag_system_prompt(*a, **k): return ""
     def log_cbt_turn_with_rag(*a, **k): pass
-    def finalize_session(*a, **k): pass
+    def finalize_session(*a, **k): pass  # noqa: kwargs-compatible no-op stub
     rag_index = None
     session_logger = None
     LOG_DIR = None
@@ -384,17 +384,17 @@ async def lifespan(app: FastAPI):
     _aggregator_task = asyncio.create_task(_dashboard_aggregator())
 
     # ✅ 会话 janitor:每 5 分钟扫一次,空转 ≥15 分钟的会话自动 end_session
-    # 保证最后一个未关闭的会话最终也走 dialogue_evaluator + record_session_evaluation
+    # 多用户 dict 一次扫所有,每个 stale 会话各自 end_session → 评估
     async def _session_janitor():
         while True:
             try:
                 await asyncio.sleep(300)  # 5 min
                 if session_logger is not None:
-                    closed = await asyncio.to_thread(
+                    n_closed = await asyncio.to_thread(
                         session_logger.finalize_if_idle, 15
                     )
-                    if closed:
-                        print("[janitor] 空转会话已 finalize → 进入评估")
+                    if n_closed:
+                        print(f"[janitor] {n_closed} 个空转会话 finalize → 进入评估")
             except asyncio.CancelledError:
                 raise
             except Exception as e:
@@ -2996,7 +2996,8 @@ async def chat_cbt(req: ChatRequest, user: AuthUser = Depends(get_current_user))
         )
         # 如果应该关闭，结束会话
         if cbt_result.get('should_close'):
-            finalize_session(outcome="completed_closure")
+            finalize_session(outcome="completed_closure",
+                             user_id=user_id, session_id=session_id)
 
     history.append(Message(role="user", content=req.message))
     history.append(Message(role="assistant", content=response_text))
@@ -3329,7 +3330,8 @@ async def _chat_events(req: ChatRequest, user_id: str):
                 session_id=session_id
             )
             if cbt_result.get('should_close'):
-                finalize_session(outcome="completed_closure")
+                finalize_session(outcome="completed_closure",
+                                 user_id=user_id, session_id=session_id)
         except Exception as e:
             print(f"[L2-log] 日志记录失败（非关键）: {e}")
 
@@ -4840,8 +4842,10 @@ async def morning_submit(req: MorningSubmitRequest, user: AuthUser = Depends(get
         save_morning_record(user_id, today, record)
 
         # L2: 晨间打卡 → 标记昨晚会话为"sleep_reported"（最高质量数据）
+        # 只传 user_id,finalize_session 会关该用户最近活跃会话
         if RAG_AVAILABLE and session_logger:
-            finalize_session(outcome="sleep_reported", sleep_quality=req.sleep_quality)
+            finalize_session(outcome="sleep_reported", sleep_quality=req.sleep_quality,
+                             user_id=user_id)
 
         # 同时更新睡眠日记 - 合并睡前设定和晨间记录
         existing_diary = get_sleep_diary(user_id, today)

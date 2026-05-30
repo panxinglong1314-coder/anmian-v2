@@ -273,10 +273,29 @@ def log_cbt_turn_with_rag(
                 user_id=user_id, session_id=session_id)
 
 
-def finalize_session(outcome: str = "completed", sleep_quality: Optional[int] = None, rating: Optional[int] = None):
+def finalize_session(
+    outcome: str = "completed",
+    sleep_quality: Optional[int] = None,
+    rating: Optional[int] = None,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+):
+    """关闭指定会话。优先用 (user_id, session_id) 精确路由,
+    若仅传 user_id,关该用户最近活跃会话(用于 morning 打卡场景)。"""
     sl = _get_session_logger()
-    if sl:
-        sl.end_session(outcome=outcome, sleep_quality=sleep_quality, rating=rating)
+    if not sl:
+        return
+    if not session_id and user_id and hasattr(sl, "_most_recent_for_user"):
+        recent = sl._most_recent_for_user(user_id)
+        if recent:
+            session_id = recent.session_id
+    sl.end_session(
+        outcome=outcome,
+        sleep_quality=sleep_quality,
+        rating=rating,
+        user_id=user_id,
+        session_id=session_id,
+    )
 
 
 # ── RAG 个性化系统提示 ─────────────────────────────────────────────────────

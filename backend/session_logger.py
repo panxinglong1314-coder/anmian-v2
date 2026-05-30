@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 from datetime import datetime, date
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from dataclasses import dataclass, asdict
 import redis
 import os
@@ -68,12 +68,42 @@ class SessionLog:
 # ============ 会话日志管理器 ============
 
 class SessionLogger:
-    """会话日志：内存缓冲 + Redis持久化 + 文件备份"""
+    """会话日志：内存缓冲 + Redis持久化 + 文件备份。
+
+    v2.4 多用户安全:用 dict 按 (user_id, session_id) 键存放 active sessions,
+    多个用户同时聊天时各自的 session 不再互相覆盖。
+
+    线程安全:外层是单进程 asyncio 单线程 + run_in_threadpool,read/write 之间
+    有锁保护(_lock)。
+    """
 
     def __init__(self):
-        self._current_session: Optional[SessionLog] = None
+        # 多会话状态:(user_id, session_id) -> SessionLog
+        self._active_sessions: Dict[Tuple[str, str], SessionLog] = {}
+        import threading
+        self._lock = threading.RLock()
         self._buffer: List[Dict] = []
-        self._buffer_size = 10  # 攒10条再写
+        self._buffer_size = 10
+
+    # ---------- 内部:键查找 ----------
+
+    def _find_by_session_id(self, session_id: str) -> Optional[SessionLog]:
+        """跨用户按 session_id 查(用于 update_rating)。"""
+        for sess in self._active_sessions.values():
+            if sess.session_id == session_id:
+                return sess
+        return None
+
+    def _most_recent_for_user(self, user_id: str) -> Optional[SessionLog]:
+        """找该用户最近活动的 session(用于 morning 打卡 finalize)。"""
+        candidates = [s for (u, _), s in self._active_sessions.items() if u == user_id]
+        if not candidates:
+            return None
+        def last_ts(s):
+            iso = getattr(s, "_last_activity", None) or s.start_time
+            try: return datetime.fromisoformat(iso).timestamp()
+            except Exception: return 0
+        return max(candidates, key=last_ts)
 
     # ---------- 会话生命周期 ----------
 
@@ -84,24 +114,24 @@ class SessionLogger:
         insomnia_subtype: Optional[str] = None,
         stage: Optional[str] = None
     ) -> str:
-        """开始一个新会话"""
-        if self._current_session:
-            # 防止漏存：自动结束上一个
-            self.end_session(outcome="interrupted")
-
+        """开始一个新会话(若同 key 已存在,返回现有 session_id 不覆盖)。"""
         session_id = session_id or f"sess_{int(time.time())}"
-        self._current_session = SessionLog(
-            session_id=session_id,
-            user_id=user_id,
-            start_time=datetime.now().isoformat(),
-            end_time=None,
-            turns=[],
-            insomnia_subtype=insomnia_subtype,
-            initial_anxiety=None,
-            final_anxiety=None,
-            outcome=None,
-            stage=stage,
-        )
+        with self._lock:
+            key = (user_id, session_id)
+            if key in self._active_sessions:
+                return session_id
+            self._active_sessions[key] = SessionLog(
+                session_id=session_id,
+                user_id=user_id,
+                start_time=datetime.now().isoformat(),
+                end_time=None,
+                turns=[],
+                insomnia_subtype=insomnia_subtype,
+                initial_anxiety=None,
+                final_anxiety=None,
+                outcome=None,
+                stage=stage,
+            )
         return session_id
 
     def add_turn(
@@ -114,52 +144,56 @@ class SessionLogger:
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
     ):
-        """记录一轮对话（无当前会话时自动创建）"""
-        if not self._current_session and user_id and session_id:
-            self.start_session(user_id=user_id, session_id=session_id)
-        if not self._current_session:
+        """记录一轮对话。需要 user_id+session_id 才能路由(向后兼容:都缺则丢)。"""
+        if not user_id or not session_id:
             return
-        # 如果 session_id 变化，结束旧的并创建新的
-        if session_id and self._current_session.session_id != session_id:
-            self.end_session(outcome="interrupted")
-            self.start_session(user_id=user_id or self._current_session.user_id, session_id=session_id)
+        with self._lock:
+            key = (user_id, session_id)
+            sess = self._active_sessions.get(key)
+            if not sess:
+                self.start_session(user_id=user_id, session_id=session_id)
+                sess = self._active_sessions.get(key)
+                if not sess:
+                    return
 
-        turn = ConversationTurn(
-            role=role,
-            content=content,
-            timestamp=datetime.now().isoformat(),
-            technique_used=technique_used,
-            anxiety_level=anxiety_level,
-        )
-        self._current_session.turns.append(turn)
-        # 标记最后活动时间(finalize_if_idle 用)
-        try:
-            self._current_session._last_activity = turn.timestamp
-        except Exception:
-            pass
+            turn = ConversationTurn(
+                role=role,
+                content=content,
+                timestamp=datetime.now().isoformat(),
+                technique_used=technique_used,
+                anxiety_level=anxiety_level,
+            )
+            sess.turns.append(turn)
+            try:
+                sess._last_activity = turn.timestamp
+            except Exception:
+                pass
 
-        # 如果是第一轮，设置初始焦虑等级
-        if len(self._current_session.turns) == 1 and anxiety_level:
-            self._current_session.initial_anxiety = anxiety_level
+            if len(sess.turns) == 1 and anxiety_level:
+                sess.initial_anxiety = anxiety_level
+            if scenario_id:
+                sess.scenario_id = scenario_id
 
-        # 记录场景路由
-        if scenario_id:
-            self._current_session.scenario_id = scenario_id
-
-    def update_anxiety(self, level: int):
-        """更新当前焦虑等级"""
-        if self._current_session and self._current_session.turns:
-            self._current_session.turns[-1].anxiety_level = level
-            self._current_session.final_anxiety = level
+    def update_anxiety(self, level: int, user_id: Optional[str] = None,
+                       session_id: Optional[str] = None):
+        """更新焦虑等级。需要 user_id+session_id 定位会话。"""
+        if not user_id or not session_id:
+            return
+        with self._lock:
+            sess = self._active_sessions.get((user_id, session_id))
+            if sess and sess.turns:
+                sess.turns[-1].anxiety_level = level
+                sess.final_anxiety = level
 
     def update_rating(self, session_id: str, rating: int, notes: Optional[str] = None) -> bool:
         """会话结束后补录用户评分（用于延迟收集方案）"""
-        # 如果当前会话匹配，直接更新并保存
-        if self._current_session and self._current_session.session_id == session_id:
-            self._current_session.rating = rating
+        # 如果存在活跃会话匹配，直接更新并保存
+        sess = self._find_by_session_id(session_id)
+        if sess:
+            sess.rating = rating
             if notes:
-                self._current_session.notes = notes
-            self._save_log(self._current_session.to_dict())
+                sess.notes = notes
+            self._save_log(sess.to_dict())
             return True
 
         # 否则从文件读取并更新
@@ -206,56 +240,70 @@ class SessionLogger:
             score += 0.5
         return round(min(10.0, max(0.0, score)), 2)
 
-    def finalize_if_idle(self, max_idle_minutes: int = 15) -> bool:
-        """若当前会话已空转 max_idle_minutes 分钟,自动结束并触发评估。
-        每个 add_turn 都会刷新 last_activity;周期 janitor 调用本方法。
-        Returns: True 若执行了 end_session(idle_timeout)。"""
-        if not self._current_session:
-            return False
-        last_iso = getattr(self._current_session, "_last_activity", None) or \
-                   self._current_session.start_time
-        try:
-            last_ts = datetime.fromisoformat(last_iso).timestamp()
-        except Exception:
-            return False
-        idle_sec = time.time() - last_ts
-        if idle_sec < max_idle_minutes * 60:
-            return False
-        # 至少有 1 轮用户消息再评估,否则就是空会话
-        n_user_turns = sum(1 for t in self._current_session.turns if t.role == "user")
-        if n_user_turns < 1:
-            self._current_session = None
-            return False
-        self.end_session(outcome="idle_timeout")
-        return True
+    def finalize_if_idle(self, max_idle_minutes: int = 15) -> int:
+        """扫描所有活跃会话,空转 ≥ max_idle_minutes 的统一 end_session(idle_timeout)。
+        每个 add_turn 会刷新 _last_activity;周期 janitor 调用本方法。
+        Returns: 本次 finalize 掉的会话数。"""
+        now_ts = time.time()
+        cutoff_sec = max_idle_minutes * 60
+        with self._lock:
+            stale_keys: List[Tuple[str, str]] = []
+            for key, sess in list(self._active_sessions.items()):
+                last_iso = getattr(sess, "_last_activity", None) or sess.start_time
+                try:
+                    last_ts = datetime.fromisoformat(last_iso).timestamp()
+                except Exception:
+                    continue
+                if (now_ts - last_ts) < cutoff_sec:
+                    continue
+                # 空会话(无用户轮)直接丢
+                n_user_turns = sum(1 for t in sess.turns if t.role == "user")
+                if n_user_turns < 1:
+                    del self._active_sessions[key]
+                    continue
+                stale_keys.append(key)
+        # 锁外执行 end_session(end_session 自己会再上锁)
+        n = 0
+        for (uid, sid) in stale_keys:
+            self.end_session(outcome="idle_timeout", user_id=uid, session_id=sid)
+            n += 1
+        return n
 
     def end_session(
         self,
         outcome: str = "completed",
         sleep_quality: Optional[int] = None,
         rating: Optional[int] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
     ):
-        """结束会话"""
-        if not self._current_session:
-            return
+        """结束指定会话(需 user_id+session_id 路由)。"""
+        if not user_id or not session_id:
+            # 兼容:若调用者没传,但当前仅有一个活跃会话,则关那个
+            with self._lock:
+                if len(self._active_sessions) == 1:
+                    (user_id, session_id) = next(iter(self._active_sessions.keys()))
+                else:
+                    return
+        with self._lock:
+            sess = self._active_sessions.get((user_id, session_id))
+            if not sess:
+                return
+            sess.end_time = datetime.now().isoformat()
+            sess.outcome = outcome
+            if sleep_quality:
+                sess.sleep_quality = sleep_quality
+            if rating:
+                sess.rating = rating
+            if notes:
+                sess.notes = notes
 
-        self._current_session.end_time = datetime.now().isoformat()
-        self._current_session.outcome = outcome
-        if sleep_quality:
-            self._current_session.sleep_quality = sleep_quality
-        if rating:
-            self._current_session.rating = rating
-        if notes:
-            self._current_session.notes = notes
-
-        # 计算效果分数（用于L3训练排序）
-        effect_score = self._compute_effect_score()
-
-        # 运行对话质量评估
-        eval_result = dialogue_evaluator.evaluate_session(self._current_session.to_dict())
+        # 锁外执行重计算 + 评估 + IO(都比较慢,避免阻塞其它会话)
+        effect_score = self._compute_effect_score(sess)
+        eval_result = dialogue_evaluator.evaluate_session(sess.to_dict())
         quality_eval = dialogue_evaluator.to_dict(eval_result)
-        session_dict = self._current_session.to_dict()
+        session_dict = sess.to_dict()
 
         # 关联晨间睡眠数据
         user_id = session_dict.get("user_id", "")
@@ -291,7 +339,7 @@ class SessionLogger:
             "effect_breakdown": {
                 "outcome_score": 1.0 if outcome in ("completed_closure", "sleep_reported") else 0.0,
                 "rating_score": (rating or 3) / 5.0,
-                "anxiety_reduction": max(0, (int(self._current_session.initial_anxiety or 5)) - (int(self._current_session.final_anxiety or 5))) / 10.0,
+                "anxiety_reduction": max(0, (int(sess.initial_anxiety or 5)) - (int(sess.final_anxiety or 5))) / 10.0,
             },
             "quality_evaluation": quality_eval,
         }
@@ -314,15 +362,17 @@ class SessionLogger:
         except Exception as e:
             print(f"[SessionLogger] 评估记录失败: {e}")
 
-        self._current_session = None
+        # 从活跃表移除
+        with self._lock:
+            self._active_sessions.pop((user_id, session_id), None)
 
     # ---------- 效果评分（用于L3训练数据筛选）----------
 
-    def _compute_effect_score(self) -> float:
-        """计算会话效果分数 0-10"""
-        if not self._current_session:
+    def _compute_effect_score(self, sess: Optional[SessionLog] = None) -> float:
+        """计算会话效果分数 0-10。可传入特定 session,缺省则不合法返回 0。"""
+        if sess is None:
             return 0.0
-        s = self._current_session
+        s = sess
 
         # 基础分
         score = 5.0
