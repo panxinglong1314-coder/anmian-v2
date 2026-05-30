@@ -84,6 +84,94 @@ BAD_ADVICE_PATTERNS = [
 ]
 
 
+# ============ 咨询微技能检测（v2.2,配合 corpus/counseling_strategies.json） ============
+# 每个微技能配一组识别用的"特征短语"。仅作为评估信号,不替代 AI 的语义判断。
+# 用法:detect_microskills(ai_text) -> List[str] 返回命中的 skill_id 列表。
+COUNSELING_MICROSKILLS = {
+    "reflection_of_feeling": [
+        "听起来", "你似乎", "看起来你", "感觉你", "这种感觉",
+        "确实不", "确实挺", "委屈", "累坏", "压得",
+    ],
+    "reflection_of_content": [
+        "所以", "你说的是", "也就是说", "意思是",
+    ],
+    "open_question": [
+        "怎么样", "什么", "能多说", "怎么", "在转什么",
+        "在想什么", "什么样的", "哪一",
+    ],
+    "minimal_encourager": [
+        "嗯。", "然后呢", "我在听", "我在", "继续",
+    ],
+    "normalization": [
+        "你不是一个人", "很多人", "我听过很多次", "正常",
+        "很常见", "都会有", "并不孤单",
+    ],
+    "validation": [
+        "你那样想很合理", "换我也会", "说得通", "理解你",
+        "可以理解", "情有可原",
+    ],
+    "self_anchoring": [
+        "你现在", "感受一下", "动一动", "深呼吸", "踩在地上",
+        "把脚", "把手", "你在这里",
+    ],
+    "naming_emotion": [
+        "无力", "委屈", "愤怒", "焦虑", "悲伤", "失望",
+        "卡住", "压抑", "孤单", "被忽视",
+    ],
+    "summarizing": [
+        "我听下来", "今天有", "整理一下", "总结一下",
+        "三件事", "几件事",
+    ],
+    "gentle_challenge": [
+        "我想问一下", "如果是你朋友", "真的是", "或许",
+        "另一种可能", "会不会其实",
+    ],
+    "silence": [
+        "嗯。", "...", "慢慢说", "你说",
+    ],
+    "permission_to_be_unwell": [
+        "也可以", "不用现在就", "睡不着也", "难过就难过",
+        "不用急着好", "不用为难自己",
+    ],
+}
+
+
+def detect_microskills(ai_text: str) -> List[str]:
+    """检测 AI 回复中出现了哪些咨询微技能(基于特征短语)。
+    返回命中的 skill_id 去重列表,按 COUNSELING_MICROSKILLS 字典顺序。"""
+    if not ai_text:
+        return []
+    hits = []
+    for sk_id, phrases in COUNSELING_MICROSKILLS.items():
+        if any(p in ai_text for p in phrases):
+            hits.append(sk_id)
+    return hits
+
+
+def microskill_coverage(ai_turns: List[str]) -> Dict[str, Any]:
+    """对整个会话的 AI 回合计算微技能覆盖率(可由评估器调用)。
+    返回:
+      - skills_used: 出现过的 skill_id 集合(已转为 list)
+      - per_turn:    每轮命中的 skills_list
+      - coverage:    出现过的技能数 / 总技能数
+      - variety:     回合数 vs 不同技能数的比值(高 = 套路单一)
+    """
+    if not ai_turns:
+        return {"skills_used": [], "per_turn": [], "coverage": 0.0, "variety": 0.0}
+    per_turn = [detect_microskills(t) for t in ai_turns]
+    used = set()
+    for hits in per_turn:
+        used.update(hits)
+    coverage = len(used) / len(COUNSELING_MICROSKILLS) if COUNSELING_MICROSKILLS else 0.0
+    variety = (len(used) / len(per_turn)) if per_turn else 0.0
+    return {
+        "skills_used": sorted(used),
+        "per_turn": per_turn,
+        "coverage": round(coverage, 3),
+        "variety": round(variety, 3),
+    }
+
+
 # ============ 评估结果数据模型 ============
 
 @dataclass

@@ -764,19 +764,24 @@ Examples (reference only, do not copy verbatim):
             else:
                 state.consecutive_rumination = 0
 
-            # ===== 担忧处理（P0 fix: 放宽进入条件） =====
-            # 旧逻辑过严：必须 anxiety_level in [MILD, MODERATE]，导致 NORMAL 但有担忧的用户永远进不了
-            # 新逻辑：在 ASSESSMENT 阶段，且任一条件触发即可进入 WORRY_CAPTURE
+            # ===== 担忧处理 =====
+            # 治疗联盟优先（Bordin task-agreement）：第 1 轮只用来在场/共情,
+            # 不直接进 WORRY_CAPTURE,除非有"已经在情绪里"的强信号
+            # （SEVERE 焦虑 / 反刍）。给用户被听见的回合,再推进到工作阶段。
             if state.phase == SessionPhase.ASSESSMENT and not state.worry_expressed:
                 enter_worry = False
-                if anxiety_level in [AnxietyLevel.MILD, AnxietyLevel.MODERATE, AnxietyLevel.SEVERE]:
-                    enter_worry = True  # 有焦虑迹象
-                elif domain and domain != "general":
-                    enter_worry = True  # 检测到具体担忧领域
-                elif state.consecutive_rumination > 0:
-                    enter_worry = True  # 有反刍倾向
+                strong_signal = (
+                    anxiety_level == AnxietyLevel.SEVERE
+                    or state.consecutive_rumination > 0
+                )
+                if strong_signal:
+                    enter_worry = True  # 已在情绪里,跳过等待
+                elif state.total_turns >= 2 and anxiety_level in [AnxietyLevel.MILD, AnxietyLevel.MODERATE]:
+                    enter_worry = True  # 第 2 轮起,中度焦虑可进
+                elif state.total_turns >= 2 and domain and domain != "general":
+                    enter_worry = True  # 第 2 轮起,有具体担忧领域可进
                 elif state.total_turns >= 3:
-                    enter_worry = True  # 多轮后用户还在 ASSESSMENT，主动推进
+                    enter_worry = True  # 多轮后用户还在 ASSESSMENT,主动推进
                 if enter_worry:
                     state.worry_topic = domain if (domain and domain != "general") else state.worry_topic
                     state.phase = SessionPhase.WORRY_CAPTURE
