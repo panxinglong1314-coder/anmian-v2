@@ -24,7 +24,11 @@ corpus/
 │   # --- v2.1 新增开源中文知识 ---
 ├── dbas_chinese.json           # DBAS-16 失眠特异性不合理信念+苏格拉底重构（Morin 2007）
 ├── clinical_guidelines_zh.json # 中国成人失眠诊治指南 2017 + AASM/ACP 关键临床要点
-└── mindfulness_scripts.json    # MBSR/MBCT 睡前正念脚本（云/身体扫描/接纳/RAIN/慈悲）
+├── mindfulness_scripts.json    # MBSR/MBCT 睡前正念脚本（云/身体扫描/接纳/RAIN/慈悲）
+│
+│   # --- v2.2 心理咨询地基（"心理为基,CBT-I 为辅"定位） ---
+├── counseling_foundations.json # Rogers 三要素 + Bordin 治疗联盟 + 共同因素 + MI 四过程
+└── counseling_strategies.json  # 12 个咨询微技能招式表（反映/普同化/扎根/温和挑战…）
 ```
 
 > **v2.1 新增文件**与既有 `cognitive_distortions.json` 互补:
@@ -107,6 +111,10 @@ result = cbt_manager.process_message(
 
 ## 更新日志
 
+- **v2.2** (2026-05-30): 心理咨询地基 —— 新增 `counseling_foundations.json`
+  (Rogers/Bordin/MI/共同因素) 与 `counseling_strategies.json`(12 个微技能招式)。
+  定位转为"心理为基,CBT-I 为辅",AI 在非睡眠话题(工作委屈/关系冲突)上
+  能先共情再回到放松,实测响应自然贴人。
 - **v2.1.1** (2026-05-30): 知识库审查与瘦身 —— 删除冗余/低价值文件:
   - `xinjing_data_raw.json` (45 MB) —— 8775 条未结构化通用心理 Q&A,
     精华已在 `xinjing_corpus.json` 中提炼好

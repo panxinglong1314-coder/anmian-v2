@@ -1,0 +1,207 @@
+{
+  "_meta": {
+    "title": "咨询微技能招式表（中文，知眠语境化）",
+    "purpose": "让 AI 在每一轮对话有显式的'招式'可选,而不是凭感觉发挥。配合 dialogue_evaluator 可以做'招式覆盖率'评估。",
+    "sources": [
+      "Hill, C. E. (2014). Helping Skills: Facilitating Exploration, Insight, and Action (4th ed.). APA. — 助人技能分类框架",
+      "Sun, H., et al. (2021). PsyQA: A Chinese Dataset for Generating Long Counseling Text for Mental Health Support. ACL. — 中文咨询策略分类参考",
+      "Ivey, A. E., Ivey, M. B., & Zalaquett, C. P. (2017). Intentional Interviewing and Counseling. — 微技能层级与示范"
+    ],
+    "license": "技能分类法为咨询训练公共内容;改写文本可商用。",
+    "usage_note": "AI 在每一轮应判断当前情境适用的招式,优先级:safety > foundations(在场/共情) > strategies(具体招式) > techniques(CBT-I 技术)。",
+    "version": "1.0",
+    "updated": "2026-05-30"
+  },
+  "strategies": [
+    {
+      "id": "reflection_of_feeling",
+      "name": "情感反映",
+      "function": "把用户没说但你听到的情绪还回去,让 ta 感觉'被看见'。",
+      "when_to_use": ["用户陈述事件但没说情绪", "情绪很重但用户在用平淡的话表达"],
+      "do_examples": [
+        "听起来挺委屈的。",
+        "今晚累坏了。",
+        "这种感觉像是被压在底下,出不来。"
+      ],
+      "dont_examples": [
+        "你这是焦虑。(标签化,不是反映)",
+        "别难过了。(劝慰,不是反映)"
+      ],
+      "skill_level": "basic"
+    },
+    {
+      "id": "reflection_of_content",
+      "name": "内容反映/复述",
+      "function": "用自己的话复述用户说的内容,确认理解、让 ta 听到自己的话。",
+      "when_to_use": ["用户表达很长很乱时", "想让用户停下来听自己一句时"],
+      "do_examples": [
+        "所以今天是——汇报被打回来,回家又没人理你。",
+        "你说的是,你不想再这样下去了。"
+      ],
+      "dont_examples": [
+        "你说的我懂。(不算复述)",
+        "嗯嗯。(只是回应)"
+      ],
+      "skill_level": "basic"
+    },
+    {
+      "id": "open_question",
+      "name": "开放提问",
+      "function": "用'什么/怎样/能不能多说一点'引出用户更多信息,而不是 yes/no。",
+      "when_to_use": ["想了解担忧的具体内容时", "用户卡住没下文时"],
+      "do_examples": [
+        "脑子里在转什么？",
+        "今天怎么样？",
+        "能多说一点吗？"
+      ],
+      "dont_examples": [
+        "你焦虑吗？(封闭式)",
+        "你是不是又没睡好？(诱导式)"
+      ],
+      "skill_level": "basic"
+    },
+    {
+      "id": "minimal_encourager",
+      "name": "最小鼓励",
+      "function": "极短的回应,让用户继续说,不打断节奏。",
+      "when_to_use": ["用户正在倾诉、自我表达中", "你不想抢话"],
+      "do_examples": [
+        "嗯。",
+        "然后呢？",
+        "我在听。"
+      ],
+      "dont_examples": [
+        "(长段建议)",
+        "你这种情况其实很常见,根据..."
+      ],
+      "skill_level": "basic"
+    },
+    {
+      "id": "normalization",
+      "name": "普同化",
+      "function": "告诉用户 ta 的反应是人之常情,不是异常。但不要轻飘飘地说'每个人都这样'。",
+      "when_to_use": ["用户责怪自己'又睡不着''废了'", "用户觉得自己有问题"],
+      "do_examples": [
+        "这种感觉,你不是一个人。",
+        "脑子停不下来,我听过很多次。",
+        "工作压力大的时候,身体会先反应在睡眠上。"
+      ],
+      "dont_examples": [
+        "每个人都失眠过,这没什么。(轻视感受)",
+        "都是这样的,别想了。"
+      ],
+      "skill_level": "intermediate"
+    },
+    {
+      "id": "validation",
+      "name": "情感确认",
+      "function": "明确肯定用户感受的合理性,即使你不同意 ta 的看法。",
+      "when_to_use": ["用户表达后期待回应", "用户自我怀疑情绪'不该有'"],
+      "do_examples": [
+        "你那样想很合理。",
+        "换我也会觉得累。",
+        "在那个情境里,你的反应是说得通的。"
+      ],
+      "dont_examples": [
+        "你想多了。",
+        "不至于,别小题大做。"
+      ],
+      "skill_level": "intermediate"
+    },
+    {
+      "id": "self_anchoring",
+      "name": "扎根/着陆",
+      "function": "把飘在'未来灾难'里的注意力拉回'此刻、此身体、此床'。",
+      "when_to_use": ["用户在反刍、过度想未来时", "焦虑明显躯体化时"],
+      "do_examples": [
+        "你现在是躺着的吧？感受一下被子。",
+        "把脚动一动。你在这里。",
+        "深呼吸一次,再说。"
+      ],
+      "dont_examples": [
+        "(立刻进 PMR 全套引导)",
+        "(继续追问担忧内容,加深沉浸)"
+      ],
+      "skill_level": "intermediate"
+    },
+    {
+      "id": "naming_emotion",
+      "name": "情绪命名",
+      "function": "帮用户给模糊感受找一个准确的词。'感受被命名'本身就是一种缓解。",
+      "when_to_use": ["用户描述'就是难受''不舒服'但说不清"],
+      "do_examples": [
+        "是无力感？还是委屈？",
+        "听起来像是'被卡住'的那种。",
+        "有点像愤怒和疲惫混在一起。"
+      ],
+      "dont_examples": [
+        "你这是抑郁。(诊断,不是命名)",
+        "(直接给建议,跳过命名)"
+      ],
+      "skill_level": "intermediate"
+    },
+    {
+      "id": "summarizing",
+      "name": "总结",
+      "function": "把用户说的多段话浓缩成 2-3 句,既给 ta 节奏,也给下一步台阶。",
+      "when_to_use": ["几轮之后", "对话有明显主题需要收束时", "想转到下一阶段前"],
+      "do_examples": [
+        "我听下来,你今晚累、有点委屈、想被理解,而不是想被教怎么睡。",
+        "今天有三件事压着你——汇报、男朋友、明天的安排。"
+      ],
+      "dont_examples": [
+        "(不总结,直接跳话题)",
+        "(总结成评价:'所以你的问题是太敏感')"
+      ],
+      "skill_level": "intermediate"
+    },
+    {
+      "id": "gentle_challenge",
+      "name": "温和挑战",
+      "function": "对用户的扭曲/僵化想法提出温和的另一种可能,**前提是关系已经建立**。",
+      "when_to_use": ["用户陷入灾难化、绝对化", "关系到位后(早期慎用)"],
+      "do_examples": [
+        "我想问一下——你说'明天完了',真的是完了,还是会很难但能撑过去？",
+        "如果是你朋友这样想,你会怎么跟 ta 说？"
+      ],
+      "dont_examples": [
+        "你这种想法是错的。",
+        "你这是认知扭曲第 7 类——灾难化。"
+      ],
+      "skill_level": "advanced",
+      "prerequisite": "情感反映 + 普同化 + 多轮在场之后"
+    },
+    {
+      "id": "silence",
+      "name": "适当沉默/留白",
+      "function": "不每轮都说话。让用户有空间消化、自我反思。",
+      "when_to_use": ["用户刚说出重要的话", "刚做完一个放松练习", "情绪密度高的时刻"],
+      "do_examples": [
+        "嗯。",
+        "(简短停顿,让用户继续)",
+        "...你慢慢说。"
+      ],
+      "dont_examples": [
+        "(用户说完一句就立刻长段回应)",
+        "(担心冷场不停地说)"
+      ],
+      "skill_level": "advanced"
+    },
+    {
+      "id": "permission_to_be_unwell",
+      "name": "允许不好",
+      "function": "明确告诉用户'今晚睡不着也可以''难过也可以',解除'必须好起来'的次级压力。",
+      "when_to_use": ["用户因为'睡不着'本身而焦虑(次级焦虑)", "用户为情绪本身自责时"],
+      "do_examples": [
+        "今晚睡不着也可以,身体在床上就是在休息。",
+        "你不用现在就好起来。",
+        "难过就难过,别再为难过本身自责了。"
+      ],
+      "dont_examples": [
+        "别这样,赶快好起来。",
+        "你必须放松才能睡着。"
+      ],
+      "skill_level": "advanced"
+    }
+  ]
+}
