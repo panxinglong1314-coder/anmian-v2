@@ -362,6 +362,33 @@ class SessionLogger:
         except Exception as e:
             print(f"[SessionLogger] 评估记录失败: {e}")
 
+        # v2.4: 关系深化兜底 — 任何 ≥3 用户轮的 finalize 都累加 session_count
+        # + 刷新 last_session_time。原本只有 closure 路径会做这件事,导致流失会话
+        # 不被记得;现在 idle_timeout / interrupted / completed_closure / sleep_reported
+        # 都会触发,真摘要(last_session_summary)仍由 closure 路径独占写入。
+        try:
+            n_user_turns = sum(1 for t in sess.turns if t.role == "user")
+            if n_user_turns >= 3 and outcome in (
+                "completed_closure", "sleep_reported", "idle_timeout", "interrupted"
+            ):
+                from infra.redis_client import redis_client as _rc
+                mem_key = f"user:memory:{user_id}"
+                raw = _rc.get(mem_key)
+                memory = json.loads(raw) if raw else {}
+                memory["session_count"] = int(memory.get("session_count", 0)) + 1
+                memory["last_session_time"] = datetime.now().isoformat(timespec="seconds")
+                # 若上次主题域可推断,记录(不覆盖 closure 路径写的真摘要)
+                last_dom = None
+                for t in reversed(sess.turns):
+                    if t.role == "user" and getattr(t, "scenario_id", None):
+                        last_dom = t.scenario_id
+                        break
+                if last_dom and not memory.get("last_topic_domain"):
+                    memory["last_topic_domain"] = last_dom
+                _rc.setex(mem_key, 90 * 86400, json.dumps(memory, ensure_ascii=False))
+        except Exception as e:
+            print(f"[SessionLogger] session_count bump 失败(非关键): {e}")
+
         # 从活跃表移除
         with self._lock:
             self._active_sessions.pop((user_id, session_id), None)

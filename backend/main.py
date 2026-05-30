@@ -1275,8 +1275,21 @@ _DOMAIN_LABELS = {
     "general": "其他",
 }
 
+# Worry domain → 英文标签(v2.4 EN 关系深化)
+_DOMAIN_LABELS_EN = {
+    "work": "work stress",
+    "relationship": "relationships",
+    "health": "health worry",
+    "finance": "money pressure",
+    "study": "school stress",
+    "family": "family",
+    "general": "other",
+}
 
-def _label_domain(domain: str) -> str:
+
+def _label_domain(domain: str, locale: str = "zh") -> str:
+    if locale == "en":
+        return _DOMAIN_LABELS_EN.get(domain, domain)
     return _DOMAIN_LABELS.get(domain, domain)
 
 
@@ -1330,97 +1343,19 @@ def update_user_memory(user_id: str, message: str, response: str, worry_domain: 
         print(f"[Redis update memory error] {e}")
 
 
-def _build_user_profile_block(memory: dict) -> str:
-    """
-    构建结构化用户档案 prompt 块（供 system prompt 注入）。
-    设计原则：让 LLM 看到的是「人」（"老朋友 4 次会话，主要担工作"），
-    而不是裸短语（"我担心被裁(1次)"）。
-    """
-    if not memory:
-        return ""
-
-    triggers = memory.get("triggers", {}) or {}
-    session_count = int(memory.get("session_count", 0))
-    last_summary = memory.get("last_session_summary", "")
-    last_time = memory.get("last_session_time", "")
-    last_topic_domain = memory.get("last_topic_domain", "")
-    insomnia_subtype = memory.get("insomnia_subtype", "")
-
-    # 跳过新用户或几乎无历史（让 AI 自然开场，不假装"老朋友"）
-    if session_count < 1 and not triggers and not last_summary:
-        return ""
-
-    lines = ["", "[用户档案 — 仅供你了解，不要直接重复出来]"]
-
-    # 关系深度
-    if session_count >= 5:
-        depth = f"老熟人，已陪伴 {session_count} 个夜晚"
-    elif session_count >= 2:
-        depth = f"第 {session_count + 1} 次见面"
-    elif session_count == 1:
-        depth = "第二次见面"
-    else:
-        depth = "首次见面"
-    lines.append(f"- 关系深度：{depth}")
-
-    # 主要担忧（按抽象 domain）
-    if triggers:
-        top3 = sorted(triggers.items(), key=lambda kv: -kv[1])[:3]
-        concerns_str = "、".join(f"{_label_domain(k)}({v} 次)" for k, v in top3)
-        lines.append(f"- 主要担忧领域：{concerns_str}")
-
-    # 失眠亚型
-    if insomnia_subtype:
-        subtype_label = {
-            "sleep_onset": "入睡困难型",
-            "sleep_maintenance": "维持困难型",
-            "early_morning": "早醒型",
-            "mixed": "混合型",
-        }.get(insomnia_subtype, insomnia_subtype)
-        lines.append(f"- 失眠亚型：{subtype_label}")
-
-    # 上次会话摘要（关键的关系深化抓手）
-    if last_summary:
-        # 用相对时间让 AI 自然表达
-        rel = "前不久"
-        if last_time:
-            try:
-                from datetime import datetime as _dt
-                dt = _dt.fromisoformat(last_time)
-                days_ago = (datetime.now() - dt).days
-                if days_ago == 0:
-                    rel = "今天早些时候"
-                elif days_ago == 1:
-                    rel = "昨晚"
-                elif days_ago < 7:
-                    rel = f"{days_ago} 天前"
-                elif days_ago < 30:
-                    rel = f"{days_ago // 7} 周前"
-                else:
-                    rel = "之前"
-            except Exception:
-                pass
-        lines.append(f"- 上次会话（{rel}）：{last_summary}")
-
-    # 引导语（明确告诉 LLM 怎么用这些信息）
-    lines.append("")
-    lines.append("[使用提示]")
-    if last_summary and session_count >= 1:
-        lines.append("- 你是一位认识用户的睡前陪伴师，请像老朋友重逢一样自然带出对上次的轻盈回访。")
-        lines.append("- 推荐的开场（在用户首句较短或泛泛时）：「今晚怎么样，上次说的那件事 / 上次提到的 XX，有没有再让你难受？」")
-        lines.append("- 不要机械复述「上次」二字，关键词换成抽象的呼应（例如说「汇报的事」而不是「被裁的担心」，让用户感到被记得，但不被审视）。")
-    elif triggers:
-        top_label = _label_domain(sorted(triggers.items(), key=lambda kv: -kv[1])[0][0])
-        lines.append(f"- 用户最常因「{top_label}」失眠；当前消息若涉及类似话题，自然呼应。")
-    lines.append("- 严禁直接念出这份档案的字段、数字或原文。当作内部记忆使用。")
-
-    return "\n".join(lines)
+def _build_user_profile_block(memory: dict, locale: str = "zh") -> str:
+    """转发到 backend/user_profile_block.py(可独立测试,无 FastAPI 副作用)。
+    保留这里的函数名以兼容内部 import,实际逻辑在独立模块。"""
+    from user_profile_block import build_user_profile_block
+    return build_user_profile_block(memory, locale=locale)
 
 
 def save_session_summary(user_id: str, summary: str, technique: str = "", effectiveness: int = 5):
     """
     closure 阶段写入上一次会话的摘要，下次会话 system prompt 引用。
     技术细节：summary 限 120 字，超出截断。
+    v2.4: session_count + last_session_time 已迁移到 session_logger.end_session,
+    本函数只写"真摘要"相关字段,避免与 end_session 重复计数。
     """
     key = f"user:memory:{user_id}"
     try:
@@ -1428,8 +1363,8 @@ def save_session_summary(user_id: str, summary: str, technique: str = "", effect
         memory["last_session_summary"] = (summary or "")[:120]
         memory["last_session_technique"] = technique[:40]
         memory["last_session_effectiveness"] = max(1, min(10, int(effectiveness or 5)))
-        memory["last_session_time"] = datetime.now().isoformat(timespec="seconds")
-        memory["session_count"] = int(memory.get("session_count", 0)) + 1
+        # session_count / last_session_time → 在 end_session 里统一 bump,确保
+        # 流失会话(idle_timeout/interrupted)也算"老朋友"。这里不再 ++。
         redis_client.setex(key, 90 * 86400, json.dumps(memory, ensure_ascii=False))
     except Exception as e:
         print(f"[Redis save_session_summary error] {e}")
@@ -1953,9 +1888,17 @@ def _build_enhanced_system_prompt(
             "5. No template phrasing, no mentioning 'sleep' or 'anxiety' every sentence. Never sound impatient.\n"
             "6. When emotion runs high, get shorter and gentler.\n"
         )
+        # v2.4: EN 路径也注入关系深化档案 (上次会话摘要 + 累计 trigger domain)
+        memory_context_en = ""
+        try:
+            memory_context_en = _build_user_profile_block(memory or {}, locale="en")
+        except Exception as _e:
+            print(f"[RAG/en] profile block failed: {_e}")
         parts_en = [cbt_base_prompt]
         if rag_context_en:
             parts_en.append("\n" + rag_context_en)
+        if memory_context_en:
+            parts_en.append("\n" + memory_context_en)
         parts_en.append(strict_rules_en)
         return "".join(parts_en)
     if memory is None:
