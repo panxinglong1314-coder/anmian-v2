@@ -1,0 +1,121 @@
+{
+  "_meta": {
+    "title": "睡前正念引导脚本（中文）",
+    "source": "改编自公开的 MBSR/MBCT 教学材料(Jon Kabat-Zinn 麻省理工 1979 起;UCLA Mindful Awareness Research Center 开放脚本)与一行禅师等公开的正念呼吸教学。所有引导文本均为本项目改写,适配睡前情境,语调温和、节奏放慢。",
+    "license": "原始 MBSR 框架学术公开;UCLA MARC 引导多为 CC BY-NC-SA。改写文本可商用并随项目分发。",
+    "note": "本文件为 TTS 友好脚本,带 <pause:Xs/> 等 SSML 标记;LLM 也可作为'念头如云/接纳焦虑'话术参考。",
+    "version": "1.0",
+    "updated": "2026-05-27"
+  },
+  "mindfulness_scripts": [
+    {
+      "id": "thoughts_as_clouds",
+      "name": "念头如云",
+      "duration_minutes": 5,
+      "best_for": ["脑子停不下来", "反刍", "睡前焦虑"],
+      "applicable_anxiety_level": [1, 2, 3, 4],
+      "tts_params": { "rate": 0.78, "pitch": -1, "pause_default_ms": 800 },
+      "intro": "我们不去赶走那些念头。它们想来,就让它们来。",
+      "steps": [
+        "找一个舒服的姿势。<pause:1.5s/>不用闭眼也可以。",
+        "想象你正躺在草地上,抬头看天空。<pause:2s/>天空很大,很蓝。",
+        "每一个念头,就像一朵云。<pause:1.5s/>它从这边飘过来,<pause:1s/>又会从那边飘过去。",
+        "你不用追上它,<pause:1s/>也不用赶走它。<pause:1.5s/>你只是躺着看。",
+        "如果有一朵特别大的云——比如'明天怎么办'——<pause:1s/>那就让它慢慢地飘。<pause:2s/>它不属于天空,它只是路过。",
+        "如果你忽然发现自己跟着一朵云跑了,<pause:1s/>没关系,<pause:1s/>回到草地上。<pause:1.5s/>继续看天。",
+        "天空不会因为云多而变小。<pause:2s/>你也是。"
+      ],
+      "closure": "在这片大大的天空底下,慢慢呼吸。<pause:3s/>你可以一直待在这里。"
+    },
+    {
+      "id": "body_scan_brief",
+      "name": "身体扫描简版(睡前 5 分钟)",
+      "duration_minutes": 5,
+      "best_for": ["身体紧张", "无法放松", "刚躺下"],
+      "applicable_anxiety_level": [2, 3, 4, 5],
+      "tts_params": { "rate": 0.75, "pitch": -2, "pause_default_ms": 1000 },
+      "intro": "我们做一次很短的身体扫描。<pause:1s/>不需要做什么,只是去看一下。",
+      "steps": [
+        "现在,把注意力放在脚趾上。<pause:2s/>它们是冷的还是暖的？<pause:2s/>不评价,只是知道。",
+        "慢慢地,让注意力上移到小腿。<pause:1.5s/>感受床垫贴着小腿的地方。<pause:2s/>",
+        "继续向上,大腿。<pause:1.5s/>它们正在被床完全托住。<pause:2s/>你不用用力。",
+        "肚子。<pause:1s/>呼吸时,它在轻轻起伏。<pause:2s/>",
+        "胸口。<pause:1s/>那里也许还有一点紧。<pause:1s/>不用让它松开,<pause:1s/>只是知道它在那里。",
+        "肩膀。<pause:1s/>它们今天扛了很多。<pause:1.5s/>让它们沉下去一点点。<pause:2s/>",
+        "脖子,脸,额头。<pause:1.5s/>下巴可以松一点。<pause:2s/>",
+        "现在感受整个身体,<pause:2s/>从头到脚,<pause:2s/>都在这张床上。"
+      ],
+      "closure": "你不用做任何事。<pause:2s/>身体知道怎么休息。<pause:3s/>"
+    },
+    {
+      "id": "accept_insomnia_anxiety",
+      "name": "接纳失眠焦虑(给'睡不着就焦虑'的你)",
+      "duration_minutes": 4,
+      "best_for": ["越想睡越睡不着", "对失眠本身的恐惧", "焦虑次级反应"],
+      "applicable_anxiety_level": [3, 4, 5],
+      "tts_params": { "rate": 0.78, "pitch": -1, "pause_default_ms": 900 },
+      "intro": "你不用现在就睡着。<pause:1.5s/>真的。",
+      "steps": [
+        "你已经躺在这里了。<pause:1.5s/>这本身就是休息。",
+        "如果有一个声音在说'我必须睡着,不睡完了'——<pause:1.5s/>那个声音正在工作,<pause:1s/>它在替你担心。",
+        "你可以对它说:'谢谢你提醒我。<pause:1s/>但今晚我先不解决,我先休息。'<pause:2s/>",
+        "睡眠不是任务。<pause:1.5s/>它是你停止做任务的时候自己来的。",
+        "所以现在,<pause:1s/>什么都不用做。<pause:2s/>不用让自己睡着,<pause:1.5s/>不用赶走焦虑,<pause:1.5s/>也不用'好好放松'。",
+        "你只需要在这里,<pause:1.5s/>呼吸,<pause:1s/>等。"
+      ],
+      "closure": "睡不着也是一种休息。<pause:2s/>身体在床上,就已经在恢复了。<pause:3s/>"
+    },
+    {
+      "id": "self_compassion_break",
+      "name": "自我慈悲休息(Self-Compassion Break)",
+      "duration_minutes": 3,
+      "best_for": ["自我批判", "对失眠生气", "怪自己睡不着"],
+      "applicable_anxiety_level": [2, 3, 4, 5],
+      "tts_params": { "rate": 0.8, "pitch": -1, "pause_default_ms": 800 },
+      "intro": "这是 Kristin Neff 的三句话练习。<pause:1s/>很短,但很有用。",
+      "steps": [
+        "把一只手轻轻放在胸口。<pause:2s/>感受手掌的温度。",
+        "第一句,<pause:0.5s/>对自己说:<pause:1s/>'这是一个难熬的时刻。'<pause:2s/>承认正在发生的事。",
+        "第二句:<pause:1s/>'睡不着,是很多人都会经历的。<pause:1.5s/>我不是唯一一个。'<pause:2s/>",
+        "第三句:<pause:1s/>'愿我对自己温柔一点。<pause:1.5s/>愿我今晚被自己照顾。'<pause:2s/>",
+        "你不需要相信这些话。<pause:1s/>只是说一说,<pause:1s/>看它们落在身体的哪里。"
+      ],
+      "closure": "你已经在做你能做的了。<pause:2s/>这就够了。<pause:3s/>"
+    },
+    {
+      "id": "feet_on_the_floor",
+      "name": "脚踩在地板上(20 分钟原则后)",
+      "duration_minutes": 3,
+      "best_for": ["躺了很久睡不着", "刺激控制疗法配合使用"],
+      "applicable_anxiety_level": [2, 3, 4],
+      "tts_params": { "rate": 0.82, "pitch": 0, "pause_default_ms": 700 },
+      "intro": "如果躺了很久睡不着,起来一会儿,反而帮你回到困意。这是 CBT-I 的'刺激控制'。",
+      "steps": [
+        "慢慢坐起来,<pause:1s/>双脚踩在地板上。",
+        "去客厅或者另一个房间,<pause:1s/>不要回床上。",
+        "光线调暗,<pause:1s/>不开手机。",
+        "可以做一件无聊的事:<pause:1s/>翻一本不感兴趣的书,<pause:1s/>或者只是坐着。",
+        "等到真的有睡意——<pause:1s/>眼皮重、打哈欠、坐着开始点头——<pause:1.5s/>再回到床上。",
+        "如果再次躺 20 分钟还睡不着,<pause:1s/>再起来一次。"
+      ],
+      "closure": "你不是在惩罚自己。<pause:1.5s/>你是在告诉大脑:床=睡眠,不是床=焦虑。<pause:2s/>"
+    },
+    {
+      "id": "rain_method_self_inquiry",
+      "name": "RAIN 自我探询(给浮上来的情绪)",
+      "duration_minutes": 4,
+      "best_for": ["有具体情绪上来", "被某件事卡住", "无法放下"],
+      "applicable_anxiety_level": [3, 4, 5],
+      "tts_params": { "rate": 0.78, "pitch": -1, "pause_default_ms": 900 },
+      "intro": "RAIN 是 Tara Brach 推广的四步:<pause:0.5s/>Recognize 认出,<pause:0.5s/>Allow 允许,<pause:0.5s/>Investigate 探询,<pause:0.5s/>Nurture 滋养。",
+      "steps": [
+        "R · 认出:<pause:1s/>现在身体里有什么感受？<pause:2s/>给它一个名字——焦虑？担心？委屈？",
+        "A · 允许:<pause:1s/>不用赶走它。<pause:1.5s/>对它说:'你可以在这里。'<pause:2s/>",
+        "I · 探询:<pause:1s/>这种感受在身体的哪里？<pause:1.5s/>胸口？喉咙？肚子？<pause:2s/>它在告诉你什么？",
+        "N · 滋养:<pause:1s/>问自己,<pause:1s/>'此刻我需要什么？'<pause:1.5s/>可能是一句安慰,<pause:1s/>可能是一只手放在胸口。<pause:2s/>",
+        "给自己这一份。<pause:2s/>"
+      ],
+      "closure": "情绪需要的不是被解决,而是被陪伴。<pause:3s/>"
+    }
+  ]
+}
