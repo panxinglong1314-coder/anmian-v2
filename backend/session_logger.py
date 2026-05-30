@@ -132,6 +132,11 @@ class SessionLogger:
             anxiety_level=anxiety_level,
         )
         self._current_session.turns.append(turn)
+        # 标记最后活动时间(finalize_if_idle 用)
+        try:
+            self._current_session._last_activity = turn.timestamp
+        except Exception:
+            pass
 
         # 如果是第一轮，设置初始焦虑等级
         if len(self._current_session.turns) == 1 and anxiety_level:
@@ -200,6 +205,29 @@ class SessionLogger:
         if techniques:
             score += 0.5
         return round(min(10.0, max(0.0, score)), 2)
+
+    def finalize_if_idle(self, max_idle_minutes: int = 15) -> bool:
+        """若当前会话已空转 max_idle_minutes 分钟,自动结束并触发评估。
+        每个 add_turn 都会刷新 last_activity;周期 janitor 调用本方法。
+        Returns: True 若执行了 end_session(idle_timeout)。"""
+        if not self._current_session:
+            return False
+        last_iso = getattr(self._current_session, "_last_activity", None) or \
+                   self._current_session.start_time
+        try:
+            last_ts = datetime.fromisoformat(last_iso).timestamp()
+        except Exception:
+            return False
+        idle_sec = time.time() - last_ts
+        if idle_sec < max_idle_minutes * 60:
+            return False
+        # 至少有 1 轮用户消息再评估,否则就是空会话
+        n_user_turns = sum(1 for t in self._current_session.turns if t.role == "user")
+        if n_user_turns < 1:
+            self._current_session = None
+            return False
+        self.end_session(outcome="idle_timeout")
+        return True
 
     def end_session(
         self,

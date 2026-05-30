@@ -383,13 +383,33 @@ async def lifespan(app: FastAPI):
     # ✅ Dashboard 预聚合后台任务
     _aggregator_task = asyncio.create_task(_dashboard_aggregator())
 
+    # ✅ 会话 janitor:每 5 分钟扫一次,空转 ≥15 分钟的会话自动 end_session
+    # 保证最后一个未关闭的会话最终也走 dialogue_evaluator + record_session_evaluation
+    async def _session_janitor():
+        while True:
+            try:
+                await asyncio.sleep(300)  # 5 min
+                if session_logger is not None:
+                    closed = await asyncio.to_thread(
+                        session_logger.finalize_if_idle, 15
+                    )
+                    if closed:
+                        print("[janitor] 空转会话已 finalize → 进入评估")
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                print(f"[janitor] 错误: {e}")
+    _janitor_task = asyncio.create_task(_session_janitor())
+
     yield
     print("👋 后端关闭...")
     _aggregator_task.cancel()
-    try:
-        await _aggregator_task
-    except asyncio.CancelledError:
-        pass
+    _janitor_task.cancel()
+    for t in (_aggregator_task, _janitor_task):
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
     if _redis_mod.async_redis_client:
         try:
             await _redis_mod.async_redis_client.aclose()
