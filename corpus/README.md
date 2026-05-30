@@ -17,25 +17,22 @@ corpus/
 ├── dCBT-I_protocol.json        # CBT-I 多阶段流程协议（评估→认知→行为）
 ├── worry_scenarios.json        # 担忧场景路由（工作/人际/健康/财务…）
 │
-│   # --- 第三方开源中文数据（已并入） ---
-├── emollm_sleep.json           # EmoLLM 心理健康数据子集（睡眠相关）
-├── xinjing_corpus.json         # 心境（XinJing）心理咨询对话精选
-├── xinjing_data_raw.json       # 心境完整对话集
+│   # --- 第三方开源中文数据精炼版 ---
+├── xinjing_corpus.json         # 心境（Kedreamix）数据集精炼:80 条认知重构话术 +
+│                                #   60 条共情短句 + 信念链模板 + 补充场景(财务等)
 │
-│   # --- v2.1 新增开源中文知识（2026-05-27） ---
+│   # --- v2.1 新增开源中文知识 ---
 ├── dbas_chinese.json           # DBAS-16 失眠特异性不合理信念+苏格拉底重构（Morin 2007）
 ├── clinical_guidelines_zh.json # 中国成人失眠诊治指南 2017 + AASM/ACP 关键临床要点
-├── mindfulness_scripts.json    # MBSR/MBCT 睡前正念脚本（云/身体扫描/接纳/RAIN/慈悲）
-└── act_metaphors.json          # ACT 接纳承诺疗法隐喻（拔河/巴士/流沙/不速之客/棋盘）
+└── mindfulness_scripts.json    # MBSR/MBCT 睡前正念脚本（云/身体扫描/接纳/RAIN/慈悲）
 ```
 
 > **v2.1 新增文件**与既有 `cognitive_distortions.json` 互补:
 > - **DBAS** 处理"失眠场景特异性"信念(如"必须睡8小时"),通用扭曲库覆盖更广认知模式
 > - **clinical_guidelines_zh** 为 AI 接地 CMA/AASM 指南要点(何时建议就医、用药原则、急/慢性区分)
 > - **mindfulness_scripts** 提供 ACT 与正念视角的睡前引导脚本(TTS 友好,带 `<pause:Xs/>` 标记)
-> - **act_metaphors** 用于"越控制越焦虑"循环的认知去融合(cognitive defusion)
 >
-> 这些文件由 `hybrid_rag_index._extract_generic_corpus()` 自动索引,无需修改加载器。新增内容已通过 25,000+ chunks 总索引验证。
+> 这些文件由 `hybrid_rag_index._extract_generic_corpus()` 自动索引,无需修改加载器。
 
 ## 核心文件说明
 
@@ -110,7 +107,12 @@ result = cbt_manager.process_message(
 
 ## 更新日志
 
-- **v2.1** (2026-05-27): 并入 4 个开源中文知识扩展 —— DBAS-16 失眠特异性信念、
-  中国 2017 失眠诊治指南要点、MBSR/ACT 正念脚本、ACT 隐喻库;由 RAG 通用提取器
-  自动索引,补足 CBT-I "认知重构" 阶段对失眠语境化材料的覆盖。
+- **v2.1.1** (2026-05-30): 知识库审查与瘦身 —— 删除冗余/低价值文件:
+  - `xinjing_data_raw.json` (45 MB) —— 8775 条未结构化通用心理 Q&A,
+    精华已在 `xinjing_corpus.json` 中提炼好
+  - `emollm_sleep.json` (4.2 MB) —— 与 raw 89% 重复 (714/800 条 input 相同)
+  - `act_metaphors.json` (6 KB) —— LLM 已内化 ACT 隐喻,且与"反模板"系统提示冲突
+  共 -49 MB,RAG 噪音降低,质量更聚焦。
+- **v2.1** (2026-05-27): 并入 3 个开源中文知识扩展(DBAS-16 / CMA+AASM 指南 /
+  MBSR-MBCT 正念脚本),补足 CBT-I "认知重构" 阶段对失眠语境化材料的覆盖。
 - **v2.0** (2026-04-12): 完整 CBT-I 语料库，支持动态 LLM 调用，替代原固定脚本模式
