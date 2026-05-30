@@ -633,14 +633,18 @@ def get_quality_stats(days: int = 30, limit: int = 500) -> Dict[str, Any]:
     failure_modes = defaultdict(int)
     if source == "evaluation_tracking":
         for rec in eval_records:
-            empathy = rec.get("auto_empathy", 5)
-            tech = rec.get("auto_technical", 9)
-            coherence = rec.get("auto_coherence", 5)
+            # 字段缺失或为 None 时给安全默认值,防止 None < int 抛错
+            empathy = rec.get("auto_empathy")
+            tech = rec.get("auto_technical")
+            coherence = rec.get("auto_coherence")
+            empathy = 5 if empathy is None else empathy
+            tech = 9 if tech is None else tech
+            coherence = 5 if coherence is None else coherence
             if empathy < 3: failure_modes["共情不足"] += 1
             if tech < 5: failure_modes["技术建议不准确"] += 1
             if coherence < 3: failure_modes["回复不连贯"] += 1
-            if rec.get("bias_empathy", 0) > 0.3: failure_modes["情绪理解偏差"] += 1
-            if rec.get("bias_technical", 0) > 0.3: failure_modes["专业知识偏差"] += 1
+            if (rec.get("bias_empathy") or 0) > 0.3: failure_modes["情绪理解偏差"] += 1
+            if (rec.get("bias_technical") or 0) > 0.3: failure_modes["专业知识偏差"] += 1
             if empathy == 0 and tech == 0: failure_modes["评估异常"] += 1
     elif source == "feedback":
         for rec in eval_records:

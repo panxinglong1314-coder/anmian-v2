@@ -89,49 +89,87 @@ BAD_ADVICE_PATTERNS = [
 # 用法:detect_microskills(ai_text) -> List[str] 返回命中的 skill_id 列表。
 COUNSELING_MICROSKILLS = {
     "reflection_of_feeling": [
+        # zh
         "听起来", "你似乎", "看起来你", "感觉你", "这种感觉",
         "确实不", "确实挺", "委屈", "累坏", "压得",
+        # en
+        "it sounds like", "sounds like", "it seems", "you seem",
+        "that feeling", "that's heavy", "that's a lot", "feels like",
     ],
     "reflection_of_content": [
         "所以", "你说的是", "也就是说", "意思是",
+        # en
+        "so what you're saying", "so you're saying", "in other words",
+        "what i'm hearing", "you mean",
     ],
     "open_question": [
         "怎么样", "什么", "能多说", "怎么", "在转什么",
         "在想什么", "什么样的", "哪一",
+        # en
+        "what's", "what was", "how was", "tell me more",
+        "can you say more", "what comes up", "how does it",
     ],
     "minimal_encourager": [
         "嗯。", "然后呢", "我在听", "我在", "继续",
+        # en
+        "mm", "go on", "i'm here", "i'm listening", "and then",
     ],
     "normalization": [
         "你不是一个人", "很多人", "我听过很多次", "正常",
         "很常见", "都会有", "并不孤单",
+        # en
+        "you're not alone", "you are not alone", "many people",
+        "a lot of people", "it's common", "that's common",
+        "this happens a lot",
     ],
     "validation": [
         "你那样想很合理", "换我也会", "说得通", "理解你",
         "可以理解", "情有可原",
+        # en
+        "that makes sense", "it makes sense", "i understand",
+        "i can understand", "that's understandable", "fair enough",
+        "of course you'd",
     ],
     "self_anchoring": [
         "你现在", "感受一下", "动一动", "深呼吸", "踩在地上",
         "把脚", "把手", "你在这里",
+        # en
+        "feet on the floor", "right now", "notice", "take a breath",
+        "place your hand", "feel your", "you are here",
     ],
     "naming_emotion": [
         "无力", "委屈", "愤怒", "焦虑", "悲伤", "失望",
         "卡住", "压抑", "孤单", "被忽视",
+        # en
+        "powerless", "stuck", "lonely", "angry", "sad",
+        "anxious", "overwhelmed", "exhausted", "frustrated",
+        "disappointed", "hurt", "shut down",
     ],
     "summarizing": [
         "我听下来", "今天有", "整理一下", "总结一下",
         "三件事", "几件事",
+        # en
+        "so far i'm hearing", "to recap", "let me sum",
+        "putting that together", "a few things",
     ],
     "gentle_challenge": [
         "我想问一下", "如果是你朋友", "真的是", "或许",
         "另一种可能", "会不会其实",
+        # en
+        "i'm curious", "what if a friend", "is it possible",
+        "another way to see", "could it also be",
     ],
     "silence": [
         "嗯。", "...", "慢慢说", "你说",
+        # en
+        "take your time", "no rush", "whenever you're ready",
     ],
     "permission_to_be_unwell": [
         "也可以", "不用现在就", "睡不着也", "难过就难过",
         "不用急着好", "不用为难自己",
+        # en
+        "you don't have to", "it's okay to", "doesn't have to be now",
+        "no pressure", "you can just",
     ],
 }
 
