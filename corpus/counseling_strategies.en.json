@@ -1,0 +1,207 @@
+{
+  "_meta": {
+    "title": "Counseling microskills taxonomy (ZhiMian-contextualized, EN)",
+    "purpose": "Give the AI explicit moves per turn rather than ad-hoc improvisation. Pairs with dialogue_evaluator for skill-coverage measurement.",
+    "sources": [
+      "Hill, C. E. (2014). Helping Skills: Facilitating Exploration, Insight, and Action (4th ed.). APA. — helping-skills framework",
+      "Sun, H., et al. (2021). PsyQA: A Chinese Dataset for Generating Long Counseling Text for Mental Health Support. ACL. — strategy taxonomy reference",
+      "Ivey, A. E., Ivey, M. B., & Zalaquett, C. P. (2017). Intentional Interviewing and Counseling. — microskill hierarchy"
+    ],
+    "license": "Skill taxonomies are public counselor-training content; paraphrased text is project-licensed and commercially usable.",
+    "usage_note": "AI should choose a fitting move per turn. Priority: safety > foundations (presence/empathy) > strategies (specific moves) > techniques (CBT-I).",
+    "version": "1.0",
+    "updated": "2026-05-30"
+  },
+  "strategies": [
+    {
+      "id": "reflection_of_feeling",
+      "name": "Reflection of feeling",
+      "function": "Echo back the emotion you heard but the user didn't name explicitly. Lets them feel 'seen'.",
+      "when_to_use": ["User states an event without naming the feeling", "Heavy emotion expressed in flat words"],
+      "do_examples": [
+        "Sounds like that stung.",
+        "You're worn out.",
+        "Feels like being pinned under something."
+      ],
+      "dont_examples": [
+        "You're anxious. (labeling, not reflecting)",
+        "Don't be sad. (consolation, not reflection)"
+      ],
+      "skill_level": "basic"
+    },
+    {
+      "id": "reflection_of_content",
+      "name": "Reflection / paraphrase of content",
+      "function": "Restate what the user said in your words. Confirms understanding, lets them hear themselves.",
+      "when_to_use": ["User has spoken at length and may be tangled", "Want to pause and let them hear it"],
+      "do_examples": [
+        "So today — the presentation got pushed back, and at home no one had bandwidth either.",
+        "What you're saying is, you don't want to keep going like this."
+      ],
+      "dont_examples": [
+        "I hear you. (not a paraphrase)",
+        "Mm. (just an encourager)"
+      ],
+      "skill_level": "basic"
+    },
+    {
+      "id": "open_question",
+      "name": "Open question",
+      "function": "Use what / how / can you say more — invites elaboration, not yes/no.",
+      "when_to_use": ["Want to understand the worry's content", "User has stalled"],
+      "do_examples": [
+        "What's running through your head?",
+        "How's tonight feeling?",
+        "Can you say more?"
+      ],
+      "dont_examples": [
+        "Are you anxious? (closed)",
+        "You didn't sleep well again, did you? (leading)"
+      ],
+      "skill_level": "basic"
+    },
+    {
+      "id": "minimal_encourager",
+      "name": "Minimal encourager",
+      "function": "Very brief reply that keeps the user talking without interrupting the rhythm.",
+      "when_to_use": ["User is in flow of self-expression", "You don't want to take the mic"],
+      "do_examples": [
+        "Mm.",
+        "And then?",
+        "I'm listening."
+      ],
+      "dont_examples": [
+        "(long block of advice)",
+        "Your situation is actually quite common; research shows..."
+      ],
+      "skill_level": "basic"
+    },
+    {
+      "id": "normalization",
+      "name": "Normalization",
+      "function": "Tell the user their reaction is human, not abnormal. But don't be glib ('everyone goes through this').",
+      "when_to_use": ["User is self-blaming ('I'm broken')", "User thinks something is wrong with them"],
+      "do_examples": [
+        "You're not alone with this one.",
+        "A mind that won't stop — I've heard this many times.",
+        "When work pressure spikes, the body shows up first in sleep."
+      ],
+      "dont_examples": [
+        "Everyone's had insomnia. It's nothing. (dismissive)",
+        "That's just how it goes, don't dwell."
+      ],
+      "skill_level": "intermediate"
+    },
+    {
+      "id": "validation",
+      "name": "Validation of feeling",
+      "function": "Explicitly affirm the legitimacy of the feeling — even if you don't agree with the user's interpretation.",
+      "when_to_use": ["User pauses, looking for a reaction", "User doubts whether the feeling is 'allowed'"],
+      "do_examples": [
+        "That makes sense given where you're at.",
+        "I'd feel that too.",
+        "In that situation, your reaction tracks."
+      ],
+      "dont_examples": [
+        "You're overthinking.",
+        "Not that big a deal. Don't make a thing of it."
+      ],
+      "skill_level": "intermediate"
+    },
+    {
+      "id": "self_anchoring",
+      "name": "Grounding / anchoring",
+      "function": "Pull attention out of 'future catastrophe' back into 'this moment, this body, this bed'.",
+      "when_to_use": ["User is ruminating, over-projecting forward", "Anxiety is showing up in the body"],
+      "do_examples": [
+        "You're lying down right now, right? Feel the blanket.",
+        "Wiggle your toes. You're here.",
+        "Take one deep breath, then keep going."
+      ],
+      "dont_examples": [
+        "(jump straight into a full PMR script)",
+        "(keep probing the worry, deepening the spiral)"
+      ],
+      "skill_level": "intermediate"
+    },
+    {
+      "id": "naming_emotion",
+      "name": "Emotion labeling",
+      "function": "Help the user find a precise word for a fuzzy feeling. 'Affect labeling' itself reduces distress (Lieberman et al. 2007).",
+      "when_to_use": ["User says 'I just feel bad/off' but can't pin it"],
+      "do_examples": [
+        "Powerless, or more like wronged?",
+        "Sounds like 'stuck'.",
+        "Like anger and exhaustion at once."
+      ],
+      "dont_examples": [
+        "You're depressed. (diagnosis, not labeling)",
+        "(skip labeling and jump to advice)"
+      ],
+      "skill_level": "intermediate"
+    },
+    {
+      "id": "summarizing",
+      "name": "Summarizing",
+      "function": "Compress several turns into 2-3 sentences. Gives the user pace, and a step into the next phase.",
+      "when_to_use": ["Several turns in", "A theme has clearly emerged", "Before phase transition"],
+      "do_examples": [
+        "What I'm hearing — tonight you're tired, a little wronged, and you want to be understood, not lectured on how to sleep.",
+        "Three things are pressing today: the presentation, your partner, and tomorrow's schedule."
+      ],
+      "dont_examples": [
+        "(skip summary, hop to a new topic)",
+        "(summary turns into a judgment: 'so basically you're too sensitive')"
+      ],
+      "skill_level": "intermediate"
+    },
+    {
+      "id": "gentle_challenge",
+      "name": "Gentle challenge",
+      "function": "Offer a soft alternative to a distorted/rigid thought — **only after the relationship is established**.",
+      "when_to_use": ["User stuck in catastrophizing / absolutism", "Bond established (avoid early)"],
+      "do_examples": [
+        "Can I ask — when you say 'tomorrow's ruined', do you mean ruined, or hard but survivable?",
+        "If a friend said this to you, what would you say back?"
+      ],
+      "dont_examples": [
+        "That's irrational thinking.",
+        "This is cognitive distortion type 7 — catastrophizing."
+      ],
+      "skill_level": "advanced",
+      "prerequisite": "Reflection + normalization + multiple turns of presence first"
+    },
+    {
+      "id": "silence",
+      "name": "Useful silence / pause",
+      "function": "Not every turn needs words. Let the user digest, sit with what came up.",
+      "when_to_use": ["User just said something important", "Just after a relaxation exercise", "High-density moment"],
+      "do_examples": [
+        "Mm.",
+        "(brief pause, let them continue)",
+        "...take your time."
+      ],
+      "dont_examples": [
+        "(respond with a long block right after they finish a sentence)",
+        "(fill every gap to avoid silence)"
+      ],
+      "skill_level": "advanced"
+    },
+    {
+      "id": "permission_to_be_unwell",
+      "name": "Permission to not be okay",
+      "function": "Explicitly tell the user it's okay to not sleep tonight, okay to be sad — removes the secondary pressure of 'I must get better right now'.",
+      "when_to_use": ["User is anxious about being anxious (secondary anxiety)", "Self-blaming for the feeling itself"],
+      "do_examples": [
+        "Not sleeping tonight is okay too. Your body in this bed is already resting.",
+        "You don't have to be better right this second.",
+        "If you're sad, you're sad. Stop holding that against yourself."
+      ],
+      "dont_examples": [
+        "Come on, you have to feel better.",
+        "You must relax in order to fall asleep."
+      ],
+      "skill_level": "advanced"
+    }
+  ]
+}

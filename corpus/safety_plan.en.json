@@ -1,0 +1,120 @@
+{
+  "_meta": {
+    "title": "Stanley-Brown Safety Plan (structured 6-step intervention)",
+    "purpose": "Existing safe_scripts is reactive crisis dialogue. This file gives the AI a structured conversational framework to walk a user through a safety plan AFTER the crisis response — deeper than just providing hotlines, but still not a substitute for professional care.",
+    "sources": [
+      "Stanley, B., & Brown, G. K. (2012). Safety Planning Intervention: A Brief Intervention to Mitigate Suicide Risk. Cogn Behav Pract.",
+      "SAMHSA / U.S. Department of Veterans Affairs (publicly adopted clinical tool)"
+    ],
+    "license": "Stanley-Brown Safety Plan is a publicly adopted clinical tool; paraphrased text is project-licensed. Not a medical service.",
+    "usage_note": "Use ONLY after safe_scripts crisis response has triggered. Each step requires the user's consent before moving to the next. If the user says 'I don't want to' at any step, drop the structure and return to 'I'm here with you' — never push.",
+    "version": "1.0",
+    "updated": "2026-05-30"
+  },
+  "safety_plan_steps": [
+    {
+      "step": 1,
+      "id": "warning_signs",
+      "name": "Identify warning signs",
+      "purpose": "Help the user recognize the body/mind signals that show up BEFORE the next crisis — early-intervention entry point.",
+      "invitation": "If you're willing, let's look at what shows up — in your body or thoughts — before things get really hard. So next time it appears, you have a chance to take care of yourself earlier.",
+      "prompts": [
+        "Think back to the hours before the most recent rough patch — what was different in your body? (Tight chest, fast heart, numbness...)",
+        "Were there specific thoughts or images coming up?",
+        "Changes in sleep or appetite?",
+        "Were you avoiding particular people or situations?"
+      ],
+      "if_declined": "That's okay. This is heavy. You don't have to map it out right now."
+    },
+    {
+      "step": 2,
+      "id": "internal_coping",
+      "name": "Internal coping strategies",
+      "purpose": "Things the user can do alone — no one else needed — that lower intensity. Doesn't have to be big. Surviving 10 minutes counts.",
+      "invitation": "If that feeling comes again — before reaching out — what's something you can do on your own that takes the edge off, even from a 10 down to an 8?",
+      "prompts": [
+        "Music that's helped before?",
+        "Going outside, a shower, splash of cold water?",
+        "Writing it down, drawing it?",
+        "A show or book you've watched a hundred times that calms you?",
+        "Something small to do with your hands — folding laundry, organizing a drawer?"
+      ],
+      "if_declined": "Okay. We can skip this step. Doesn't have to be now."
+    },
+    {
+      "step": 3,
+      "id": "social_distraction",
+      "name": "People & places that distract — without asking for help",
+      "purpose": "Not asking for help — just being where people are, letting the environment soften it. A crowded café, a corner store, a park, or texting a friend about nothing important.",
+      "invitation": "If alone isn't working, you don't have to ask for help yet — just put yourself near people. Where could you go, or who could you text about something unrelated?",
+      "prompts": [
+        "A 24-hour place you could just sit in?",
+        "Someone you could text 'hey, what was that movie called?' without making it about you?",
+        "Online groups or forums that make you feel less alone?"
+      ],
+      "if_declined": "No pressure on this one."
+    },
+    {
+      "step": 4,
+      "id": "people_to_ask",
+      "name": "People you can ask for help (with names + numbers)",
+      "purpose": "When the previous step isn't enough, actually asking. Key thing: write them down NOW, not in the dark moment from memory.",
+      "invitation": "If things get really bad, who could you tell? Best to write down two or three — one for backup if the first isn't available.",
+      "prompts": [
+        "Family, friend, partner, roommate — who knows some of your story already?",
+        "Write their name and contact.",
+        "When you imagine telling them, do you hesitate? Why? (Don't want to burden, fear of judgment...) Is there anyone you hesitate less about?"
+      ],
+      "if_declined": "I know. Speaking up is hard. Let's leave it open — see if a name comes up later."
+    },
+    {
+      "step": 5,
+      "id": "professionals",
+      "name": "Professional resources (hotlines / clinician / ER)",
+      "purpose": "When personal contacts aren't enough, or the situation is acute, needing professional assessment.",
+      "invitation": "If reaching out to people you know feels too much, or it's beyond what they can hold, these are open 24/7:",
+      "resources_us": [
+        {"name": "988 Suicide & Crisis Lifeline", "phone": "988", "available": "24/7 (call or text)"},
+        {"name": "Crisis Text Line", "phone": "Text HOME to 741741", "available": "24/7"},
+        {"name": "Veterans Crisis Line", "phone": "Dial 988, then press 1", "available": "24/7"},
+        {"name": "Trevor Project (LGBTQ+ youth)", "phone": "1-866-488-7386 or text START to 678-678", "available": "24/7"},
+        {"name": "SAMHSA National Helpline", "phone": "1-800-662-4357", "available": "24/7 (substance use)"}
+      ],
+      "additional": [
+        "Your psychiatrist or therapist (if you have one)",
+        "The ER at your local hospital",
+        "(If you're a student) your campus counseling center",
+        "Outside the US: locate your country's crisis line at findahelpline.com"
+      ],
+      "if_declined": "Okay. They'll be here. Reach for them whenever."
+    },
+    {
+      "step": 6,
+      "id": "lethal_means_safety",
+      "name": "Reducing access to means",
+      "purpose": "Putting distance between yourself and methods — not from distrust, but to give impulses a delay. Clinically, this step contributes most to lowering risk.",
+      "invitation": "One last thing — and the most important: can the things that could hurt you be moved out of easy reach? Doesn't mean throw them out — just somewhere less accessible.",
+      "prompts": [
+        "Medications (especially anything dangerous in overdose) — could someone hold them for you, or could they go in another room?",
+        "Sharp objects — could they go in a drawer that's not your first reach?",
+        "(If relevant) less alcohol kept in the house for now?",
+        "(If user has mentioned specific methods — e.g. firearms) Storing the firearm with a friend/family member or at a gun shop/police station temporarily, with the ammo separate — is that possible?"
+      ],
+      "rationale": "This step is often skipped, but the clinical evidence is most consistent here: means out of arm's reach = 5 extra minutes when an impulse comes = lives saved.",
+      "if_declined": "If you don't want to right now, tell me too. But I want you to remember this step — many crises got intercepted by exactly those 5 minutes."
+    }
+  ],
+  "closing_after_plan": [
+    "You just walked through something heavy.",
+    "This plan isn't a promise that you won't struggle again — it's a map for the next time it gets dark, so you're not searching from scratch.",
+    "If you can, tell one person you trust: 'I made a safety plan, this is what it looks like.' Let them know.",
+    "Last thing: that you walked through this tonight is already taking care of yourself."
+  ],
+  "ai_constraints": [
+    "Each step requires the user's consent. 'I don't want to' → stop.",
+    "**Never** invent hotline numbers, hospital names, or clinics. Use only what's in this file.",
+    "**Never** promise 'follow this and you won't self-harm'.",
+    "If during the conversation the user describes specific plans or means, **immediately** return to the safe_scripts crisis dialogue and strongly recommend calling 988 / Crisis Text Line / going to an ER. Do NOT keep walking through the safety plan.",
+    "Whether complete or not, end with companion presence: 'I'm here.'"
+  ]
+}

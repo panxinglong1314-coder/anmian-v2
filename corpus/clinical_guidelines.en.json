@@ -1,0 +1,140 @@
+{
+  "_meta": {
+    "title": "Insomnia clinical guideline excerpts (US/international, EN)",
+    "sources": [
+      "Sateia, M. J., Buysse, D. J., Krystal, A. D., Neubauer, D. N., & Heald, J. L. (2017). Clinical Practice Guideline for the Pharmacologic Treatment of Chronic Insomnia in Adults: An American Academy of Sleep Medicine (AASM) Clinical Practice Guideline. J Clin Sleep Med.",
+      "Qaseem, A., et al. (2016). Management of Chronic Insomnia Disorder in Adults: A Clinical Practice Guideline From the American College of Physicians (ACP). Ann Intern Med.",
+      "American Academy of Sleep Medicine. (2014/2023). International Classification of Sleep Disorders (ICSD-3, 3rd ed.)."
+    ],
+    "license": "Specialty consensus guidelines are public-domain reference content; excerpts used for psychoeducation and AI grounding. Not medical advice — refer users with serious/chronic insomnia to a clinician.",
+    "version": "1.0",
+    "updated": "2026-05-30"
+  },
+  "guidelines": [
+    {
+      "id": "definition_insomnia",
+      "topic": "Clinical definition of insomnia",
+      "summary": "Insomnia is dissatisfaction with sleep quantity or quality, causing daytime impairment; ≥3 nights/week for ≥3 months meets chronic insomnia (ICSD-3).",
+      "key_points": [
+        "Difficulty initiating sleep (sleep-onset latency > 30 min)",
+        "Difficulty maintaining sleep (wake after sleep onset > 30 min)",
+        "Early-morning awakening (waking > 30 min before desired time)",
+        "Despite adequate opportunity, sleep remains unsatisfactory",
+        "Daytime impairment (fatigue, attention, mood)"
+      ],
+      "ai_hint": "When users describe duration/awakenings, you can map to this and gently suggest professional evaluation if it sounds chronic."
+    },
+    {
+      "id": "first_line_cbti",
+      "topic": "CBT-I as first-line therapy",
+      "summary": "AASM (2017), ACP (2016), and European insomnia guidelines all recommend CBT-I as the **first-line treatment** for adult chronic insomnia — comparable to medication in effect, more durable, and without dependence risk.",
+      "key_points": [
+        "CBT-I components: sleep hygiene, stimulus control, sleep restriction, cognitive restructuring, relaxation training",
+        "Standard course is 4–8 weeks; digital CBT-I (dCBT-I) approaches face-to-face outcomes",
+        "Effective across age groups, including older adults and those with comorbid anxiety/depression",
+        "Pharmacotherapy recommended for short-term or refractory cases only"
+      ],
+      "ai_hint": "When users ask 'is there anything besides meds?' / 'do I have to take medication?' — cite this as the non-drug first-line evidence."
+    },
+    {
+      "id": "sleep_hygiene_core",
+      "topic": "Core sleep hygiene (AASM + ACP)",
+      "summary": "Sleep hygiene is foundational but insufficient on its own for chronic insomnia — pair with other CBT-I components.",
+      "key_points": [
+        "Fixed wake time, including weekends; bedtime may flex",
+        "Regular daytime light (especially morning); reduce bright/blue light at night",
+        "Avoid caffeine after 14:00 (~5–6 hour half-life)",
+        "Avoid alcohol within 3 hours of bedtime (disrupts deep sleep)",
+        "Vigorous exercise: not within ~1 hour of bed; regular daytime exercise helps sleep",
+        "Bedroom 65–72°F (18–22°C), dim, quiet",
+        "Bed for sleep and sex only — the core of stimulus control"
+      ]
+    },
+    {
+      "id": "stimulus_control",
+      "topic": "Stimulus Control Therapy (SCT)",
+      "summary": "Re-establish the bed-as-sleep conditioned response (Bootzin, 1972); one of the most evidence-supported single CBT-I components.",
+      "key_points": [
+        "Only get into bed when sleepy",
+        "Use bed only for sleep and sex — no work, phones, or worrying",
+        "If awake in bed > 20 min: get up, go to another room, do something quiet, return only when sleepy",
+        "Fixed wake time daily, regardless of last night's sleep",
+        "No daytime napping (older adults may allow ≤30 min)"
+      ],
+      "ai_hint": "When a user describes 'lying awake forever but doesn't want to get up' — this is the moment for the 20-minute rule."
+    },
+    {
+      "id": "sleep_restriction",
+      "topic": "Sleep Restriction Therapy (SRT)",
+      "summary": "Restrict time in bed to increase sleep efficiency, used in maintenance-type insomnia (Spielman, 1987).",
+      "key_points": [
+        "Initial TIB = mean TST + 30 min (floor 4–5 hours; avoid extremes)",
+        "Fixed wake time; bedtime is derived",
+        "Weekly review: SE ≥ 90% → expand TIB +15 min; SE < 85% → hold or shrink; 85–90% → hold",
+        "First 1–2 weeks may bring more sleepiness/irritability — the 'cost' before benefit",
+        "Caution: bipolar mania, uncontrolled seizures, severe circadian disruption, safety-sensitive work (e.g., driving)"
+      ]
+    },
+    {
+      "id": "when_to_refer",
+      "topic": "Signals the AI should gently suggest professional help",
+      "summary": "If any of the following are present, tell the user clearly: 'this is beyond what I can help with — please see a sleep medicine or mental health clinician.'",
+      "key_points": [
+        "Persistent suicidal ideation or self-harm (enter safety protocol immediately)",
+        "Persistent severe low mood > 2 weeks + loss of interest (possible depression)",
+        "Extreme daytime sleepiness, uncontrollable sleep attacks (possible narcolepsy)",
+        "Loud snoring + breathing pauses (possible OSA)",
+        "Self-medication with sleeping pills > 1 month or escalating dose",
+        "Severe adverse reactions to sleep medication",
+        "Severe insomnia during pregnancy or perimenopause",
+        "Insomnia > 3 months and self-help CBT-I has not worked"
+      ],
+      "ai_hint": "This is a non-crisis referral path — distinct from safe_scripts (acute crisis)."
+    },
+    {
+      "id": "medication_principles",
+      "topic": "Pharmacotherapy principles (psychoeducation, not prescription)",
+      "summary": "Short-term/acute insomnia may use BzRA or newer hypnotics briefly; long-term, CBT-I is preferred.",
+      "key_points": [
+        "Medication decisions belong to clinicians — the AI does not recommend specific drugs or doses",
+        "Benzodiazepines have dependence and tolerance risk — not recommended chronically",
+        "Non-benzodiazepine 'Z-drugs' (zolpidem, eszopiclone, etc.) carry less dependence risk but still short-term-preferred",
+        "Melatonin receptor agonists and dual orexin receptor antagonists are options under clinician guidance",
+        "If already on medication, never advise stopping abruptly (rebound risk) — clinician-guided taper"
+      ],
+      "ai_hint": "When users ask 'what should I take?' / 'what dose?' / 'can I stop?' — always defer to a clinician, never name a drug/dose."
+    },
+    {
+      "id": "comorbidity",
+      "topic": "Insomnia with comorbid anxiety/depression",
+      "summary": "Roughly 40–50% of insomnia patients have comorbid anxiety or depression; treat both dimensions (AASM).",
+      "key_points": [
+        "Anxiety/depression can trigger insomnia; insomnia worsens anxiety/depression",
+        "CBT-I remains effective in comorbid cases",
+        "If mood symptoms are severe, prioritize psychiatric evaluation",
+        "PHQ-9 and GAD-7 are screening references (AI does not diagnose)"
+      ]
+    },
+    {
+      "id": "elderly_special",
+      "topic": "Older adults — special considerations",
+      "summary": "Older adults' sleep architecture changes are partly physiological; treatment is calibrated (AASM).",
+      "key_points": [
+        "Modest reduction in total sleep time is normal aging — doesn't always need treatment",
+        "BzRAs raise fall and cognitive-impairment risk significantly — prefer CBT-I",
+        "Short (≤30 min) afternoon naps may be allowed",
+        "Morning light exposure is especially important for circadian rhythm in older adults"
+      ]
+    },
+    {
+      "id": "acute_vs_chronic",
+      "topic": "Acute vs chronic insomnia",
+      "summary": "Acute insomnia (<3 months) is often stress-driven and self-limiting; chronic insomnia is explained by the 3P model (Predisposing + Precipitating + Perpetuating) and needs active intervention.",
+      "key_points": [
+        "Acute insomnia: address the precipitant (stress, jet lag); CBT-I not necessarily required immediately",
+        "Chronic insomnia's perpetuating factors are CBT-I's main target: prolonged bedtime, daytime naps, sleep over-vigilance, sleep-specific dysfunctional beliefs (see DBAS)",
+        "About 30% of acute insomnia becomes chronic; early CBT intervention reduces that risk"
+      ]
+    }
+  ]
+}

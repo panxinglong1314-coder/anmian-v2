@@ -1,0 +1,137 @@
+{
+  "_meta": {
+    "title": "Window of Tolerance & polyvagal states (recognition + tailored response)",
+    "purpose": "Let the AI assess which physiological-emotional activation state the user is in each turn, then choose 'down-regulate', 'companion', or 'gentle up-regulate' — not just default to a relaxation script.",
+    "sources": [
+      "Siegel, D. J. (1999/2020). The Developing Mind / Mindsight. Guilford. — Window of Tolerance",
+      "Porges, S. W. (2011). The Polyvagal Theory. Norton. — ventral/sympathetic/dorsal states",
+      "Ogden, P., & Fisher, J. (2015). Sensorimotor Psychotherapy. Norton. — somatic interventions framework"
+    ],
+    "license": "Frameworks are public clinical/neuroscience educational content; paraphrased text is project-licensed.",
+    "usage_note": "Used alongside the mindfulness/PMR/breathing libraries. Misreading the state can make relaxation scripts worsen symptoms.",
+    "version": "1.0",
+    "updated": "2026-05-30"
+  },
+  "states": [
+    {
+      "id": "ventral_vagal_calm",
+      "name": "Ventral vagal (within window — calm, connected)",
+      "physiology": "Steady heart rate, even breath, relaxed face, can connect with another person.",
+      "language_signals": [
+        "I can talk now",
+        "tonight's okay",
+        "feels safe here",
+        "I just want to chat"
+      ],
+      "what_to_do": [
+        "Normal conversation, keep warmth",
+        "Can gently progress into CBT-I modules (if the user consents)",
+        "No need to down-regulate or up-regulate"
+      ],
+      "what_not_to_do": [
+        "Force a relaxation script (over-intervention disrupts natural state)",
+        "Abruptly ask 'want to do an exercise?' — breaks the felt sense of presence"
+      ]
+    },
+    {
+      "id": "sympathetic_hyperarousal",
+      "name": "Sympathetic activation (above window — hyperarousal)",
+      "physiology": "Racing heart, shallow rapid breath, muscle tension, mind won't stop, somatic anxiety (tight chest, shaky hands).",
+      "language_signals": [
+        "my mind won't stop",
+        "my heart's pounding",
+        "what about tomorrow",
+        "I have to",
+        "I'm done, I'm done",
+        "weight on my chest",
+        "can't sleep can't sleep"
+      ],
+      "what_to_do": [
+        "**Down-regulate**: slow breath (4-7-8 or diaphragmatic), grounding (feet on floor, feel the blanket)",
+        "Brief PMR (start with distal muscle groups)",
+        "Steady low-tone rhythmic replies ('mm', 'I'm here')",
+        "'Slice' present from future: 'tomorrow can wait, just be here tonight'"
+      ],
+      "what_not_to_do": [
+        "Immediately ask open questions that invite more elaboration (deepens immersion)",
+        "Reason/logically refute (prefrontal cortex is offline)",
+        "Push cognitive restructuring (same)"
+      ]
+    },
+    {
+      "id": "dorsal_vagal_shutdown",
+      "name": "Dorsal vagal (below window — shutdown, numb)",
+      "physiology": "Reduced heart rate, low energy, feeling 'behind a wall', slowed movement, flat affect.",
+      "language_signals": [
+        "whatever",
+        "doesn't matter",
+        "fine",
+        "can't be bothered",
+        "nothing works",
+        "no point",
+        "(replies become short, tone flattens)"
+      ],
+      "what_to_do": [
+        "**Gentle up-regulate** (carefully): invite them to open eyes, move a hand/foot, sit up briefly",
+        "Minimal interpersonal connection: 'I'm here', 'I can hear you'",
+        "Recruit senses: 'touch something cool nearby', 'listen for a sound outside the window'",
+        "If willing, do a **very brief** breath (≤ 1 min — longer goes further inward)"
+      ],
+      "what_not_to_do": [
+        "Push long relaxation / body scan (will sink them further)",
+        "Mindful observation of thoughts (in shutdown, 'observing' extends the shutdown)",
+        "Cognitive restructuring, deep empathic probing (deepen powerlessness)",
+        "Cheerleading ('you got this!', 'don't give up!')"
+      ]
+    },
+    {
+      "id": "mixed_freeze",
+      "name": "Mixed (freeze): sympathetic + dorsal both high",
+      "physiology": "Externally still but internally tense; 'stuck'; heart rate may be normal but breath is held.",
+      "language_signals": [
+        "stuck",
+        "can't move",
+        "blank",
+        "I hear you but can't respond",
+        "(long pause in conversation, no reply)"
+      ],
+      "what_to_do": [
+        "Micro-movement invitations: 'blink once', 'one exhale'",
+        "'You don't have to reply. Just hearing me is fine.'",
+        "Grounding senses: 'feel where your feet are'",
+        "Wait, leave space, don't push"
+      ],
+      "what_not_to_do": [
+        "Consecutive questions (deepens the freeze)",
+        "Explanation / education (no info processing happening)",
+        "Push any complex exercise"
+      ]
+    },
+    {
+      "id": "borderline_window",
+      "name": "Edge of window (re-regulating)",
+      "physiology": "Just returned from activation/shutdown into the window, or sliding back out; sensitive, easily re-triggered.",
+      "language_signals": [
+        "a bit better",
+        "coming back",
+        "I think I'm okay",
+        "still a little tight though",
+        "afraid I'll slip again..."
+      ],
+      "what_to_do": [
+        "Reinforce the sense of being back ('I noticed your body just softened')",
+        "Validation + grounding combined; **avoid** immediately pushing into work phase",
+        "If the user initiates, do a brief consolidation breath"
+      ],
+      "what_not_to_do": [
+        "Strike while iron's hot into cognitive restructuring / SRT discussion",
+        "Probe 'any other worries?' (could push them back out)"
+      ]
+    }
+  ],
+  "detection_priority": [
+    "If both hyperarousal AND shutdown signals are present: handle as mixed_freeze first",
+    "If unsure: default to sympathetic_hyperarousal (down-regulation is the safer wrong answer)",
+    "If user goes silent after being in shutdown: don't send open questions — send 'I'm here'"
+  ]
+}

@@ -28,7 +28,20 @@ corpus/
 │
 │   # --- v2.2 心理咨询地基（"心理为基,CBT-I 为辅"定位） ---
 ├── counseling_foundations.json # Rogers 三要素 + Bordin 治疗联盟 + 共同因素 + MI 四过程
-└── counseling_strategies.json  # 12 个咨询微技能招式表（反映/普同化/扎根/温和挑战…）
+├── counseling_strategies.json  # 12 个咨询微技能招式表（反映/普同化/扎根/温和挑战…）
+│
+│   # --- v2.3 中英对齐 + 状态识别 + 结构化安全计划 ---
+├── window_of_tolerance.json    # Siegel 容纳之窗 + Porges 多迷走 5 状态识别与对应
+├── safety_plan.json            # Stanley-Brown 安全计划 6 步(中文,400-161-9995 等)
+│
+│   # 上述 v2.1 + v2.2 + v2.3 文件均补齐 .en.json:
+├── dbas.en.json                # DBAS-16 (Morin 原版英文)
+├── clinical_guidelines.en.json # AASM 2017 + ACP 2016 + ICSD-3(替代 CMA 2017)
+├── mindfulness_scripts.en.json # MBSR/MBCT 原版语境英文脚本
+├── counseling_foundations.en.json
+├── counseling_strategies.en.json
+├── window_of_tolerance.en.json
+└── safety_plan.en.json         # Stanley-Brown(988 / 741741 / Crisis Text Line)
 ```
 
 > **v2.1 新增文件**与既有 `cognitive_distortions.json` 互补:
@@ -111,6 +124,14 @@ result = cbt_manager.process_message(
 
 ## 更新日志
 
+- **v2.3** (2026-05-30): 中英对齐 + 状态识别 + 安全计划 ——
+  - 给 v2.1/v2.2 的 5 个中文文件补齐 `.en.json` 镜像(其中 DBAS/Rogers/MBSR/MI
+    原文献本来就英文,直接用原版语境;`clinical_guidelines.en` 改用 AASM/ACP 而非 CMA)
+  - 新增 `window_of_tolerance.json`(+en):识别用户腹侧迷走/交感/背侧/冻结/边缘 5 态
+    并对应'降级/陪伴/轻度提振'——避免对闭锁态用户强推放松脚本
+  - 新增 `safety_plan.json`(+en):Stanley-Brown 安全计划 6 步结构化框架,比 safe_scripts
+    被动话术更深入,但仍需用户每一步同意。中文用全国心理援助热线 400-161-9995 等,
+    英文用 988 / 741741
 - **v2.2** (2026-05-30): 心理咨询地基 —— 新增 `counseling_foundations.json`
   (Rogers/Bordin/MI/共同因素) 与 `counseling_strategies.json`(12 个微技能招式)。
   定位转为"心理为基,CBT-I 为辅",AI 在非睡眠话题(工作委屈/关系冲突)上

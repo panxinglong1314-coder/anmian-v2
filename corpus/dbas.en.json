@@ -1,0 +1,140 @@
+{
+  "_meta": {
+    "title": "DBAS-16 (Dysfunctional Beliefs and Attitudes about Sleep) · Sleep-Specific Cognitive Reframes",
+    "source": "Morin, C. M., Vallières, A., & Ivers, H. (2007). Dysfunctional Beliefs and Attitudes about Sleep (DBAS): Validation of a brief version (DBAS-16). Sleep, 30(11), 1547-1554.",
+    "license": "Items themselves are reportable peer-reviewed clinical instruments; paraphrased reframes are project-licensed.",
+    "note": "16 sleep-specific dysfunctional beliefs, complementary to the general cognitive_distortions library. AI should prefer matching against DBAS first for sleep-context, then fall back to general distortions.",
+    "version": "1.0",
+    "updated": "2026-05-30"
+  },
+  "dbas_items": [
+    {
+      "id": "dbas_sleep_requirement",
+      "category": "Sleep requirement misperception",
+      "belief": "I need 8 hours of sleep to function the next day.",
+      "reframe": "Sleep needs vary widely — anywhere from 4 to 10 hours can be normal. Quality matters more than duration, and daytime functioning is a better signal than hours.",
+      "socratic_question": "If you only slept six hours but felt clear during the day, would that count as enough?",
+      "keywords": ["8 hours", "need", "enough sleep", "must sleep", "hours of sleep"]
+    },
+    {
+      "id": "dbas_catastrophe_next_day",
+      "category": "Catastrophizing daytime consequences",
+      "belief": "If I sleep badly tonight I won't be able to function tomorrow.",
+      "reframe": "One bad night makes tomorrow harder, but doesn't strip your abilities. Research shows when people feel they slept badly, their actual performance is only mildly affected.",
+      "socratic_question": "Think back to days after bad nights — did you really get nothing done, or did you get through tired and still finish?",
+      "keywords": ["can't function", "tomorrow ruined", "won't make it through", "useless tomorrow"]
+    },
+    {
+      "id": "dbas_health_catastrophe",
+      "category": "Catastrophizing health consequences",
+      "belief": "Chronic insomnia will seriously damage my health.",
+      "reframe": "Occasional sleep loss has no major long-term effects. Chronic insomnia does carry risk, but it's modifiable through behavioral therapy like CBT-I — and anxiety about sleep is itself more harmful than the sleep loss.",
+      "socratic_question": "If insomnia really caused fast damage, sleep clinic patients would be much sicker. Many live and work normally for years. What does that tell us?",
+      "keywords": ["damage health", "illness", "heart", "immune", "cancer", "long-term harm"]
+    },
+    {
+      "id": "dbas_control_loss",
+      "category": "Loss-of-control anxiety",
+      "belief": "I worry I've lost the ability to sleep.",
+      "reframe": "Sleep is an automatic physiological process, not a skill. You don't 'forget' how. The more you try to control it, the harder it gets — letting go is itself what lets sleep come.",
+      "socratic_question": "Do you have to think about how to breathe? Sleep is similar — it returns when you stop reaching for it.",
+      "keywords": ["lost the ability", "broken", "can't sleep anymore", "ever again", "never"]
+    },
+    {
+      "id": "dbas_emotional_impact",
+      "category": "Emotion attribution",
+      "belief": "Bad sleep ruins my mood and makes me irritable.",
+      "reframe": "Sleep does affect mood — but anxiety and worry also make you read your mood as 'because of bad sleep'. The two are bidirectional, not one-way.",
+      "socratic_question": "How much of today's irritability is really from last night — and how much from things still bothering you?",
+      "keywords": ["bad mood", "irritable", "moody", "all because I didn't sleep"]
+    },
+    {
+      "id": "dbas_medication_only",
+      "category": "Medication belief",
+      "belief": "Medication is the only reliable way to deal with insomnia.",
+      "reframe": "AASM and ACP guidelines list cognitive behavioral therapy (CBT-I) as **first-line** treatment for adult chronic insomnia — comparable to medication in effect and without dependence risk. Medication is for short-term/acute use; behavioral therapy is preferred long-term.",
+      "socratic_question": "If only meds worked, why would every major guideline put CBT-I first?",
+      "keywords": ["meds", "sleeping pills", "only", "have to take", "prescription"]
+    },
+    {
+      "id": "dbas_avoid_predict",
+      "category": "Illusion of control",
+      "belief": "I should be able to avoid, control, or predict insomnia.",
+      "reframe": "Sleep is like weather — you can create good conditions but can't force it. Trying to 'definitely sleep tonight' activates alertness systems and backfires.",
+      "socratic_question": "Last time you tried hardest to sleep, did control help — or do the opposite?",
+      "keywords": ["must sleep", "tonight has to", "control", "predict"]
+    },
+    {
+      "id": "dbas_alcohol_helps",
+      "category": "Alcohol misattribution",
+      "belief": "A drink helps me fall asleep.",
+      "reframe": "Alcohol does make you drowsy but disrupts deep sleep and REM, leading to mid-night wakings and early waking — worsening insomnia overall. There are dependence and health risks too.",
+      "socratic_question": "After a drink to sleep, how's the back half of your night?",
+      "keywords": ["drink", "wine", "alcohol", "nightcap"]
+    },
+    {
+      "id": "dbas_recover_lost_sleep",
+      "category": "Recovery misattribution",
+      "belief": "I can make up for lost sleep on the weekend or later.",
+      "reframe": "Sleep doesn't 'bank'. Catching up and sleeping in disrupt circadian rhythm and make the next few days harder. A fixed wake time is core to SRT (Sleep Restriction Therapy).",
+      "socratic_question": "After sleeping in until noon Saturday, can you fall asleep Sunday night as easily as usual?",
+      "keywords": ["catch up", "weekend sleep", "make up", "sleep in"]
+    },
+    {
+      "id": "dbas_attribute_daytime",
+      "category": "Single-cause attribution for daytime issues",
+      "belief": "Tired and unfocused today? It's because I slept badly.",
+      "reframe": "Pinning everything on sleep strengthens sleep anxiety (makes sleep a 'threat'). Stress, diet, exercise, and mood all contribute to daytime feeling — sleep is one piece.",
+      "socratic_question": "If you listed the 3 things shaping how you feel today, how many actually have nothing to do with sleep?",
+      "keywords": ["all because of sleep", "if I slept", "blame sleep"]
+    },
+    {
+      "id": "dbas_predict_tonight",
+      "category": "Tonight prediction",
+      "belief": "I can tell whether tonight will be a good or bad night.",
+      "reframe": "Predictions become self-fulfilling — expecting 'tonight will be bad' triggers alertness and disrupts sleep. Each night is independent; don't play yesterday's script tonight.",
+      "socratic_question": "Last time you predicted insomnia and got it — was the prediction right, or did it cause it?",
+      "keywords": ["tonight again", "definitely won't sleep", "I just know", "feeling"]
+    },
+    {
+      "id": "dbas_chemical_imbalance",
+      "category": "Pathology misattribution",
+      "belief": "My insomnia must be from a chemical imbalance.",
+      "reframe": "Most chronic insomnia is maintained by behavior, cognition, and emotion (the 3P model). Even when physiological triggers exist, behavioral therapy is still first-line. Framing it purely as 'biology' makes people give up the parts they can change.",
+      "socratic_question": "If it were purely chemical, why does adjusting routines and thoughts work for so many people?",
+      "keywords": ["chemical", "hormone", "imbalance", "born this way", "wired wrong"]
+    },
+    {
+      "id": "dbas_giving_up_activity",
+      "category": "Avoidance behavior",
+      "belief": "I need to cut down on daytime activities so I have energy to handle insomnia.",
+      "reframe": "Less daytime activity → less energy expenditure → lower sleep drive → harder to sleep. Maintaining activity (especially regular exercise + sun) is key to CBT-I.",
+      "socratic_question": "When you cut activities back, did sleep actually improve — or get worse?",
+      "keywords": ["no exercise", "save energy", "rest more", "skip"]
+    },
+    {
+      "id": "dbas_worry_about_consequences",
+      "category": "Rumination about consequences",
+      "belief": "Bad sleep makes me worry about everything, and the worry makes me sleep worse.",
+      "reframe": "You're already seeing the loop — that itself is the way out. Decouple sleep from worry: park tonight's worries for tomorrow (the worry box), so the bed becomes associated only with rest.",
+      "socratic_question": "What you're worrying about — does it have to be solved right now, or can it move to a designated 'worry time' tomorrow?",
+      "keywords": ["worry and then", "more I think more I", "keeps coming back"]
+    },
+    {
+      "id": "dbas_ruining_life",
+      "category": "Catastrophizing life impact",
+      "belief": "Insomnia is ruining my whole life.",
+      "reframe": "Insomnia makes life harder, but 'ruining' is all-or-nothing. Place it back in proportion: which things this week were actually affected? Which weren't?",
+      "socratic_question": "Six months from now, will insomnia be the thing that 'ruined your life' — or the moment you started learning to take care of yourself?",
+      "keywords": ["ruined", "over", "hopeless", "broken", "failure", "whole life"]
+    },
+    {
+      "id": "dbas_force_recovery",
+      "category": "Forcing sleep",
+      "belief": "I have to try hard to fall asleep, or insomnia wins.",
+      "reframe": "Sleep is allowed, not forced. 'I must sleep' is one of the central maintainers of insomnia (stimulus-control therapy specifically targets breaking this link).",
+      "socratic_question": "On the nights you tried hardest to sleep, were they better — or worse?",
+      "keywords": ["try hard", "must sleep", "force myself", "make myself"]
+    }
+  ]
+}

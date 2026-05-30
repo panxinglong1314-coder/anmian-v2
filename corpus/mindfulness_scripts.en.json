@@ -1,0 +1,121 @@
+{
+  "_meta": {
+    "title": "Pre-sleep mindfulness scripts (English)",
+    "source": "Adapted from public MBSR/MBCT teaching materials (Jon Kabat-Zinn, UMass 1979 →; UCLA Mindful Awareness Research Center open scripts) and Thich Nhat Hanh's published mindful-breathing teachings. All script text is rewritten for bedside context — soft tone, slow pace.",
+    "license": "Original MBSR framework is academically open; UCLA MARC guides are CC BY-NC-SA. Rewritten text is project-licensed and commercially usable.",
+    "note": "TTS-friendly scripts with <pause:Xs/> markers. The LLM can also use the 'thoughts as clouds' / 'accept the anxiety' patterns as conversational scaffolding.",
+    "version": "1.0",
+    "updated": "2026-05-30"
+  },
+  "mindfulness_scripts": [
+    {
+      "id": "thoughts_as_clouds",
+      "name": "Thoughts as clouds",
+      "duration_minutes": 5,
+      "best_for": ["mind won't stop", "rumination", "pre-sleep worry"],
+      "applicable_anxiety_level": [1, 2, 3, 4],
+      "tts_params": { "rate": 0.78, "pitch": -1, "pause_default_ms": 800 },
+      "intro": "We're not going to chase the thoughts away. If they come, let them come.",
+      "steps": [
+        "Find a comfortable position.<pause:1.5s/> You can keep your eyes open or close them.",
+        "Picture yourself lying on grass, looking up at the sky.<pause:2s/> The sky is wide, and blue.",
+        "Each thought is a cloud.<pause:1.5s/> It drifts in from one side,<pause:1s/> and it drifts out the other.",
+        "You don't have to catch it.<pause:1s/> You don't have to push it away.<pause:1.5s/> You're just lying there, watching.",
+        "If a particularly big cloud comes — say, 'what about tomorrow' —<pause:1s/> let it drift, slowly.<pause:2s/> It doesn't belong to the sky. It's just passing through.",
+        "If you notice you went with a cloud,<pause:1s/> that's okay.<pause:1s/> Come back to the grass.<pause:1.5s/> Watch the sky again.",
+        "The sky doesn't get smaller because there are more clouds.<pause:2s/> Neither do you."
+      ],
+      "closure": "Underneath this big sky, breathe slowly.<pause:3s/> You can stay here."
+    },
+    {
+      "id": "body_scan_brief",
+      "name": "Brief body scan (5 minutes before bed)",
+      "duration_minutes": 5,
+      "best_for": ["body tension", "can't relax", "just got into bed"],
+      "applicable_anxiety_level": [2, 3, 4, 5],
+      "tts_params": { "rate": 0.75, "pitch": -2, "pause_default_ms": 1000 },
+      "intro": "We're going to do a very short body scan.<pause:1s/> Nothing to do — just looking.",
+      "steps": [
+        "Bring attention to your toes.<pause:2s/> Cool or warm?<pause:2s/> Don't judge — just notice.",
+        "Slowly, let attention move up to your calves.<pause:1.5s/> Notice where the mattress is touching them.<pause:2s/>",
+        "Continue up to your thighs.<pause:1.5s/> They're being held completely by the bed.<pause:2s/> You don't have to grip.",
+        "Your stomach.<pause:1s/> It rises and falls gently with your breath.<pause:2s/>",
+        "Your chest.<pause:1s/> Maybe there's still a little tightness.<pause:1s/> You don't have to make it release.<pause:1s/> Just notice it's there.",
+        "Your shoulders.<pause:1s/> They carried a lot today.<pause:1.5s/> Let them drop a little.<pause:2s/>",
+        "Neck, face, forehead.<pause:1.5s/> The jaw can soften.<pause:2s/>",
+        "Now feel the whole body at once,<pause:2s/> from head to toe,<pause:2s/> all of it on this bed."
+      ],
+      "closure": "You don't have to do anything.<pause:2s/> The body knows how to rest.<pause:3s/>"
+    },
+    {
+      "id": "accept_insomnia_anxiety",
+      "name": "Accepting insomnia anxiety (for when the worry about not sleeping is the problem)",
+      "duration_minutes": 4,
+      "best_for": ["the harder you try the worse it gets", "fear of insomnia itself", "secondary anxiety"],
+      "applicable_anxiety_level": [3, 4, 5],
+      "tts_params": { "rate": 0.78, "pitch": -1, "pause_default_ms": 900 },
+      "intro": "You don't have to fall asleep right now.<pause:1.5s/> Really.",
+      "steps": [
+        "You're already lying down.<pause:1.5s/> That itself is rest.",
+        "If there's a voice saying 'I have to sleep or I'm doomed' —<pause:1.5s/> that voice is doing its job,<pause:1s/> trying to worry on your behalf.",
+        "You can say to it: 'Thanks for the heads up.<pause:1s/> I'm not solving this tonight. I'm resting.'<pause:2s/>",
+        "Sleep is not a task.<pause:1.5s/> It comes when you stop having tasks.",
+        "So right now,<pause:1s/> nothing to do.<pause:2s/> Don't make yourself sleep,<pause:1.5s/> don't push the anxiety away,<pause:1.5s/> don't 'relax properly'.",
+        "Just be here,<pause:1.5s/> breathe,<pause:1s/> wait."
+      ],
+      "closure": "Not sleeping is also a kind of rest.<pause:2s/> Body in bed — already recovering.<pause:3s/>"
+    },
+    {
+      "id": "self_compassion_break",
+      "name": "Self-Compassion Break",
+      "duration_minutes": 3,
+      "best_for": ["self-criticism", "angry at the insomnia", "blaming yourself for not sleeping"],
+      "applicable_anxiety_level": [2, 3, 4, 5],
+      "tts_params": { "rate": 0.8, "pitch": -1, "pause_default_ms": 800 },
+      "intro": "This is Kristin Neff's three-sentence practice.<pause:1s/> Short, but real.",
+      "steps": [
+        "Place a hand gently on your chest.<pause:2s/> Feel its warmth.",
+        "First line,<pause:0.5s/> say to yourself:<pause:1s/> 'This is a hard moment.'<pause:2s/> Acknowledging what is.",
+        "Second:<pause:1s/> 'Not sleeping is something many people go through.<pause:1.5s/> I'm not alone in this.'<pause:2s/>",
+        "Third:<pause:1s/> 'May I be a little kinder to myself.<pause:1.5s/> May I be looked after tonight — by me.'<pause:2s/>",
+        "You don't have to believe the words.<pause:1s/> Just say them,<pause:1s/> and notice where they land in your body."
+      ],
+      "closure": "You're already doing what you can.<pause:2s/> That's enough.<pause:3s/>"
+    },
+    {
+      "id": "feet_on_the_floor",
+      "name": "Feet on the floor (after the 20-minute rule)",
+      "duration_minutes": 3,
+      "best_for": ["been lying awake a long time", "pair with stimulus control therapy"],
+      "applicable_anxiety_level": [2, 3, 4],
+      "tts_params": { "rate": 0.82, "pitch": 0, "pause_default_ms": 700 },
+      "intro": "If you've been lying awake a long time, getting up briefly actually helps sleep come back. This is CBT-I's stimulus control.",
+      "steps": [
+        "Sit up slowly,<pause:1s/> feet on the floor.",
+        "Go to the living room or another room.<pause:1s/> Don't stay in bed.",
+        "Dim the lights.<pause:1s/> No phone.",
+        "Do something boring:<pause:1s/> flip through a book you don't care about,<pause:1s/> or just sit.",
+        "Wait until real drowsiness comes back —<pause:1s/> heavy eyelids, yawning, head nodding while seated —<pause:1.5s/> then go back to bed.",
+        "If you lie down for 20 more minutes and still don't sleep,<pause:1s/> get up again."
+      ],
+      "closure": "You're not punishing yourself.<pause:1.5s/> You're teaching your brain: bed = sleep, not bed = anxiety.<pause:2s/>"
+    },
+    {
+      "id": "rain_method_self_inquiry",
+      "name": "RAIN self-inquiry (for emotions that surface)",
+      "duration_minutes": 4,
+      "best_for": ["specific emotion came up", "stuck on something", "can't let go"],
+      "applicable_anxiety_level": [3, 4, 5],
+      "tts_params": { "rate": 0.78, "pitch": -1, "pause_default_ms": 900 },
+      "intro": "RAIN is Tara Brach's four steps:<pause:0.5s/> Recognize,<pause:0.5s/> Allow,<pause:0.5s/> Investigate,<pause:0.5s/> Nurture.",
+      "steps": [
+        "R · Recognize:<pause:1s/> what's in the body right now?<pause:2s/> Give it a name — anxiety? worry? hurt?",
+        "A · Allow:<pause:1s/> don't try to push it out.<pause:1.5s/> Say to it: 'You can be here.'<pause:2s/>",
+        "I · Investigate:<pause:1s/> where in the body is this feeling?<pause:1.5s/> Chest? Throat? Stomach?<pause:2s/> What is it telling you?",
+        "N · Nurture:<pause:1s/> ask yourself,<pause:1s/> 'What do I need right now?'<pause:1.5s/> Maybe a kind word,<pause:1s/> maybe a hand on the chest.<pause:2s/>",
+        "Give yourself that.<pause:2s/>"
+      ],
+      "closure": "Emotions don't need solving. They need company.<pause:3s/>"
+    }
+  ]
+}
