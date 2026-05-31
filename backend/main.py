@@ -515,6 +515,8 @@ class UserAuthMiddleware(BaseHTTPMiddleware):
         "/api/v1/auth/email/request",
         "/api/v1/auth/email/verify",
         "/api/v1/auth/google",
+        # v2.5 B2B: 注册式企业入口 (一步: 邮箱+验证码+邀请码),无需先有 JWT
+        "/api/v1/auth/org/register",
         "/api/v1/version",
     }
 
@@ -707,6 +709,128 @@ async def auth_email_verify(body: EmailVerifyBody):
 
     token = create_jwt_for_user(user_id, openid=email)
     return {"token": token, "user_id": user_id, "is_new_user": is_new_user}
+
+
+# ==================== B2B 企业入职 (v2.5) ====================
+# 三个路由:
+# 1. /auth/org/register  零起点: 邮箱+验证码+邀请码 → 创账号并绑企业(白名单)
+# 2. /auth/org/join      已有 JWT 的用户绑定企业(为现有 B2C 用户加入企业用)
+# 3. /auth/org/leave     员工自愿退订企业(只清归属,不删个人数据)
+
+class OrgRegisterBody(BaseModel):
+    email: str
+    code: str          # 邮箱验证码(同 /auth/email/verify 用的码)
+    invite_code: str   # 企业邀请码
+
+
+class OrgJoinBody(BaseModel):
+    invite_code: str
+
+
+@app.post("/api/v1/auth/org/register")
+async def auth_org_register(body: OrgRegisterBody):
+    """一步:邮箱+验证码+邀请码 → 创账号(or 复用现有)+绑企业 → 返回带 org_id 的 JWT。
+
+    HR 通过 CSV 导入员工后,员工凭邀请码 + 邮箱完成 onboarding 的主流路径。
+    """
+    from services.org import bind_user_to_org, get_org
+
+    email = (body.email or "").strip().lower()
+    code = (body.code or "").strip()
+    invite_code = (body.invite_code or "").strip().upper()
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="Invalid email address")
+    if not invite_code:
+        raise HTTPException(status_code=400, detail="Invite code is required")
+
+    # 复用 email verify 的码逻辑(避免和 /auth/email/verify 走两遍验证)
+    stored = redis_client.get(f"email_code:{email}")
+    if stored is None:
+        raise HTTPException(status_code=401, detail="Code expired or not found. Request a new one.")
+    stored_str = stored.decode() if isinstance(stored, bytes) else str(stored)
+    if not code or not hmac.compare_digest(stored_str, code):
+        raise HTTPException(status_code=401, detail="Incorrect code")
+
+    # 1) 创建/取出用户(同 /auth/email/verify 路径)
+    user_id = _email_user_id(email)
+    pkey = f"user_profile:{user_id}"
+    is_new_user = not redis_client.exists(pkey)
+    if is_new_user:
+        from datetime import datetime as _dt
+        redis_client.set(pkey, json.dumps({
+            "user_id": user_id, "email": email, "auth": "email",
+            "created_at": _dt.now().isoformat(),
+        }, ensure_ascii=False))
+
+    # 2) 绑定企业
+    ok, msg, info = bind_user_to_org(user_id, invite_code)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+
+    # 3) 清码(防重放) + 签带 org_id 的 JWT
+    redis_client.delete(f"email_code:{email}")
+    redis_client.delete(f"email_code_rl:{email}")
+    org_id = info["org_id"]
+    team_id = info["team_id"] or None
+    token = create_jwt_for_user(user_id, openid=email, org_id=org_id, team_id=team_id)
+    return {
+        "token": token,
+        "user_id": user_id,
+        "is_new_user": is_new_user,
+        "org": {
+            "org_id": org_id,
+            "org_name": info["org_name"],
+            "team_id": team_id or "",
+        },
+    }
+
+
+@app.post("/api/v1/auth/org/join")
+async def auth_org_join(body: OrgJoinBody, user: AuthUser = Depends(get_current_user)):
+    """已登录用户(B2C 或其它身份)用邀请码绑定企业,重签 JWT 加 org_id。
+
+    场景:已有微信 / 邮箱个人账户的员工,后来 HR 邀请加入企业 — 不必重新注册。
+    """
+    from services.org import bind_user_to_org
+    invite_code = (body.invite_code or "").strip().upper()
+    if not invite_code:
+        raise HTTPException(status_code=400, detail="Invite code is required")
+
+    ok, msg, info = bind_user_to_org(user.user_id, invite_code)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+
+    org_id = info["org_id"]
+    team_id = info["team_id"] or None
+    # 重签 JWT,复用现 openid(不变 user_id)
+    token = create_jwt_for_user(
+        user.user_id, openid=user.openid,
+        org_id=org_id, team_id=team_id, role=user.role,
+    )
+    return {
+        "token": token,
+        "user_id": user.user_id,
+        "org": {
+            "org_id": org_id,
+            "org_name": info["org_name"],
+            "team_id": team_id or "",
+        },
+    }
+
+
+@app.post("/api/v1/auth/org/leave")
+async def auth_org_leave(user: AuthUser = Depends(get_current_user)):
+    """员工自愿退订企业。只清企业归属索引,user:profile / user:memory /
+    sleep_diary 等个人数据完整保留(切换成 B2C 个人用户)。重签不带 org_id 的 JWT。"""
+    from services.org import unbind_user
+    was_in_org = unbind_user(user.user_id)
+    # 重签 JWT 去掉 org_id
+    token = create_jwt_for_user(user.user_id, openid=user.openid)
+    return {
+        "token": token,
+        "user_id": user.user_id,
+        "was_in_org": bool(was_in_org),
+    }
 
 
 # ==================== Google 登录（Sign in with Google）====================
