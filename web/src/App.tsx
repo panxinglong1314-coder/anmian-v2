@@ -15,6 +15,7 @@ const Subscribe = lazy(() => import("./pages/Subscribe"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Contact = lazy(() => import("./pages/Contact"));
+const Enterprise = lazy(() => import("./pages/Enterprise"));
 
 function Loading() {
   return (
@@ -43,6 +44,8 @@ export default function App() {
         {/* 营销官网(公开) */}
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        {/* 企业版宣传(公开,双语) */}
+        <Route path="/enterprise" element={<Enterprise />} />
         {/* 法律/联系页(公开,双语) */}
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />

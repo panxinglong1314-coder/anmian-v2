@@ -51,6 +51,7 @@ export default function Landing() {
           <a href="#product" className="px-3 py-1.5 rounded-full text-text/75 hover:text-text hover:bg-white/5 transition">{t("landing.nav.product")}</a>
           <a href="#features" className="px-3 py-1.5 rounded-full text-text/75 hover:text-text hover:bg-white/5 transition">{t("landing.nav.features")}</a>
           <a href="#science" className="px-3 py-1.5 rounded-full text-text/75 hover:text-text hover:bg-white/5 transition">{t("landing.nav.science")}</a>
+          <Link to="/enterprise" className="px-3 py-1.5 rounded-full text-gold hover:text-goldlight hover:bg-gold/5 transition font-medium">{t("enterprise.nav.badge")}</Link>
         </div>
         <div className="flex items-center gap-2">
           <LanguageToggle />
@@ -173,6 +174,24 @@ export default function Landing() {
         <p className="text-center text-gold text-sm tracking-widest uppercase">{t("landing.arch.label")}</p>
         <h2 className="text-center text-2xl sm:text-3xl font-bold mt-2">{t("landing.arch.title")}</h2>
         <ArchCarousel />
+      </section>
+
+      {/* ENTERPRISE callout — 链接到 /enterprise 全页 */}
+      <section className="px-6 py-16 max-w-4xl mx-auto">
+        <Link
+          to="/enterprise"
+          className="group block rounded-3xl bg-gradient-to-br from-gold/15 via-cardx/60 to-navyx/60 border border-gold/20 p-8 sm:p-10 hover:border-gold/40 transition"
+        >
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+            <div className="text-5xl flex-shrink-0">🏢</div>
+            <div className="flex-1">
+              <p className="text-gold text-xs tracking-widest uppercase mb-2">{t("enterprise.nav.badge")}</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-text">{t("enterprise.hero.title").split("\n").join(" ")}</h3>
+              <p className="text-txt2 text-sm mt-3 leading-relaxed">{t("enterprise.hero.tagline")}</p>
+            </div>
+            <div className="flex-shrink-0 text-gold text-2xl group-hover:translate-x-1 transition">→</div>
+          </div>
+        </Link>
       </section>
 
       {/* STORY */}

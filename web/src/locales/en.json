@@ -223,5 +223,158 @@
     "chinese": "中文",
     "signOut": "Sign out",
     "back": "Back"
+  },
+  "enterprise": {
+    "nav": {
+      "badge": "for HR",
+      "problem": "Why",
+      "how": "How",
+      "privacy": "Privacy",
+      "sample": "Sample report",
+      "consumer": "For individuals",
+      "cta": "Talk to sales"
+    },
+    "hero": {
+      "label": "ZHIMIAN FOR HR · Team mental-wellness pulse",
+      "title": "A quiet mental-wellness\npulse for your team",
+      "tagline": "Employees get an AI bedtime companion. You get anonymized team-level insights on stress, sleep, and anxiety trends. See the risk — never the individual."
+    },
+    "problem": {
+      "label": "What we solve",
+      "title": "Mental health is a hidden cost, and EAPs rarely get used",
+      "desc": "Traditional Employee Assistance Programs see <5% utilization — not because employees don't need help, but because the barrier is too high.",
+      "cards": [
+        {
+          "icon": "😴",
+          "title": "Insomnia isn't 'whining'",
+          "body": "30-40% of working adults report chronic insomnia. Work stress is the leading trigger. Few will take time off for a clinic visit."
+        },
+        {
+          "icon": "📉",
+          "title": "Stress shows up too late",
+          "body": "By the time someone resigns, burns out, or makes mistakes, HR is months behind. You need an early signal, not a postmortem."
+        },
+        {
+          "icon": "🕵️",
+          "title": "Employees avoid EAP",
+          "body": "Fear of being labeled, hurting their career, looking 'fragile'. An anonymous AI removes that barrier entirely."
+        }
+      ]
+    },
+    "how": {
+      "label": "How it works",
+      "title": "Three steps, no training required",
+      "desc": "For employees: a bedtime AI companion. For HR: one report per month with the signals that matter.",
+      "steps": [
+        {
+          "num": "1",
+          "title": "HR uploads the roster",
+          "body": "Drop a CSV of employee emails. We send invite links and one-time codes. Employees sign up with email + invite."
+        },
+        {
+          "num": "2",
+          "title": "Employees just use it",
+          "body": "Bedtime chats, worry journaling, sleep tracking — same as the consumer app. The AI doesn't know which company they're in."
+        },
+        {
+          "num": "3",
+          "title": "You get a monthly team report",
+          "body": "Sleep-efficiency distribution, stress trends, worry themes (work / family / health), crisis event counts — fully team-level aggregated."
+        }
+      ]
+    },
+    "privacy": {
+      "label": "Our promise to employees",
+      "title": "HR will never see individuals",
+      "desc": "This is the most important design choice. Employees will only use it if they trust their employer can't see their details.",
+      "points": [
+        {
+          "icon": "🛡️",
+          "title": "k=5 anonymity floor",
+          "body": "Any team or department metric with fewer than 5 people returns 'insufficient data', not a real number. Small teams roll up to the department level — no individual can ever be backed out."
+        },
+        {
+          "icon": "🔒",
+          "title": "Conversation content never leaves",
+          "body": "Everything an employee says to the AI is used only to respond in the moment. HR dashboards never show conversation snippets, worry text, or raw sleep entries."
+        },
+        {
+          "icon": "📋",
+          "title": "Mandatory informed consent",
+          "body": "Employees must explicitly opt-in at first sign-up, with clear language: 'your employer sees aggregate data only, never your identity'. They can leave any time."
+        },
+        {
+          "icon": "🌍",
+          "title": "Data residency you control",
+          "body": "Chinese-market clients: data stays in mainland China (GB 18030 + 等保 2.0). International clients: EU / US options available on request, GDPR-aligned."
+        }
+      ],
+      "crisisTitle": "🚨 On crisis events — we deliberately don't notify HR",
+      "crisisBody": "When an employee mentions self-harm or suicide, the AI routes them to professional resources (988 Suicide & Crisis Lifeline, Crisis Text Line, regional hotlines). HR only sees aggregate counts ('N high-risk events on team Y this month'). This is not a gap — it's the right legal and ethical choice. It keeps employees safe and shields the employer from 'saw it and didn't act' liability."
+    },
+    "sample": {
+      "label": "What you actually see",
+      "title": "Sample monthly report",
+      "desc": "Below is a sample view for a fictional company. Real reports include a PDF download with 6 detailed sections.",
+      "reportFor": "Client",
+      "reportOrg": "Acme Corp · Engineering (n=42)",
+      "reportPeriod": "Period",
+      "metrics": [
+        {
+          "label": "Avg sleep efficiency",
+          "value": "73%",
+          "hint": "↓ 5% vs last month, below 80% industry benchmark"
+        },
+        {
+          "label": "Top worry domain",
+          "value": "Work",
+          "hint": "62% of worry entries focus on work stress"
+        },
+        {
+          "label": "Avg calm-down turns",
+          "value": "5.3",
+          "hint": "AI takes 5.3 turns on average to help an employee de-escalate; up from last month"
+        }
+      ],
+      "insightLabel": "Insight for this month",
+      "insightBody": "Engineering's sleep efficiency dropped for 3 weeks in a row, with work-related worry climbing to 62% (+18%). Consider reviewing recent project pressures or scheduling a low-key team activity at month-end. Two high-risk events occurred this month — both received AI-guided professional resources.",
+      "disclaimer": "* The numbers above are illustrative, not from any real client."
+    },
+    "faq": {
+      "label": "FAQ",
+      "title": "What HR usually asks",
+      "items": [
+        {
+          "q": "How much does it cost?",
+          "a": "Annual per-seat license. First year includes onboarding, customization, and the first monthly report. Detailed pricing (50 / 200 / 500+ seats) — please contact sales."
+        },
+        {
+          "q": "What if employees don't want to use it?",
+          "a": "In our experience, 'anonymous + HR doesn't see you' is the key to adoption. We provide an employee-comms template to reduce rollout friction. Clients who don't hit activation targets in year 1 can request a renewal discount."
+        },
+        {
+          "q": "Is the data used to train AI models?",
+          "a": "No. Enterprise client data is fully siloed and never enters any AI training set. This is written into every contract."
+        },
+        {
+          "q": "Can we integrate with our SSO?",
+          "a": "Day 1: email + invite code. SAML / OIDC / DingTalk / Lark / WeCom — on the V2 roadmap, available for early reservation."
+        },
+        {
+          "q": "What happens when an employee leaves?",
+          "a": "One click in your HR console removes them from the org. Their personal data stays available to them as an individual user, but no longer feeds aggregation."
+        }
+      ]
+    },
+    "cta": {
+      "label": "Next step",
+      "title": "Ready to take your team's pulse?",
+      "sub": "We offer a 30-day pilot (up to 100 seats, NDA-protected) so you can see what your team actually looks like before committing.",
+      "button": "Talk to sales",
+      "emailSubject": "ZhiMian Enterprise - pilot inquiry"
+    },
+    "footer": {
+      "consumer": "For individuals"
+    }
   }
 }
