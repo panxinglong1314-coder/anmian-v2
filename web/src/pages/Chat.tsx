@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { streamChat, AuthError, QuotaError, type ChatEvent } from "../lib/api";
+import { streamChat, AuthError, QuotaError, getMe, type ChatEvent, type MeResponse } from "../lib/api";
 import { clearToken } from "../lib/auth";
 import { currentLocale } from "../i18n";
 import { ASRClient } from "../lib/asr";
@@ -58,6 +58,7 @@ export default function Chat() {
   const [quotaReached, setQuotaReached] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
+  const [me, setMe] = useState<MeResponse | null>(null);
   const sessionRef = useRef(loadSessionId());
   const scrollRef = useRef<HTMLDivElement>(null);
   const asrRef = useRef<ASRClient | null>(null);
@@ -66,6 +67,17 @@ export default function Chat() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
+
+  // v2.5: 加载身份 + 企业归属(用于头部 badge)。失败/无 org 静默不渲染 badge。
+  useEffect(() => {
+    let mounted = true;
+    getMe()
+      .then((d) => {
+        if (mounted) setMe(d);
+      })
+      .catch(() => { /* ignore — 显示纯个人版即可 */ });
+    return () => { mounted = false; };
+  }, []);
 
   // persist messages so they survive tab switches, reloads, and browser restarts
   useEffect(() => {
@@ -221,6 +233,18 @@ export default function Chat() {
 
   return (
     <div className="h-full flex flex-col">
+      {/* v2.5 B2B: 企业 badge — 用户属于某企业时,顶部显示「XX 公司提供」+ 隐私链接 */}
+      {me?.org && (
+        <div className="bg-gold/10 border-b border-gold/20 px-4 py-1.5 text-[11px] text-gold/90 flex items-center justify-between gap-2">
+          <span className="truncate">
+            🏢 {t("chat.orgBadge.providedBy", { name: me.org.org_name })}
+            {me.org.team_name ? ` · ${me.org.team_name}` : ""}
+          </span>
+          <Link to="/app/profile" className="underline whitespace-nowrap hover:text-gold">
+            {t("chat.orgBadge.privacy")}
+          </Link>
+        </div>
+      )}
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-night-line">
         <div className="flex items-center gap-2">

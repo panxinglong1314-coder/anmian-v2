@@ -250,6 +250,39 @@ export function getDiaryHistory(days = 7) {
   return authRequest<{ records: SleepDiary[]; count: number }>(`/api/v1/sleep/diary/history?days=${days}`);
 }
 
+// v2.5 B2B: 用户当前身份 + 企业归属
+export interface MeResponse {
+  user_id: string;
+  openid: string;
+  role: "user" | "hr_admin";
+  org: {
+    org_id: string;
+    org_name: string;
+    industry: string;
+    team_id: string;
+    team_name: string;
+  } | null;
+}
+
+export function getMe() {
+  return authRequest<MeResponse>(`/api/v1/auth/me`);
+}
+
+// 员工绑定企业(已登录用户用邀请码加入)
+export function joinOrg(inviteCode: string) {
+  return authRequest<{ token: string; user_id: string; org: { org_id: string; org_name: string; team_id: string } }>(`/api/v1/auth/org/join`, {
+    method: "POST",
+    body: JSON.stringify({ invite_code: inviteCode }),
+  });
+}
+
+// 员工退订企业
+export function leaveOrg() {
+  return authRequest<{ token: string; user_id: string; was_in_org: boolean }>(`/api/v1/auth/org/leave`, {
+    method: "POST",
+  });
+}
+
 export interface SleepWindow {
   recommended_bedtime?: string;
   recommended_waketime?: string;

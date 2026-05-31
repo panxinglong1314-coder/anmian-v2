@@ -148,7 +148,22 @@
     "deleteWarn": "This permanently erases your chats, sleep records, worries, and profile. This cannot be undone.",
     "deleteCancel": "Keep account",
     "deleteConfirm": "Delete forever",
-    "deleteError": "Couldn't delete. Please try again."
+    "deleteError": "Couldn't delete. Please try again.",
+    "org": {
+      "title": "Your enterprise benefit",
+      "privacyNote": "Your employer can see team-level anonymous statistics (e.g. avg sleep quality, stress trends) — never what you say to the AI.",
+      "leaveButton": "Leave enterprise account",
+      "leaveTitle": "Leave the enterprise account?",
+      "leaveWarn": "Your conversations and sleep records stay yours, but stop contributing to company aggregates.",
+      "leaveConfirm": "Confirm leave",
+      "leaveSuccess": "You've left the enterprise account.",
+      "leaveError": "Couldn't leave. Please try again.",
+      "joinPrompt": "Join with an enterprise invite code",
+      "invitePlaceholder": "6-char invite code",
+      "joinButton": "Join",
+      "joinSuccess": "Joined {{name}}.",
+      "joinError": "Invite code is invalid or expired."
+    }
   },
   "login": {
     "title": "Welcome to ZhiMian",
@@ -180,6 +195,10 @@
     "micInUse": "The microphone is in use by another app.",
     "micInsecure": "Microphone needs a secure (HTTPS) connection.",
     "newSession": "New session",
+    "orgBadge": {
+      "providedBy": "Provided by {{name}} · anonymous aggregation",
+      "privacy": "Privacy"
+    },
     "quotaTitle": "You've reached today's free limit",
     "quotaBody": "Your free daily AI time is used up. Upgrade for more, or come back tomorrow.",
     "quotaCta": "See plans",

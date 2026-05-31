@@ -859,6 +859,33 @@ class EmployeeImportBody(BaseModel):
     expire_days: int = 14
 
 
+@app.get("/api/v1/auth/me")
+async def auth_me(user: AuthUser = Depends(get_current_user)):
+    """返当前 JWT 解析出的身份 + 企业归属(若有)。供前端渲染 badge / profile 用。"""
+    out = {
+        "user_id": user.user_id,
+        "openid": user.openid,
+        "role": user.role,
+        "org": None,
+    }
+    if user.org_id:
+        from services.org import get_org, get_team
+        org = get_org(user.org_id)
+        if org:
+            out["org"] = {
+                "org_id": user.org_id,
+                "org_name": org.get("name", ""),
+                "industry": org.get("industry", ""),
+                "team_id": user.team_id or "",
+                "team_name": "",
+            }
+            if user.team_id:
+                t = get_team(user.team_id)
+                if t:
+                    out["org"]["team_name"] = t.get("team_name", "")
+    return out
+
+
 @app.get("/api/v1/org/insights/overview")
 async def org_insights_overview(
     period: str = Query("30d"),

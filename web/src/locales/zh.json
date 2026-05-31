@@ -148,7 +148,22 @@
     "deleteWarn": "将永久删除你的对话、睡眠记录、担忧和资料,不可恢复。",
     "deleteCancel": "保留账号",
     "deleteConfirm": "永久删除",
-    "deleteError": "删除失败,请重试。"
+    "deleteError": "删除失败,请重试。",
+    "org": {
+      "title": "你的企业福利",
+      "privacyNote": "公司可以看到团队层级的匿名统计(如平均睡眠质量、压力趋势),但永远看不到你和 AI 说了什么。",
+      "leaveButton": "退订企业账号",
+      "leaveTitle": "退订企业账号?",
+      "leaveWarn": "退订后你的对话、睡眠记录会保留,但不再算入公司聚合数据。",
+      "leaveConfirm": "确认退订",
+      "leaveSuccess": "已退订企业账号。",
+      "leaveError": "退订失败,请稍后重试。",
+      "joinPrompt": "用邀请码加入企业账号",
+      "invitePlaceholder": "6 位邀请码",
+      "joinButton": "加入",
+      "joinSuccess": "已加入 {{name}}。",
+      "joinError": "邀请码无效或已过期。"
+    }
   },
   "login": {
     "title": "欢迎来到知眠",
@@ -180,6 +195,10 @@
     "micInUse": "麦克风正被其他应用占用。",
     "micInsecure": "麦克风需要安全(HTTPS)连接。",
     "newSession": "新对话",
+    "orgBadge": {
+      "providedBy": "{{name}} 提供 · 数据匿名聚合",
+      "privacy": "了解隐私"
+    },
     "quotaTitle": "今日免费额度已用完",
     "quotaBody": "今天的免费 AI 时长用完啦。升级可获得更多，或明天再来。",
     "quotaCta": "查看方案",

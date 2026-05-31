@@ -76,6 +76,24 @@ const doc: Record<"en" | "zh", LegalDoc> = {
         ]
       },
       {
+        heading: "4b. Enterprise / employer-provided accounts",
+        blocks: [
+          {
+            type: "p",
+            text: "If you signed up using an invite code from your employer (enterprise account), what your employer can and cannot see is strictly limited:"
+          },
+          {
+            type: "ul",
+            items: [
+              "Your employer NEVER sees your identity tied to any specific conversation, sleep entry, worry, or crisis event.",
+              "Your employer ONLY sees team-level anonymized aggregates (e.g., \"average sleep efficiency on this team\", \"count of high-risk events this month\"). Teams smaller than 5 active members are not shown.",
+              "Crisis events: when you mention self-harm or suicide, ZhiMian routes you to professional resources (988 Suicide & Crisis Lifeline, etc.). Your employer is NOT notified of who triggered the event — only a team-level count.",
+              "You can leave the enterprise account at any time from your Profile. Your personal conversations, sleep records, and worries remain yours; they stop contributing to your employer's aggregates the moment you leave."
+            ]
+          }
+        ]
+      },
+      {
         heading: "5. Your rights",
         blocks: [
           {
@@ -195,6 +213,24 @@ const doc: Record<"en" | "zh", LegalDoc> = {
           {
             type: "p",
             text: "我们使用第三方 AI 服务处理您的语音转文字和 AI 对话请求。在此过程中，您的文字内容会被传输至 AI 服务提供商，但不会包含可用于识别您身份的信息。"
+          }
+        ]
+      },
+      {
+        heading: "四(B)、企业 / 公司提供的账号",
+        blocks: [
+          {
+            type: "p",
+            text: "如果你是通过公司提供的邀请码加入(企业版账号),公司能看到和不能看到的内容严格隔离:"
+          },
+          {
+            type: "ul",
+            items: [
+              "公司**永远**无法看到任何具体对话内容、睡眠条目、担忧文本、危机事件的身份信息。",
+              "公司**仅**看到团队层级的匿名聚合数据(如\"本团队平均睡眠效率\"、\"本月高风险事件计数\")。少于 5 名活跃成员的小团队不展示数据。",
+              "危机事件:你提到自伤/自杀时,知眠会引导你联系全国心理援助热线 (400-161-9995)、北京心理危机研究中心 (010-82951332) 等专业资源。公司**不会**被告知是谁触发的,只看到团队级数字计数。",
+              "你随时可以在「我的」页面退订企业账号。退订后你的对话、睡眠记录仍归你所有,但不再算入公司聚合数据。"
+            ]
           }
         ]
       },
