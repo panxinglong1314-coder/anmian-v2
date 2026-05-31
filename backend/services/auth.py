@@ -13,6 +13,12 @@ from infra.settings import settings
 class AuthUser(BaseModel):
     openid: str
     user_id: str
+    # v2.5: B2B 转型 — 若用户属于某企业,此处为 org_id;B2C 个人用户为 None
+    org_id: Optional[str] = None
+    # 若用户在企业的具体 team 下,记录 team_id;无 team 则 None
+    team_id: Optional[str] = None
+    # 角色:'user'(普通员工/个人) | 'hr_admin'(企业 HR 管理员)
+    role: str = "user"
 
 
 def create_jwt_token(openid: str) -> str:
@@ -24,20 +30,43 @@ def create_jwt_token(openid: str) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
-def create_jwt_for_user(user_id: str, openid: Optional[str] = None, days: int = 30) -> str:
-    """通用 JWT 签发：显式指定 user_id（用于邮箱/Apple/Google 等非微信身份源）。"""
+def create_jwt_for_user(
+    user_id: str,
+    openid: Optional[str] = None,
+    days: int = 30,
+    org_id: Optional[str] = None,
+    team_id: Optional[str] = None,
+    role: str = "user",
+) -> str:
+    """通用 JWT 签发：显式指定 user_id（用于邮箱/Apple/Google 等非微信身份源）。
+
+    v2.5: 可选附加 org_id/team_id/role,用于 B2B 转型。无这些字段时是 B2C 个人 token,
+    向后兼容现有所有调用方。
+    """
     payload = {
         "openid": openid or user_id,
         "user_id": user_id,
         "exp": datetime.utcnow() + timedelta(days=days),
     }
+    if org_id:
+        payload["org_id"] = org_id
+    if team_id:
+        payload["team_id"] = team_id
+    if role and role != "user":
+        payload["role"] = role
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
 def verify_jwt_token(token: str) -> Optional[AuthUser]:
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
-        return AuthUser(openid=payload["openid"], user_id=payload["user_id"])
+        return AuthUser(
+            openid=payload["openid"],
+            user_id=payload["user_id"],
+            org_id=payload.get("org_id"),
+            team_id=payload.get("team_id"),
+            role=payload.get("role", "user"),
+        )
     except jwt.PyJWTError:
         return None
 
