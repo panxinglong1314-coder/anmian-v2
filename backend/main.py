@@ -707,7 +707,15 @@ async def auth_email_verify(body: EmailVerifyBody):
             "created_at": _dt.now().isoformat(),
         }, ensure_ascii=False))
 
-    token = create_jwt_for_user(user_id, openid=email)
+    # v2.5: 注入 user 当前 org 归属 + role,让 token 自描述
+    from services.org import get_user_org, get_user_team, get_user_role
+    org_id = get_user_org(user_id)
+    team_id = get_user_team(user_id)
+    role = get_user_role(user_id)
+    token = create_jwt_for_user(
+        user_id, openid=email,
+        org_id=org_id, team_id=team_id, role=role,
+    )
     return {"token": token, "user_id": user_id, "is_new_user": is_new_user}
 
 
@@ -772,7 +780,11 @@ async def auth_org_register(body: OrgRegisterBody):
     redis_client.delete(f"email_code_rl:{email}")
     org_id = info["org_id"]
     team_id = info["team_id"] or None
-    token = create_jwt_for_user(user_id, openid=email, org_id=org_id, team_id=team_id)
+    from services.org import get_user_role
+    token = create_jwt_for_user(
+        user_id, openid=email,
+        org_id=org_id, team_id=team_id, role=get_user_role(user_id),
+    )
     return {
         "token": token,
         "user_id": user_id,
@@ -816,6 +828,45 @@ async def auth_org_join(body: OrgJoinBody, user: AuthUser = Depends(get_current_
             "team_id": team_id or "",
         },
     }
+
+
+async def require_hr_admin(user: AuthUser = Depends(get_current_user)) -> AuthUser:
+    """守护: 仅 hr_admin 角色 + 已绑 org 的用户可调。"""
+    if user.role != "hr_admin":
+        raise HTTPException(status_code=403, detail="仅 HR 管理员可调用此接口")
+    if not user.org_id:
+        raise HTTPException(status_code=403, detail="HR 用户未关联企业,请联系运维")
+    return user
+
+
+class EmployeeImportBody(BaseModel):
+    csv_text: str
+    send_emails: bool = True
+    expire_days: int = 14
+
+
+@app.post("/api/v1/org/admin/employees/import")
+async def org_admin_employees_import(
+    body: EmployeeImportBody,
+    user: AuthUser = Depends(require_hr_admin),
+):
+    """HR 后台批量导入员工(CSV 文本 → 邀请码 + 邀请邮件)。
+
+    身份: 调用方 user.org_id 即导入目标 org_id;不允许跨 org 导入。
+    """
+    from services.org_import import import_employees
+    from services.org import get_org
+    org = get_org(user.org_id)
+    if not org:
+        raise HTTPException(status_code=400, detail=f"企业 {user.org_id} 不存在")
+    result = await import_employees(
+        org_id=user.org_id,
+        csv_text=body.csv_text,
+        org_name=org.get("name", "你的公司"),
+        send_emails=body.send_emails,
+        expire_days=body.expire_days,
+    )
+    return result
 
 
 @app.post("/api/v1/auth/org/leave")
@@ -5997,6 +6048,100 @@ async def admin_update_pricing(request: Request):
 async def admin_reset_pricing():
     redis_client.delete(PRICING_KEY)
     return {"status": "ok", "pricing": _get_pricing()}
+
+
+# ==================== B2B 企业管理 (admin 守护,运营手动操作) ====================
+
+class CreateOrgBody(BaseModel):
+    name: str
+    industry: str = ""
+    seat_quota: int = 50
+    contact_hr_email: str = ""
+    period_end: str = ""
+
+
+@app.post("/api/v1/admin/org/create")
+async def admin_org_create(body: CreateOrgBody):
+    """运营创建企业。返回 org_id。"""
+    from services.org import create_org
+    oid = create_org(
+        name=body.name, industry=body.industry,
+        seat_quota=body.seat_quota,
+        contact_hr_email=body.contact_hr_email,
+        period_end=body.period_end or None,
+    )
+    return {"org_id": oid}
+
+
+class CreateInviteBody(BaseModel):
+    org_id: str
+    team_id: Optional[str] = None
+    expire_days: int = 30
+    max_uses: int = 1
+
+
+@app.post("/api/v1/admin/org/invite")
+async def admin_org_invite(body: CreateInviteBody):
+    """运营手动生成邀请码(给 HR 自己用 / 测试用)。"""
+    from services.org import create_invite_code
+    code = create_invite_code(
+        body.org_id, team_id=body.team_id,
+        expire_days=body.expire_days, max_uses=body.max_uses,
+    )
+    return {"code": code, "org_id": body.org_id}
+
+
+class GrantHrAdminBody(BaseModel):
+    email: str
+    org_id: str
+    invite_code: str = ""    # 若提供,顺便绑定该用户到 org;否则只赋角色
+
+
+@app.post("/api/v1/admin/org/grant_hr_admin")
+async def admin_grant_hr_admin(body: GrantHrAdminBody):
+    """运营授予某邮箱用户 hr_admin 角色(可顺便绑该用户到企业)。
+
+    流程:HR 自己已先用邮箱注册过(/auth/email/verify 至少跑过一次),
+    再由运营调本接口设置 role=hr_admin。下次登录拿到的 JWT 会带 role=hr_admin。
+    """
+    from services.org import bind_user_to_org, get_user_org, set_user_role
+    import hashlib
+    email = (body.email or "").strip().lower()
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="Invalid email")
+    h = hashlib.sha256(email.encode()).hexdigest()[:16]
+    user_id = f"em_{h}"
+    # 若邀请码提供,先绑定
+    if body.invite_code:
+        ok, msg, _ = bind_user_to_org(user_id, body.invite_code)
+        if not ok:
+            raise HTTPException(status_code=400, detail=msg)
+    # 强制本用户必须已绑该 org 才能赋 hr_admin(防误授给 B2C 用户)
+    if get_user_org(user_id) != body.org_id:
+        raise HTTPException(
+            status_code=400,
+            detail=f"用户 {email} 未绑到 {body.org_id};请先提供 invite_code 或 /auth/org/register",
+        )
+    set_user_role(user_id, "hr_admin")
+    return {"user_id": user_id, "org_id": body.org_id, "role": "hr_admin"}
+
+
+class RevokeHrAdminBody(BaseModel):
+    email: str
+
+
+@app.post("/api/v1/admin/org/revoke_hr_admin")
+async def admin_revoke_hr_admin(body: RevokeHrAdminBody):
+    """收回 hr_admin 角色,回到普通员工。"""
+    from services.org import set_user_role
+    import hashlib
+    email = (body.email or "").strip().lower()
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="Invalid email")
+    h = hashlib.sha256(email.encode()).hexdigest()[:16]
+    user_id = f"em_{h}"
+    set_user_role(user_id, "user")
+    return {"user_id": user_id, "role": "user"}
 
 
 @app.get("/api/v1/admin/users")

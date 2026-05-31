@@ -318,6 +318,31 @@ def org_seat_usage(org_id: str) -> Tuple[int, int]:
     return int(current), quota
 
 
+# ===== User Role =====
+def k_user_role(user_id: str) -> str:
+    return f"user:role:{user_id}"
+
+
+def get_user_role(user_id: str) -> str:
+    """Returns 'user' (default) | 'hr_admin'。"""
+    r = _redis_or_raise()
+    v = r.get(k_user_role(user_id))
+    if isinstance(v, bytes): v = v.decode()
+    return v or "user"
+
+
+def set_user_role(user_id: str, role: str) -> bool:
+    """设置用户角色。仅由 admin 端点调用。"""
+    if role not in ("user", "hr_admin"):
+        raise ValueError(f"invalid role: {role}")
+    r = _redis_or_raise()
+    if role == "user":
+        r.delete(k_user_role(user_id))
+    else:
+        r.set(k_user_role(user_id), role)
+    return True
+
+
 # ===== utils =====
 def _smembers_str(r, key) -> List[str]:
     members = r.smembers(key) or set()
