@@ -2,11 +2,20 @@
 const app = getApp()
 const API = app.globalData.apiBaseUrl || 'https://sleepai.chat'
 
+// 必须用 app.authRequest 注入 JWT (Authorization: Bearer ...);
+// 直接用裸 wx.request 调用 /api/v1/worries/* 会被 UserAuthMiddleware 拦截返 401。
 function _apiReq(url, data, extra = {}) {
   return new Promise((resolve) => {
-    wx.request({ url, data, timeout: 10000, ...extra,
+    app.authRequest({
+      url,
+      data,
+      timeout: 10000,
+      ...extra,
       success: (res) => resolve(res),
-      fail: () => resolve({ statusCode: 0, data: null }),
+      fail: (err) => {
+        console.warn('[worries _apiReq fail]', url, err && err.errMsg)
+        resolve({ statusCode: 0, data: null })
+      },
     })
   })
 }

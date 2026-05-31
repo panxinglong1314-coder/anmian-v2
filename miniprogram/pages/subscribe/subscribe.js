@@ -176,16 +176,26 @@ Page({
       }
       wx.setStorageSync('subscription', sub)
 
-      wx.request({
+      // 必须用 app.authRequest 注入 JWT;裸 wx.request 会被中间件 401,
+      // 导致本地缓存=Pro 但服务端配额系统不知道 → 换设备重装即丢订阅。
+      app.authRequest({
         url: `${app.globalData.apiBaseUrl}/api/v1/subscription/activate`,
         method: 'POST',
         data: {
-          user_id: app.globalData.userId,
           plan: planType,
           billing_cycle: billingCycle,
           expire_date: expire.toISOString(),
         },
-        fail: () => {}
+        success: (res) => {
+          if (res && res.statusCode === 200) {
+            console.log('[subscribe] server activated', planType)
+          } else {
+            console.warn('[subscribe] server activation rejected', res && res.statusCode, res && res.data)
+          }
+        },
+        fail: (err) => {
+          console.warn('[subscribe] server activation failed', err && err.errMsg)
+        }
       })
 
       wx.hideLoading()
