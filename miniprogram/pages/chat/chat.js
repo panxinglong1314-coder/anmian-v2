@@ -2,6 +2,7 @@
 // Tab 1: 今晚聊聊 - 接真实 MiniMax API
 
 const app = getApp()
+const log = require('../../utils/logger')
 const recorderManager = wx.getRecorderManager()
 
 // 创建音频上下文（真机兼容性设置）
@@ -469,12 +470,12 @@ Page({
     // ✅【关键互斥】如果状态机已经在 vad 或 asr，说明上一轮还没结束，绝对不能再 start()
     // 这是防止 "audio is recording, don't start record again" 错误的根本保护
     if (this._recordingState === 'vad' || this._recordingState === 'asr') {
-      console.warn('[_VAD] state machine busy (' + this._recordingState + '), skip duplicate start')
+      log.dlog('[_VAD] state machine busy (' + this._recordingState + '), skip duplicate start')
       return
     }
     // ✅ 如果录音机正在停止，直接返回，等 onStop 后再启动
     if (this._recorderStopping) {
-      console.warn('[_VAD] recorder is stopping, defer start')
+      log.dlog('[_VAD] recorder is stopping, defer start')
       return
     }
     // ✅ TTS 播放时注册回调，等 TTS 真正结束后再启动（避免轮询 retry 污染 warmup）
@@ -489,7 +490,7 @@ Page({
     }
     // ✅ 单例锁：防止多个 VAD 循环并发
     if (this._vadLoopActive) {
-      console.warn('[_VAD] loop already active, skip')
+      log.dlog('[_VAD] loop already active, skip')
       return
     }
     this._vadLoopActive = true
@@ -500,7 +501,7 @@ Page({
 
   _restartVAD(reason) {
     if (this._vadRestartPending) {
-      console.warn('[VAD] restart already pending, skip (' + reason + ')')
+      log.dlog('[VAD] restart already pending, skip (' + reason + ')')
       return
     }
     this._vadRestartPending = true
@@ -603,7 +604,7 @@ Page({
 
   _start正式录音() {
     if (this._formalRecordingStarting) {
-      console.warn('[_正式录音] already starting, skip')
+      log.dlog('[_正式录音] already starting, skip')
       return
     }
     if (this._recordingState === 'asr') {
@@ -620,7 +621,7 @@ Page({
     this._vadActive = false
     // Bug 4 保护：必须在 vad 状态才能切换到 asr
     if (this._recordingState !== 'vad') {
-      console.warn('[_正式录音] 当前状态', this._recordingState, '，无法启动正式录音')
+      log.dlog('[_正式录音] 当前状态', this._recordingState, '，无法启动正式录音')
       return
     }
     try { recorderManager.stop() } catch (e) {}
@@ -691,7 +692,7 @@ Page({
         if (is_final || slice_type === 2) {
           // ✅ 空结果过滤：空文本时不触发 AI，直接重启 VAD
           if (!text || text.trim() === '') {
-            console.warn('[ASR-WS] empty result, restart VAD')
+            log.dlog('[ASR-WS] empty result, restart VAD')
             if (this._recordingState === 'asr') {
               this._pendingRestartVAD = true  // ✅ Fix 1: 标记 onStop 后重启
               this._stop正式录音()
@@ -702,7 +703,7 @@ Page({
           const NOISE_WORDS = new Set(['嗯', '嗯。', '啊', '啊。', '呃', '呃。', '哦', '哦。', '嗯嗯', '嗯嗯。', '唉', '唉。', '哎', '哎。', '哈', '哈。'])
           const cleanText = text.replace(/[。！？.!?\s]/g, '')
           if (cleanText.length <= 1 || NOISE_WORDS.has(text.trim())) {
-            console.warn('[ASR-WS] noise word filtered:', text)
+            log.dlog('[ASR-WS] noise word filtered:', text)
             if (this._recordingState === 'asr') {
               this._pendingRestartVAD = true  // ✅ Fix 1: 标记 onStop 后重启
               this._stop正式录音()
@@ -711,7 +712,7 @@ Page({
           }
           // ✅ 去重保护：避免重复触发 AI
           if (text === this._lastASRFinalText) {
-            console.warn('[ASR-WS] duplicate final result, ignored:', text)
+            log.dlog('[ASR-WS] duplicate final result, ignored:', text)
             if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null }
             this._asrSocketReady = false
             this.setData({ _asrPending: false })
@@ -720,13 +721,13 @@ Page({
           this._lastASRFinalText = text
           // ✅ 防止重复请求：如果 AI 已经发送过，跳过
           if (this._aiRequestSent) {
-            console.warn('[ASR-WS] AI already sent, skip duplicate')
+            log.dlog('[ASR-WS] AI already sent, skip duplicate')
             return
           }
           // ✅ TTS 回声过滤：ASR 识别到 TTS 内容时跳过
           const asrText = text.trim()
           if (this._isTTSEcho(asrText)) {
-            console.warn('[ASR-WS] TTS echo detected, skip:', asrText)
+            log.dlog('[ASR-WS] TTS echo detected, skip:', asrText)
             return
           }
           this._aiRequestSent = true
@@ -825,11 +826,11 @@ Page({
   _stop正式录音() {
     // Bug 修复：不要在这里清 _recordingState，让 onStop 读取后自行处理
     if (this._recordingState !== 'asr' && this._recordingState !== 'vad') {
-      console.warn('[_ASR] 当前状态', this._recordingState, '，无需停止')
+      log.dlog('[_ASR] 当前状态', this._recordingState, '，无需停止')
       return
     }
     if (this._recorderStopping) {
-      console.warn('[_ASR] recorder already stopping, skip')
+      log.dlog('[_ASR] recorder already stopping, skip')
       return
     }
     if (this._volumeSim) clearInterval(this._volumeSim)
@@ -847,7 +848,7 @@ Page({
   _sendVoiceToASR(filePath) {
     // ✅ 流式已发过 AI → 降级结果丢弃
     if (this._aiRequestSent) {
-      console.warn('[ASR-Fallback] AI already sent, skip:', filePath)
+      log.dlog('[ASR-Fallback] AI already sent, skip:', filePath)
       this.setData({ _asrPending: false })
       setTimeout(() => this._startVADLoop(), 500)
       return
@@ -2010,7 +2011,7 @@ Page({
     // 防失控：单次放松最多 24 步
     this._relaxAdvanceCount = (this._relaxAdvanceCount || 0) + 1
     if (this._relaxAdvanceCount > 24) {
-      console.warn('[RelaxAdvance] hit 24-step cap, stop auto-advance')
+      log.dlog('[RelaxAdvance] hit 24-step cap, stop auto-advance')
       this._relaxAutoAdvancing = false
       return
     }
@@ -2835,7 +2836,7 @@ Page({
         }
         // access denied 时销毁并创建新实例，清理状态并重启 VAD
         if (err.errMsg && err.errMsg.includes('access denied')) {
-          console.warn('[TTS] access denied, cleanup and restart VAD')
+          log.dlog('[TTS] access denied, cleanup and restart VAD')
           try { ctx.destroy() } catch (e) {}
           this._currentTTSCtx = null
           this._ttsPlaying = false
@@ -2877,7 +2878,7 @@ Page({
     const chunks = this._ttsChunks
     this._ttsChunks = []
     if (chunks.length === 0) {
-      console.warn('[TTS] no chunks to play')
+      log.dlog('[TTS] no chunks to play')
       return
     }
 
@@ -2941,7 +2942,7 @@ Page({
       }
       // access denied 时清理状态并重启 VAD
       if (err.errMsg && err.errMsg.includes('access denied')) {
-        console.warn('[TTS] merged access denied, cleanup and restart VAD')
+        log.dlog('[TTS] merged access denied, cleanup and restart VAD')
         ctx.destroy()
         this._currentTTSCtx = null
         this._ttsPlaying = false
@@ -3172,7 +3173,7 @@ Page({
         const effectiveDuration = effectiveFrames * 40  // 每帧约 40ms
         console.log('[ASR-WS] effective voice frames:', effectiveFrames, '~', effectiveDuration, 'ms')
         if (effectiveDuration < 800) {
-          console.warn('[ASR-WS] 有效语音太短 (<800ms)，跳过识别，关闭 socket')
+          log.dlog('[ASR-WS] 有效语音太短 (<800ms)，跳过识别，关闭 socket')
           if (this._asrSocket) { this._asrSocket.close(); this._asrSocket = null; this._asrSocketReady = false }
           this._voiceFrameCount = 0
           // ✅ 清除 FORCE STOP 定时器，避免游离定时器干扰
@@ -3184,7 +3185,7 @@ Page({
               if (!this._recorderStopping && !this._recorderLocked) {
                 this._restartVAD('short voice')
               } else {
-                console.warn('[ASR-WS] recorder still busy, skip VAD restart')
+                log.dlog('[ASR-WS] recorder still busy, skip VAD restart')
               }
             }, 500)
           }
@@ -3214,7 +3215,7 @@ Page({
           }
         } else {
           // WS 从未建立 → 才走降级上传
-          console.warn('[ASR] WS never opened, fallback upload')
+          log.dlog('[ASR] WS never opened, fallback upload')
           if (res.tempFilePath) this._sendVoiceToASR(res.tempFilePath)
           else this._startVADLoop()
         }
@@ -3236,7 +3237,7 @@ Page({
             if (!this._recorderStopping && !this._recorderLocked) {
               this._restartVAD('normal end')
             } else {
-              console.warn('[ASR-WS] recorder still busy, skip VAD restart')
+              log.dlog('[ASR-WS] recorder still busy, skip VAD restart')
             }
           }, 500)
           return
@@ -3258,7 +3259,7 @@ Page({
       // 这是并发调用 recorderManager.start() 的副作用，录音机硬件本身正常。
       // 不要退出睡眠模式，只清状态、延迟重启 VAD 让状态机自愈。
       if (errMsg.includes('audio is recording') || errMsg.includes("don't start record again")) {
-        console.warn('[Recorder] 并发 start 误报，已自动恢复（不退出睡眠模式）')
+        log.dlog('[Recorder] 并发 start 误报，已自动恢复（不退出睡眠模式）')
         if (this.data.sleepModeActive) {
           // 等录音机真正空闲（系统侧）再重启 VAD
           if (this._listenTimer) clearTimeout(this._listenTimer)
@@ -3274,7 +3275,7 @@ Page({
       const isNotFound = errMsg.includes('NotFoundError')
       if (isNotFound) {
         // 模拟器无麦克风 → 退出睡眠模式，切文字模式
-        console.warn('[Recorder] 模拟器无麦克风，自动切换为文字模式')
+        log.dlog('[Recorder] 模拟器无麦克风，自动切换为文字模式')
         wx.showToast({ title: '模拟器无麦克风，已切换为文字模式', icon: 'none', duration: 3000 })
         this.exitSleepMode()
         this.setData({ mode: 'text', sleepModeActive: false, isRecording: false, audioLevel: 0 }, () => {
@@ -3359,7 +3360,7 @@ Page({
           // ✅ 改为 AND：必须同时满足"绝对值高"且"有衰减特征"才判定为污染
           const isPolluted = baselineMin > AMBIENT_NOISE_MAX && (baselineMax / baselineMin) > TTS_DECAY_RATIO
           if (isPolluted) {
-            console.warn('[onFrameRecorded] warmup polluted (min=' + baselineMin.toFixed(0) + ' max=' + baselineMax.toFixed(0) + ' ratio=' + (baselineMax / baselineMin).toFixed(1) + '), resetting')
+            log.dlog('[onFrameRecorded] warmup polluted (min=' + baselineMin.toFixed(0) + ' max=' + baselineMax.toFixed(0) + ' ratio=' + (baselineMax / baselineMin).toFixed(1) + '), resetting')
             this._warmupFrames = 0
             this._warmupRMSList = []
             this._noiseBaseline = 0
@@ -3528,7 +3529,7 @@ Page({
           resolve()
         } else if (waited > 8000) {
           clearInterval(interval)
-          console.warn('[_loadChatHistory] 登录超时，使用当前 userId')
+          log.dlog('[_loadChatHistory] 登录超时，使用当前 userId')
           resolve()
         }
       }, 100)
