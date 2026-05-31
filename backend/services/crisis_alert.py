@@ -72,6 +72,16 @@ def emit_crisis_alert(
         now_ms = int(time.time() * 1000)
         created_at = datetime.now().isoformat(timespec="seconds")
 
+        # v2.5: 关联用户的企业 (用于 B2B 团队级聚合)。失败/无企业则空。
+        org_id_for_event = ""
+        team_id_for_event = ""
+        try:
+            from services.org import get_user_org, get_user_team
+            org_id_for_event = get_user_org(user_id) or ""
+            team_id_for_event = get_user_team(user_id) or ""
+        except Exception:
+            pass
+
         event = {
             "event_id": event_id,
             "user_id": user_id,
@@ -84,6 +94,9 @@ def emit_crisis_alert(
             "ack_operator": "",
             "ack_note": "",
             "resolved_at": "",
+            # B2B 字段:聚合时按 org_id 过滤,HR 端点只输出 count
+            "org_id": org_id_for_event,
+            "team_id": team_id_for_event,
         }
         if extra:
             event["extra"] = json.dumps(extra, ensure_ascii=False)

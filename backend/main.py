@@ -830,6 +830,20 @@ async def auth_org_join(body: OrgJoinBody, user: AuthUser = Depends(get_current_
     }
 
 
+# ==================== B2B 团队洞察 (阶段 2,k-anonymity 守护) ====================
+# 全部端点:hr_admin 角色 + 强制 scope 到 user.org_id,不接受 client 指定 org_id
+
+def _get_k_min() -> int:
+    """k-anonymity 阈值,默认 5,运营可在 /admin/abconfig 调。"""
+    try:
+        v = redis_client.get("admin:abconfig:k_anonymity_min")
+        if v:
+            return max(2, int(v.decode() if isinstance(v, bytes) else v))
+    except Exception:
+        pass
+    return 5
+
+
 async def require_hr_admin(user: AuthUser = Depends(get_current_user)) -> AuthUser:
     """守护: 仅 hr_admin 角色 + 已绑 org 的用户可调。"""
     if user.role != "hr_admin":
@@ -843,6 +857,67 @@ class EmployeeImportBody(BaseModel):
     csv_text: str
     send_emails: bool = True
     expire_days: int = 14
+
+
+@app.get("/api/v1/org/insights/overview")
+async def org_insights_overview(
+    period: str = Query("30d"),
+    team_id: Optional[str] = Query(None),
+    user: AuthUser = Depends(require_hr_admin),
+):
+    from services.org_insights import insights_overview
+    return insights_overview(user.org_id, team_id=team_id, period=period, k_min=_get_k_min())
+
+
+@app.get("/api/v1/org/insights/sleep")
+async def org_insights_sleep(
+    period: str = Query("30d"),
+    team_id: Optional[str] = Query(None),
+    user: AuthUser = Depends(require_hr_admin),
+):
+    from services.org_insights import insights_sleep
+    return insights_sleep(user.org_id, team_id=team_id, period=period, k_min=_get_k_min())
+
+
+@app.get("/api/v1/org/insights/anxiety")
+async def org_insights_anxiety(
+    period: str = Query("30d"),
+    team_id: Optional[str] = Query(None),
+    user: AuthUser = Depends(require_hr_admin),
+):
+    from services.org_insights import insights_anxiety
+    return insights_anxiety(user.org_id, team_id=team_id, period=period, k_min=_get_k_min())
+
+
+@app.get("/api/v1/org/insights/worry_domains")
+async def org_insights_worry(
+    period: str = Query("30d"),
+    team_id: Optional[str] = Query(None),
+    user: AuthUser = Depends(require_hr_admin),
+):
+    from services.org_insights import insights_worry
+    return insights_worry(user.org_id, team_id=team_id, period=period, k_min=_get_k_min())
+
+
+@app.get("/api/v1/org/insights/crisis")
+async def org_insights_crisis(
+    period: str = Query("30d"),
+    team_id: Optional[str] = Query(None),
+    user: AuthUser = Depends(require_hr_admin),
+):
+    """**关键**: 此端点输出**仅**包含数字 count,不返 user_id / 对话内容 / 任何身份字段。"""
+    from services.org_insights import insights_crisis
+    return insights_crisis(user.org_id, team_id=team_id, period=period, k_min=_get_k_min())
+
+
+@app.get("/api/v1/org/insights/engagement")
+async def org_insights_engagement(
+    period: str = Query("30d"),
+    team_id: Optional[str] = Query(None),
+    user: AuthUser = Depends(require_hr_admin),
+):
+    from services.org_insights import insights_engagement
+    return insights_engagement(user.org_id, team_id=team_id, period=period, k_min=_get_k_min())
 
 
 @app.post("/api/v1/org/admin/employees/import")
