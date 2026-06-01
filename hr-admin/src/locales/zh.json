@@ -152,7 +152,12 @@
       "sessions": "会话总数",
       "completion": "完成率"
     },
-    "pdfNote": "PDF 月报生成(打包以上 5 部分 + LLM 摘要 + 封面 logo)在 V2 提供。当前可使用浏览器打印为 PDF。"
+    "pdfNote": "PDF 月报生成(打包以上 5 部分 + LLM 摘要 + 封面 logo)在 V2 提供。当前可使用浏览器打印为 PDF。",
+    "pdf": {
+      "title": "下载月度报告 PDF",
+      "hint": "选择月份生成 PDF。报告含封面 + 5 维度详细聚合 + 隐私守护说明。",
+      "download": "下载"
+    }
   },
   "settings": {
     "title": "设置",

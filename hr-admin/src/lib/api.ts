@@ -232,3 +232,28 @@ export function insightsCrisis(period = "30d", teamId?: string) {
 export function insightsEngagement(period = "30d", teamId?: string) {
   return _request<InsightResult<EngagementMetrics>>(`/api/v1/org/insights/engagement?${_q(period, teamId)}`);
 }
+
+// PDF 月报下载: 直接拿 blob 触发浏览器下载
+export async function downloadMonthlyPdf(ym: string, locale: "zh" | "en" = "zh", teamId?: string) {
+  const params = new URLSearchParams({ ym, locale });
+  if (teamId) params.set("team_id", teamId);
+  const res = await fetch(`/api/v1/org/insights/report/pdf?${params}`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (res.status === 401) throw new AuthError("未授权");
+  if (res.status === 503) throw new ApiError(503, "PDF 服务未就绪(weasyprint 未安装)");
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const j = await res.json(); msg = j.detail || msg; } catch {}
+    throw new ApiError(res.status, msg);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `zhimian_report_${ym}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

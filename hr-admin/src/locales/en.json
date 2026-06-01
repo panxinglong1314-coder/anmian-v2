@@ -152,7 +152,12 @@
       "sessions": "Sessions",
       "completion": "Completion"
     },
-    "pdfNote": "PDF monthly report (5 sections + LLM insight + cover) lands in V2. For now, use browser print-to-PDF."
+    "pdfNote": "PDF monthly report (5 sections + LLM insight + cover) lands in V2. For now, use browser print-to-PDF.",
+    "pdf": {
+      "title": "Download monthly PDF report",
+      "hint": "Pick a month to generate. The PDF includes cover + 5-section detailed aggregation + privacy guardrails note.",
+      "download": "Download"
+    }
   },
   "settings": {
     "title": "Settings",

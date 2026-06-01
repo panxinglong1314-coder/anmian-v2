@@ -158,6 +158,7 @@ const pageTitles = {
   sleep: '🌙 睡眠数据',
   kb: '📚 知识库',
   feedback: '📮 用户反馈',
+  leads: '💼 销售线索 (B2B)',
 };
 
 function showPage(name) {
@@ -170,7 +171,8 @@ function showPage(name) {
   const loaders = { dashboard: loadDashboard, safety: loadSafety, quality: loadQuality,
                      users: loadUsers, health: loadHealth, retention: loadRetention,
                      crisis: loadCrisis, abconfig: loadABConfig, pricing: loadPricing,
-                     sleep: loadSleepDashboard, kb: loadKB, feedback: loadFeedback };
+                     sleep: loadSleepDashboard, kb: loadKB, feedback: loadFeedback,
+                     leads: loadLeads };
   if (loaders[name]) loaders[name](loaders[name] === loadDashboard ? 7 : 30);
 
   // 切到危机页面后，停止标题闪烁（视为"已读"）
@@ -1554,3 +1556,117 @@ document.addEventListener('input', (e) => {
 
 window.addEventListener('resize', () => Object.values(chartInstances).forEach(c => c?.resize()));
 document.addEventListener('DOMContentLoaded', checkAuth);
+
+// ============================================================
+// 💼 销售线索面板 (B2B v2.5)
+// ============================================================
+let _currentLeadId = null;
+
+function leadStatusBadge(status) {
+  const map = {
+    pending:     { txt: '待跟进', cls: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
+    contacted:   { txt: '已联系', cls: 'bg-blue-100 text-blue-700 border-blue-300' },
+    qualified:   { txt: '已合格', cls: 'bg-purple-100 text-purple-700 border-purple-300' },
+    closed_won:  { txt: '签约', cls: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
+    closed_lost: { txt: '流失', cls: 'bg-gray-100 text-gray-600 border-gray-300' },
+  };
+  const m = map[status] || { txt: status || '-', cls: 'bg-gray-100 text-gray-600 border-gray-300' };
+  return `<span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${m.cls}">${m.txt}</span>`;
+}
+
+function leadFmtDate(iso) {
+  if (!iso) return '-';
+  return iso.replace('T', ' ').slice(0, 16);
+}
+
+async function loadLeads() {
+  const filter = document.getElementById('leads-status-filter');
+  const status = filter ? filter.value : 'pending';
+  try {
+    const r = await fetch(`${API_BASE}/sales/leads?status=${status}&limit=200`,
+      { headers: { 'X-Admin-Token': adminToken } });
+    if (!r.ok) throw new Error('http ' + r.status);
+    const d = await r.json();
+    const stats = d.stats || {};
+    const by = stats.by_status || {};
+    document.getElementById('leads-total').textContent = stats.total || 0;
+    document.getElementById('leads-pending').textContent = by.pending || 0;
+    document.getElementById('leads-contacted').textContent = (by.contacted || 0) + (by.qualified || 0);
+    document.getElementById('leads-won').textContent = by.closed_won || 0;
+    document.getElementById('leads-lost').textContent = by.closed_lost || 0;
+
+    const tbody = document.getElementById('leads-tbody');
+    if (!d.leads || !d.leads.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center text-gray-400 py-8">
+        ${status === 'pending' ? '无待跟进线索' : '无归档线索'}
+      </td></tr>`;
+      return;
+    }
+    tbody.innerHTML = d.leads.map(l => `
+      <tr class="hover:bg-gray-50">
+        <td class="text-xs text-gray-600">${leadFmtDate(l.created_at)}</td>
+        <td class="font-medium">${_escapeHtml(l.company_name)}</td>
+        <td>${_escapeHtml(l.contact_name) || '-'}</td>
+        <td class="text-xs"><a href="mailto:${_escapeHtml(l.contact_email)}" class="text-blue-600 hover:underline">${_escapeHtml(l.contact_email)}</a></td>
+        <td class="text-xs">${_escapeHtml(l.team_size) || '-'}</td>
+        <td class="text-xs text-gray-600 max-w-md truncate" title="${_escapeHtml(l.message || '')}">${_escapeHtml(l.message) || '-'}${l.notes ? '<div class="text-[10px] text-emerald-600 mt-1">📌 ' + _escapeHtml(l.notes) + '</div>' : ''}</td>
+        <td>${leadStatusBadge(l.status)} ${l.follow_up_operator ? '<div class="text-[10px] text-gray-500 mt-1">by ' + _escapeHtml(l.follow_up_operator) + '</div>' : ''}</td>
+        <td><button onclick="openLeadModal('${l.lead_id}')" class="btn btn-default btn-sm">更新</button></td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    document.getElementById('leads-tbody').innerHTML =
+      `<tr><td colspan="8" class="text-center text-red-500 py-8">加载失败: ${e.message}</td></tr>`;
+  }
+}
+
+function openLeadModal(leadId) {
+  // 找到当前行的数据,预填到 modal
+  const tbody = document.getElementById('leads-tbody');
+  const row = Array.from(tbody.querySelectorAll('tr')).find(r =>
+    r.querySelector(`button[onclick*="${leadId}"]`));
+  _currentLeadId = leadId;
+  if (row) {
+    const company = row.children[1]?.textContent || '';
+    const contact = row.children[3]?.textContent || '';
+    document.getElementById('lead-modal-info').innerHTML =
+      `<div><span class="text-gray-500">公司:</span> <span class="font-medium">${_escapeHtml(company)}</span></div>
+       <div><span class="text-gray-500">联系人:</span> ${_escapeHtml(contact)}</div>
+       <div class="text-[10px] text-gray-400 font-mono mt-1">${leadId}</div>`;
+  }
+  document.getElementById('lead-modal-status').value = 'contacted';
+  document.getElementById('lead-modal-operator').value = localStorage.getItem('lead_operator') || '';
+  document.getElementById('lead-modal-notes').value = '';
+  document.getElementById('lead-update-modal').classList.remove('hidden');
+}
+
+function hideLeadModal() {
+  document.getElementById('lead-update-modal').classList.add('hidden');
+  _currentLeadId = null;
+}
+
+async function submitLeadUpdate() {
+  if (!_currentLeadId) return;
+  const status = document.getElementById('lead-modal-status').value;
+  const operator = document.getElementById('lead-modal-operator').value.trim();
+  const notes = document.getElementById('lead-modal-notes').value.trim();
+  if (operator) localStorage.setItem('lead_operator', operator);
+  try {
+    const r = await fetch(`${API_BASE}/sales/leads/${_currentLeadId}`, {
+      method: 'PATCH',
+      headers: { 'X-Admin-Token': adminToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, operator, notes }),
+    });
+    if (!r.ok) throw new Error('http ' + r.status);
+    hideLeadModal();
+    toast('已更新', 'success');
+    loadLeads();
+  } catch (e) {
+    toast('更新失败: ' + e.message, 'error');
+  }
+}
+
+// 切换 status filter 时自动刷新
+document.addEventListener('change', (e) => {
+  if (e.target?.id === 'leads-status-filter') loadLeads();
+});

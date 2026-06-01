@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="{{ locale }}">
+<head>
+<meta charset="UTF-8">
+<title>{{ labels.title }} · {{ org_name }} · {{ period_label }}</title>
+<style>
+@page {
+  size: A4;
+  margin: 18mm 16mm 22mm 16mm;
+  @bottom-center {
+    content: "{{ org_name }} · {{ labels.title }} · {{ period_label }} · " counter(page) " / " counter(pages);
+    font-size: 9pt;
+    color: #999;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  font-family: "Noto Sans CJK SC", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", -apple-system, sans-serif;
+  font-size: 10.5pt;
+  color: #1a2238;
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* --- Cover --- */
+.cover {
+  page-break-after: always;
+  height: 245mm;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1b3a5a 100%);
+  color: #f5e8c8;
+  padding: 60mm 18mm 18mm 18mm;
+  display: block;
+}
+.cover .brand {
+  font-size: 28pt;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+}
+.cover .brand-dot { color: #f5c869; }
+.cover .badge {
+  display: inline-block;
+  background: rgba(245, 200, 105, 0.15);
+  color: #f5c869;
+  border: 1px solid rgba(245, 200, 105, 0.3);
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 9pt;
+  margin: 14pt 0 32pt 0;
+  letter-spacing: 0.1em;
+}
+.cover h1 {
+  font-size: 34pt;
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.cover .org-name {
+  font-size: 18pt;
+  color: #f5c869;
+  margin-top: 36pt;
+  font-weight: 600;
+}
+.cover .meta {
+  margin-top: 56mm;
+  font-size: 10pt;
+  color: rgba(245, 232, 200, 0.85);
+}
+.cover .meta div { padding: 3pt 0; border-bottom: 1px solid rgba(245, 232, 200, 0.2); }
+
+/* --- Section --- */
+.section {
+  margin-top: 22pt;
+}
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 2px solid #f5c869;
+  padding-bottom: 5pt;
+  margin-bottom: 10pt;
+}
+.section-title {
+  font-size: 15pt;
+  font-weight: 700;
+  color: #0d1b2a;
+}
+.section-meta {
+  font-size: 9pt;
+  color: #8a9aac;
+}
+
+/* --- Metric grid --- */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8pt;
+  margin-bottom: 14pt;
+}
+.metric-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.metric {
+  border: 1px solid #e2e8f0;
+  border-radius: 6pt;
+  padding: 10pt 12pt;
+  background: #f8fafc;
+}
+.metric .label {
+  font-size: 8pt;
+  color: #8a9aac;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.metric .value {
+  font-size: 22pt;
+  font-weight: 700;
+  color: #1a2238;
+  margin-top: 4pt;
+  line-height: 1.1;
+}
+.metric .hint {
+  font-size: 8pt;
+  color: #6b7280;
+  margin-top: 4pt;
+}
+
+/* --- Bar distribution --- */
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8pt;
+  margin: 5pt 0;
+  font-size: 9.5pt;
+}
+.bar-label {
+  flex: 0 0 90pt;
+  color: #4a5568;
+}
+.bar-track {
+  flex: 1;
+  height: 10pt;
+  background: #eef2f7;
+  border-radius: 4pt;
+  overflow: hidden;
+}
+.bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #f5c869, #c9956a);
+  border-radius: 4pt;
+}
+.bar-value {
+  flex: 0 0 32pt;
+  text-align: right;
+  font-weight: 600;
+  color: #1a2238;
+}
+
+/* --- Notice / Insufficient --- */
+.notice {
+  border: 1.5px solid #fbbf24;
+  background: #fef3c7;
+  padding: 12pt 14pt;
+  border-radius: 6pt;
+  margin: 12pt 0;
+}
+.notice-title { font-weight: 700; color: #92400e; margin-bottom: 4pt; }
+.notice-body { color: #78350f; font-size: 10pt; }
+
+.privacy-footer {
+  margin-top: 28pt;
+  padding: 10pt 12pt;
+  background: #eef2f7;
+  border-left: 3px solid #4a90e2;
+  border-radius: 0 4pt 4pt 0;
+  font-size: 9pt;
+  color: #4a5568;
+  line-height: 1.65;
+}
+.disclaimer {
+  margin-top: 20pt;
+  padding-top: 10pt;
+  border-top: 1px dashed #cbd5e1;
+  font-size: 8.5pt;
+  color: #8a9aac;
+  text-align: center;
+  font-style: italic;
+}
+
+.muted { color: #9ca3af; }
+
+/* Print-safe small helpers */
+.col-2 { columns: 2; gap: 12pt; }
+.subtle-card {
+  border: 1px solid #e2e8f0;
+  padding: 8pt 10pt;
+  border-radius: 5pt;
+  background: #fafbfc;
+}
+.crisis-note {
+  margin-top: 10pt;
+  padding: 8pt 12pt;
+  background: #fff7ed;
+  border-left: 3px solid #f97316;
+  font-size: 9pt;
+  color: #7c2d12;
+}
+</style>
+</head>
+<body>
+
+<!-- =================== COVER =================== -->
+<div class="cover">
+  <div class="brand">知眠<span class="brand-dot">.</span></div>
+  <div class="badge">{{ labels.title }}</div>
+  <h1>{{ org_name }}</h1>
+  <div class="org-name">{{ scope_label }}</div>
+  <div class="meta">
+    <div><strong>{{ labels.period }}:</strong> {{ period_label }}</div>
+    <div><strong>{{ labels.scope }}:</strong> {{ scope_label }}</div>
+    <div><strong>{{ labels.n_employees }}:</strong> {{ n_users }}</div>
+    <div><strong>{{ labels.generated }}:</strong> {{ generated_at }}</div>
+  </div>
+</div>
+
+<!-- =================== CONTENT =================== -->
+
+{% if insufficient %}
+<div class="notice">
+  <div class="notice-title">{{ labels.insufficient_title }}</div>
+  <div class="notice-body">
+    {{ labels.insufficient_body | replace("{kmin}", k_min|string) | replace("{n}", n_users|string) }}
+  </div>
+</div>
+{% else %}
+
+<!-- ENGAGEMENT -->
+<section class="section">
+  <div class="section-head">
+    <div class="section-title">{{ labels.section_engagement }}</div>
+  </div>
+  <div class="metric-grid">
+    <div class="metric">
+      <div class="label">{{ labels.active_users }}</div>
+      <div class="value">{{ engagement_active }}<span style="font-size:14pt;color:#8a9aac">/{{ engagement_total }}</span></div>
+    </div>
+    <div class="metric">
+      <div class="label">{{ labels.activation }}</div>
+      <div class="value">{{ engagement_activation }}</div>
+    </div>
+    <div class="metric">
+      <div class="label">{{ labels.completion }}</div>
+      <div class="value">{{ engagement_completion }}</div>
+    </div>
+    <div class="metric">
+      <div class="label">{{ labels.sessions }}</div>
+      <div class="value">{{ engagement_sessions }}</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLEEP -->
+<section class="section">
+  <div class="section-head">
+    <div class="section-title">{{ labels.section_sleep }}</div>
+    <div class="section-meta">{{ labels.users_with_data }}: {{ sleep_users }}</div>
+  </div>
+  <div class="metric-grid">
+    <div class="metric"><div class="label">{{ labels.avg_se }}</div><div class="value">{{ sleep_se }}</div></div>
+    <div class="metric"><div class="label">{{ labels.avg_tst }}</div><div class="value">{{ sleep_tst }}</div></div>
+    <div class="metric"><div class="label">{{ labels.low_se }}</div><div class="value">{{ sleep_low_se }}</div></div>
+    <div class="metric"><div class="label">{{ labels.short_tst }}</div><div class="value">{{ sleep_short_tst }}</div></div>
+  </div>
+  <div class="subtle-card">
+    <div style="font-size:9pt;color:#6b7280;margin-bottom:6pt;text-transform:uppercase;letter-spacing:0.04em;">{{ labels.se_distribution }}</div>
+    {{ sleep_distribution_html | safe }}
+  </div>
+</section>
+
+<!-- ANXIETY -->
+<section class="section">
+  <div class="section-head">
+    <div class="section-title">{{ labels.section_anxiety }}</div>
+    <div class="section-meta">{{ labels.users_with_data }}: {{ anx_users }}</div>
+  </div>
+  <div class="metric-grid cols-3">
+    <div class="metric"><div class="label">{{ labels.recovery_turns }}</div><div class="value">{{ anx_recovery }}</div></div>
+    <div class="metric" style="grid-column: span 2;">
+      <div class="label">{{ labels.momentum }}</div>
+      <div style="margin-top:6pt">
+        {{ anx_momentum_html | safe }}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WORRY -->
+<section class="section">
+  <div class="section-head">
+    <div class="section-title">{{ labels.section_worry }}</div>
+    <div class="section-meta">{{ labels.total_worry }}: {{ worry_total }}</div>
+  </div>
+  <div class="metric-grid cols-3">
+    <div class="metric">
+      <div class="label">{{ labels.top_worry }}</div>
+      <div class="value" style="color:#c9956a">{{ worry_top }}</div>
+    </div>
+    <div class="metric" style="grid-column: span 2;">
+      <div class="label">Distribution</div>
+      <div style="margin-top:6pt">
+        {{ worry_distribution_html | safe }}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CRISIS -->
+<section class="section">
+  <div class="section-head">
+    <div class="section-title">{{ labels.section_crisis }}</div>
+    <div class="section-meta">{{ labels.crisis_total }}: {{ crisis_total }}</div>
+  </div>
+  <div class="metric-grid">
+    <div class="metric" style="border-color:#fecaca;background:#fef2f2">
+      <div class="label" style="color:#991b1b">{{ labels.high_risk }}</div>
+      <div class="value" style="color:#dc2626">{{ crisis_high }}</div>
+    </div>
+    <div class="metric" style="border-color:#fed7aa;background:#fffbeb">
+      <div class="label" style="color:#92400e">{{ labels.medium_risk }}</div>
+      <div class="value" style="color:#ea580c">{{ crisis_medium }}</div>
+    </div>
+    <div class="metric">
+      <div class="label">{{ labels.low_risk }}</div>
+      <div class="value" style="color:#475569">{{ crisis_low }}</div>
+    </div>
+    <div class="metric">
+      <div class="label">{{ labels.crisis_total }}</div>
+      <div class="value">{{ crisis_total }}</div>
+    </div>
+  </div>
+  <div class="crisis-note">
+    🔒 {{ labels.crisis_anonymous_note }}
+  </div>
+</section>
+
+{% endif %}
+
+<!-- Privacy footer -->
+<div class="privacy-footer">
+  🛡️ {{ labels.privacy_footer | replace("{kmin}", k_min|string) }}
+</div>
+
+<div class="disclaimer">
+  {{ labels.disclaimer }}
+</div>
+
+</body>
+</html>

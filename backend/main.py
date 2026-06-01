@@ -981,6 +981,44 @@ async def org_insights_crisis(
     return insights_crisis(user.org_id, team_id=team_id, period=period, k_min=_get_k_min())
 
 
+@app.get("/api/v1/org/insights/report/pdf")
+async def org_insights_report_pdf(
+    ym: str = Query(..., description="YYYY-MM"),
+    team_id: Optional[str] = Query(None),
+    locale: str = Query("zh"),
+    nocache: bool = Query(False),
+    user: AuthUser = Depends(require_hr_admin),
+):
+    """生成并下载团队月度报告 PDF。
+
+    缓存 7 天,可加 ?nocache=true 强制重生成。
+    """
+    from services.org_report import generate_monthly_report
+    from fastapi.responses import StreamingResponse
+    import io
+    try:
+        pdf = generate_monthly_report(
+            org_id=user.org_id, year_month=ym,
+            team_id=team_id, locale=locale, use_cache=not nocache,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=500, detail=f"template missing: {e}")
+    except RuntimeError as e:
+        # weasyprint 未装
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logging.exception("[org_report] generation failed")
+        raise HTTPException(status_code=500, detail=f"report generation failed: {e}")
+    filename = f"zhimian_report_{user.org_id}_{ym}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.get("/api/v1/org/insights/engagement")
 async def org_insights_engagement(
     period: str = Query("30d"),

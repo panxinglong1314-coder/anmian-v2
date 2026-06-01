@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   insightsSleep, insightsAnxiety, insightsWorry, insightsCrisis, insightsEngagement,
+  downloadMonthlyPdf,
   type InsightResult, type SleepMetrics, type AnxietyMetrics, type WorryMetrics,
   type CrisisMetrics, type EngagementMetrics,
 } from "../lib/api";
+import { currentLocale } from "../i18n";
 import InsufficientNotice from "../components/InsufficientNotice";
 
 const PERIODS = ["7d", "30d", "90d"] as const;
@@ -121,9 +123,58 @@ export default function Reports() {
         </Section>
       )}
 
-      <div className="rounded-xl bg-card/30 border border-line p-4 text-xs text-muted leading-relaxed">
-        📥 {t("reports.pdfNote")}
+      <PdfDownload />
+    </div>
+  );
+}
+
+function PdfDownload() {
+  const { t } = useTranslation();
+  const locale = currentLocale();
+  const now = new Date();
+  // 默认上月(月报通常生成上月数据)
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15);
+  const defaultYm = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}`;
+  const [ym, setYm] = useState(defaultYm);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const onDownload = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      await downloadMonthlyPdf(ym, locale);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl bg-card/60 border border-line p-5">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h3 className="text-sm font-medium text-text">📥 {t("reports.pdf.title")}</h3>
+          <p className="text-xs text-muted mt-1">{t("reports.pdf.hint")}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="month"
+            value={ym}
+            onChange={(e) => setYm(e.target.value)}
+            className="px-3 py-2 rounded bg-bg border border-line text-text text-sm outline-none focus:border-accent transition"
+          />
+          <button
+            onClick={() => void onDownload()}
+            disabled={busy}
+            className="px-5 py-2 rounded bg-accent text-bg font-medium text-sm disabled:opacity-40 hover:bg-accent/90 transition"
+          >
+            {busy ? "…" : t("reports.pdf.download")}
+          </button>
+        </div>
       </div>
+      {err && <p className="text-bad text-xs mt-3">{err}</p>}
     </div>
   );
 }
