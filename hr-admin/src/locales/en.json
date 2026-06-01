@@ -1,0 +1,197 @@
+{
+  "layout": {
+    "subtitle": "HR · Team mental wellness"
+  },
+  "nav": {
+    "overview": "Overview",
+    "teams": "Teams",
+    "employees": "Employees",
+    "reports": "Monthly report",
+    "settings": "Settings",
+    "signOut": "Sign out"
+  },
+  "common": {
+    "loading": "Loading...",
+    "back": "Back",
+    "period": {
+      "7d": "7 days",
+      "30d": "30 days",
+      "90d": "90 days"
+    },
+    "insufficient": {
+      "title": "Insufficient data",
+      "body": "To protect employee privacy, we require at least {{kMin}} people in scope. Currently: {{n}}."
+    }
+  },
+  "login": {
+    "title": "ZhiMian HR Console",
+    "subtitle": "Sign in with your HR email to manage your team's wellness pulse.",
+    "emailLabel": "HR email",
+    "sendCode": "Send code",
+    "codeLabel": "6-digit code",
+    "codeSentTo": "Code sent to",
+    "verify": "Enter console",
+    "devCode": "Dev code",
+    "noteFooter": "First time? Please contact sales to provision your enterprise account, then sign in with your HR email.",
+    "errNoHrRole": "This email isn't yet authorized as HR. Contact ops at panxinglong-1@126.com to grant the role.",
+    "errGeneric": "Something went wrong. Please try again."
+  },
+  "overview": {
+    "title": "Overview",
+    "subtitle": "Key team mental-health signals. Refreshed nightly.",
+    "engagement": "Engagement",
+    "sleep": "Sleep",
+    "psyche": "Psyche",
+    "activeUsers": "Active users",
+    "activationRateLabel": "Activation {{pct}}%",
+    "completionRate": "Session completion",
+    "completionHint": "Closed ritual or morning check-in",
+    "totalUsersN": "Cohort size",
+    "kAggregated": "Aggregated over",
+    "avgSE": "Avg sleep efficiency",
+    "benchmarkSE": "Industry benchmark 80%+",
+    "avgTST": "Avg sleep time",
+    "benchmarkTST": "Recommended 7h+",
+    "lowSeRatio": "Low-SE ratio",
+    "lowSeHint": "% of entries with SE < 70%",
+    "usersWithSleepData": "With sleep data",
+    "usersWithSleepHint": "Employees who filled diaries",
+    "topWorryDomain": "Top worry domain",
+    "totalWorryRecordsHint": "{{n}} worry records",
+    "avgRecoveryTurns": "Avg calm-down turns",
+    "recoveryTurnsHint": "AI conversation turns to de-escalate",
+    "crisisHighMed": "High / medium risk",
+    "crisisHint": "Triggered in period",
+    "crisisTotal": "Total crisis events",
+    "crisisAnonymousNote": "Counts only, fully anonymized",
+    "privacyFooter": "This view aggregates {{period}} data from {{k}} employees. HR never sees individual conversation content or identity."
+  },
+  "teams": {
+    "title": "Teams",
+    "subtitle": "{{n}} active employees in your company, grouped by team.",
+    "col": {
+      "name": "Team",
+      "manager": "Manager",
+      "members": "Members",
+      "created": "Created"
+    },
+    "empty": "No teams yet. Add a 'team' column when uploading CSV — teams are created automatically.",
+    "footerHint": "Per-team drill-down view (separate report per team) is on the V2 roadmap. For now, filter by team in Reports."
+  },
+  "employees": {
+    "title": "Employees",
+    "subtitle": "Bulk-invite employees via CSV. We generate one-time invite codes and send invite emails.",
+    "csv": {
+      "label": "Employee roster CSV",
+      "or": "or paste",
+      "placeholder": "email,name,team\nalice@yourcompany.com,Alice,Engineering\nbob@yourcompany.com,Bob,Sales",
+      "format": "Columns supported: email (required), name (optional), team (optional, auto-created). BOM and bilingual headers are recognized."
+    },
+    "opt": {
+      "sendEmails": "Also send invite emails",
+      "expireDays": "Invite expires in (days)"
+    },
+    "submit": "Run import",
+    "result": {
+      "title": "Import result",
+      "total": "Total rows",
+      "invited": "Invited",
+      "sent": "Emails sent",
+      "skipped": "Skipped",
+      "errors": "Errors",
+      "parseErrors": "CSV parse errors",
+      "col": {
+        "email": "Email",
+        "status": "Status",
+        "code": "Invite code",
+        "emailSent": "Email"
+      },
+      "statusValue": {
+        "invited": "Invited",
+        "already_in_org": "Already in org",
+        "in_other_org": "In other org",
+        "error": "Failed"
+      }
+    },
+    "footerHint": "If RESEND_API_KEY isn't configured, invite codes are generated but emails won't go out — share the codes with employees manually."
+  },
+  "reports": {
+    "title": "Monthly report",
+    "subtitle": "Five-dimension detailed aggregated view.",
+    "sec": {
+      "sleep": "Sleep",
+      "anxiety": "Anxiety",
+      "worry": "Worry domain distribution",
+      "crisis": "Crisis events",
+      "engagement": "Engagement"
+    },
+    "sleep": {
+      "avgSE": "Avg SE",
+      "avgTST": "Avg TST",
+      "lowSeRatio": "Low-SE ratio",
+      "shortTstRatio": "Short-TST ratio",
+      "distribution": "SE distribution"
+    },
+    "anxiety": {
+      "recovery": "Avg calm-down turns",
+      "momentum": "Mood-momentum distribution"
+    },
+    "worry": {
+      "top": "Top worry domain"
+    },
+    "crisis": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "total": "Total",
+      "noteAnonymous": "This endpoint returns counts only. The system never exposes employee identity, conversation content, or raw event text to HR."
+    },
+    "engagement": {
+      "activeTotal": "Active / total",
+      "activation": "Activation",
+      "sessions": "Sessions",
+      "completion": "Completion"
+    },
+    "pdfNote": "PDF monthly report (5 sections + LLM insight + cover) lands in V2. For now, use browser print-to-PDF."
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Your enterprise profile and privacy guardrails.",
+    "org": {
+      "title": "Enterprise info",
+      "name": "Name",
+      "industry": "Industry",
+      "orgId": "Org ID",
+      "hrContact": "HR contact",
+      "status": "Status",
+      "periodEnd": "Service ends",
+      "noEnd": "No end set",
+      "seats": "Seats used"
+    },
+    "privacy": {
+      "title": "Privacy guardrails",
+      "body": "k-anonymity threshold defaults to 5 (we refuse to reveal numbers for groups smaller than 5). Contact ops to tighten to 10.",
+      "contactOps": "Contact ops to change. Default 5."
+    },
+    "footer": "Profile editing, SSO integration, and renewals are planned for V2."
+  },
+  "worryDomain": {
+    "work": "Work",
+    "relationship": "Relationships",
+    "health": "Health",
+    "finance": "Finance",
+    "study": "Study",
+    "family": "Family",
+    "future": "Future",
+    "general": "Other",
+    "improving": "Improving",
+    "stable": "Stable",
+    "deteriorating": "Worsening",
+    "unknown": "Unknown"
+  },
+  "notfound": {
+    "title": "Page not found",
+    "body": "Maybe a typo in the URL.",
+    "back": "Back to overview"
+  }
+}

@@ -859,6 +859,48 @@ class EmployeeImportBody(BaseModel):
     expire_days: int = 14
 
 
+@app.get("/api/v1/org/admin/teams")
+async def org_admin_teams(user: AuthUser = Depends(require_hr_admin)):
+    """HR 后台列出本企业所有 team(含成员数)。"""
+    from services.org import list_teams, get_team, list_team_users, list_org_users
+    items = []
+    for tid in list_teams(user.org_id):
+        t = get_team(tid)
+        if not t: continue
+        items.append({
+            "team_id": tid,
+            "team_name": t.get("team_name", ""),
+            "manager_email": t.get("manager_email", ""),
+            "member_count": len(list_team_users(tid)),
+            "created_at": t.get("created_at", ""),
+        })
+    return {
+        "org_id": user.org_id,
+        "total_members": len(list_org_users(user.org_id)),
+        "teams": items,
+    }
+
+
+@app.get("/api/v1/org/admin/org_info")
+async def org_admin_org_info(user: AuthUser = Depends(require_hr_admin)):
+    """HR 后台读自家企业基本信息(席位/状态/period_end 等)。"""
+    from services.org import get_org, org_seat_usage
+    org = get_org(user.org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="org not found")
+    used, quota = org_seat_usage(user.org_id)
+    return {
+        "org_id": user.org_id,
+        "name": org.get("name", ""),
+        "industry": org.get("industry", ""),
+        "contact_hr_email": org.get("contact_hr_email", ""),
+        "status": org.get("status", ""),
+        "period_end": org.get("period_end", ""),
+        "seat_quota": quota,
+        "seats_used": used,
+    }
+
+
 @app.get("/api/v1/auth/me")
 async def auth_me(user: AuthUser = Depends(get_current_user)):
     """返当前 JWT 解析出的身份 + 企业归属(若有)。供前端渲染 badge / profile 用。"""

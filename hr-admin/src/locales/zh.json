@@ -1,0 +1,197 @@
+{
+  "layout": {
+    "subtitle": "HR 团队心理体检"
+  },
+  "nav": {
+    "overview": "总览",
+    "teams": "团队",
+    "employees": "员工管理",
+    "reports": "月度报告",
+    "settings": "设置",
+    "signOut": "退出"
+  },
+  "common": {
+    "loading": "加载中...",
+    "back": "返回",
+    "period": {
+      "7d": "7 天",
+      "30d": "30 天",
+      "90d": "90 天"
+    },
+    "insufficient": {
+      "title": "数据不足,无法展示",
+      "body": "为保护员工隐私,样本量必须 ≥ {{kMin}} 人才能聚合。当前样本: {{n}} 人。"
+    }
+  },
+  "login": {
+    "title": "知眠 HR 后台",
+    "subtitle": "用你的 HR 邮箱登录,管理你公司的团队心理体检。",
+    "emailLabel": "HR 邮箱",
+    "sendCode": "发送验证码",
+    "codeLabel": "6 位验证码",
+    "codeSentTo": "验证码已发送至",
+    "verify": "进入后台",
+    "devCode": "开发验证码",
+    "noteFooter": "首次使用?请先联系销售开通企业账号,再用你的 HR 邮箱登录。",
+    "errNoHrRole": "此邮箱未被授予 HR 权限。请联系运维 panxinglong-1@126.com 协助开通。",
+    "errGeneric": "出错了,请稍后重试。"
+  },
+  "overview": {
+    "title": "总览",
+    "subtitle": "团队心理健康关键指标,每天凌晨更新。",
+    "engagement": "参与度",
+    "sleep": "睡眠",
+    "psyche": "心理状态",
+    "activeUsers": "活跃员工",
+    "activationRateLabel": "激活率 {{pct}}%",
+    "completionRate": "会话完成率",
+    "completionHint": "完成关闭仪式或晨间打卡",
+    "totalUsersN": "样本数",
+    "kAggregated": "本次聚合涉及人数",
+    "avgSE": "平均睡眠效率",
+    "benchmarkSE": "行业基准 80%+",
+    "avgTST": "平均睡眠时长",
+    "benchmarkTST": "推荐 7h+",
+    "lowSeRatio": "低 SE 占比",
+    "lowSeHint": "SE < 70% 的条目比",
+    "usersWithSleepData": "有睡眠数据",
+    "usersWithSleepHint": "近期填了日记的人数",
+    "topWorryDomain": "首要担忧域",
+    "totalWorryRecordsHint": "{{n}} 条担忧记录",
+    "avgRecoveryTurns": "平均焦虑消退轮数",
+    "recoveryTurnsHint": "AI 陪伴的平均轮数",
+    "crisisHighMed": "高 / 中风险事件",
+    "crisisHint": "本周期内触发",
+    "crisisTotal": "总危机事件数",
+    "crisisAnonymousNote": "仅数字,匿名聚合",
+    "privacyFooter": "本视图基于 {{k}} 名员工的 {{period}} 数据匿名聚合。HR 永远看不到任何个人对话内容或身份信息。"
+  },
+  "teams": {
+    "title": "团队",
+    "subtitle": "公司当前共 {{n}} 名激活员工,按团队分组浏览。",
+    "col": {
+      "name": "团队名",
+      "manager": "团队负责人",
+      "members": "人数",
+      "created": "创建时间"
+    },
+    "empty": "暂无团队。在 CSV 上传时填写「team」列即可自动创建。",
+    "footerHint": "团队的钻取视图(每团队单独报告)在 V2 中提供。当前可在「月度报告」页按团队筛选。"
+  },
+  "employees": {
+    "title": "员工管理",
+    "subtitle": "通过 CSV 批量邀请员工。系统会生成一次性邀请码并发邀请邮件。",
+    "csv": {
+      "label": "员工花名册 CSV",
+      "or": "或粘贴",
+      "placeholder": "email,name,team\nalice@yourcompany.com,Alice,Engineering\nbob@yourcompany.com,Bob,Sales",
+      "format": "支持列名:email/邮箱 (必填), name/姓名 (可选), team/部门 (可选,缺失时自动创建)。BOM 与中文表头都识别。"
+    },
+    "opt": {
+      "sendEmails": "同时发邀请邮件",
+      "expireDays": "邀请码有效天数"
+    },
+    "submit": "提交导入",
+    "result": {
+      "title": "导入结果",
+      "total": "总行数",
+      "invited": "已生成邀请",
+      "sent": "邮件已发",
+      "skipped": "跳过",
+      "errors": "错误",
+      "parseErrors": "CSV 解析错误",
+      "col": {
+        "email": "邮箱",
+        "status": "状态",
+        "code": "邀请码",
+        "emailSent": "邮件"
+      },
+      "statusValue": {
+        "invited": "已邀请",
+        "already_in_org": "已在本企业",
+        "in_other_org": "已属其它企业",
+        "error": "失败"
+      }
+    },
+    "footerHint": "若 RESEND_API_KEY 未配置,系统仍会生成邀请码但不发邮件 — 请把邀请码手动告知员工。"
+  },
+  "reports": {
+    "title": "月度报告",
+    "subtitle": "5 个维度的详细聚合视图。",
+    "sec": {
+      "sleep": "睡眠",
+      "anxiety": "焦虑",
+      "worry": "担忧域分布",
+      "crisis": "危机事件",
+      "engagement": "参与度"
+    },
+    "sleep": {
+      "avgSE": "平均 SE",
+      "avgTST": "平均 TST",
+      "lowSeRatio": "低 SE 占比",
+      "shortTstRatio": "短 TST 占比",
+      "distribution": "SE 分布"
+    },
+    "anxiety": {
+      "recovery": "平均消退轮数",
+      "momentum": "情绪走向分布"
+    },
+    "worry": {
+      "top": "首要担忧域"
+    },
+    "crisis": {
+      "high": "高风险",
+      "medium": "中风险",
+      "low": "低风险",
+      "total": "总计",
+      "noteAnonymous": "本接口仅返回计数,系统从不向 HR 暴露员工身份、对话内容或事件原文。"
+    },
+    "engagement": {
+      "activeTotal": "活跃 / 总数",
+      "activation": "激活率",
+      "sessions": "会话总数",
+      "completion": "完成率"
+    },
+    "pdfNote": "PDF 月报生成(打包以上 5 部分 + LLM 摘要 + 封面 logo)在 V2 提供。当前可使用浏览器打印为 PDF。"
+  },
+  "settings": {
+    "title": "设置",
+    "subtitle": "查看企业基本信息与隐私守护配置。",
+    "org": {
+      "title": "企业信息",
+      "name": "企业名称",
+      "industry": "行业",
+      "orgId": "企业 ID",
+      "hrContact": "HR 联系邮箱",
+      "status": "状态",
+      "periodEnd": "服务到期",
+      "noEnd": "无到期",
+      "seats": "席位使用"
+    },
+    "privacy": {
+      "title": "隐私守护设置",
+      "body": "k-anonymity 阈值默认 5(团队人数 < 5 时拒绝展示真实数字)。如需调整为更严的 10,请联系运维。",
+      "contactOps": "调整请联系运维,默认 5"
+    },
+    "footer": "企业资料编辑、SSO 接入、续费等在 V2 提供。"
+  },
+  "worryDomain": {
+    "work": "工作压力",
+    "relationship": "人际关系",
+    "health": "健康担忧",
+    "finance": "财务压力",
+    "study": "学业压力",
+    "family": "家庭关系",
+    "future": "未来焦虑",
+    "general": "其它",
+    "improving": "好转中",
+    "stable": "稳定",
+    "deteriorating": "恶化",
+    "unknown": "未知"
+  },
+  "notfound": {
+    "title": "找不到这个页面",
+    "body": "也许是输错了链接。",
+    "back": "回到总览"
+  }
+}
