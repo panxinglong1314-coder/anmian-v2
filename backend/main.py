@@ -517,6 +517,8 @@ class UserAuthMiddleware(BaseHTTPMiddleware):
         "/api/v1/auth/google",
         # v2.5 B2B: 注册式企业入口 (一步: 邮箱+验证码+邀请码),无需先有 JWT
         "/api/v1/auth/org/register",
+        # v2.5 B2B: 公开的销售线索接收(/enterprise 页 CTA 提交)
+        "/api/v1/sales/lead",
         "/api/v1/version",
     }
 
@@ -5011,6 +5013,97 @@ async def update_worry(worry_key: str, req: dict):
 
 
 # ==================== 订阅管理 ====================
+
+# ==================== 销售线索 (B2B,公开提交) ====================
+
+class SalesLeadBody(BaseModel):
+    company_name: str
+    contact_name: str = ""
+    contact_email: str
+    contact_phone: str = ""
+    team_size: str = ""
+    message: str = ""
+    locale: str = "zh"
+    source: str = "/enterprise"
+
+
+@app.post("/api/v1/sales/lead")
+async def sales_lead_submit(body: SalesLeadBody, request: Request):
+    """官网 /enterprise 页 CTA 提交咨询。无需鉴权,但有简单频率限制。"""
+    from services.sales_lead import submit_lead, send_lead_notification
+    # IP 限速: 同 IP 1 小时最多 5 条,防滥用
+    client_ip = (request.headers.get("X-Real-IP")
+                 or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+                 or "unknown")
+    rl_key = f"sales_lead_rl:{client_ip}"
+    try:
+        n = int(redis_client.get(rl_key) or 0)
+        if n >= 5:
+            raise HTTPException(status_code=429, detail="提交过于频繁,请稍后再试")
+        redis_client.setex(rl_key, 3600, n + 1)
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+    try:
+        lead = submit_lead(
+            company_name=body.company_name,
+            contact_name=body.contact_name,
+            contact_email=body.contact_email,
+            contact_phone=body.contact_phone,
+            team_size=body.team_size,
+            message=body.message,
+            locale=body.locale,
+            source=body.source,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    # 异步发邮件通知运营(不阻塞响应)
+    sales_inbox = os.getenv("SALES_NOTIFY_EMAIL", getattr(settings, "sales_notify_email", ""))
+    if sales_inbox:
+        asyncio.create_task(send_lead_notification(lead, sales_inbox))
+    # 给前端的响应只返成功标志 + lead_id,不返完整对象(避免反射 XSS 之类)
+    return {
+        "status": "ok",
+        "lead_id": lead["lead_id"],
+        "message": "我们已收到你的咨询,1-2 个工作日内会有商务联系你。",
+    }
+
+
+# ==================== Admin 视角: 销售线索看板 ====================
+
+@app.get("/api/v1/admin/sales/leads")
+async def admin_sales_leads(status: str = Query("pending"), limit: int = Query(100, le=500)):
+    """admin 后台看销售线索队列。status='pending' 或 'archived'。"""
+    from services.sales_lead import list_leads, get_stats
+    leads = list_leads(status=status, limit=limit)
+    stats = get_stats()
+    return {"leads": leads, "stats": stats}
+
+
+class SalesLeadUpdateBody(BaseModel):
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    operator: Optional[str] = None
+
+
+@app.patch("/api/v1/admin/sales/leads/{lead_id}")
+async def admin_sales_lead_update(lead_id: str, body: SalesLeadUpdateBody):
+    """admin 更新线索状态/备注/跟进人。"""
+    from services.sales_lead import update_lead
+    try:
+        rec = update_lead(
+            lead_id,
+            status=body.status,
+            notes=body.notes,
+            operator=body.operator,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not rec:
+        raise HTTPException(status_code=404, detail="lead not found")
+    return rec
+
 
 class SubscriptionRequest(BaseModel):
     user_id: str

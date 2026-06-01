@@ -388,9 +388,30 @@
     "cta": {
       "label": "下一步",
       "title": "想给你的团队做次心理体检?",
-      "sub": "我们提供 30 天免费试点(限 100 席以内,需签 NDA),帮你看清团队的真实状态。",
+      "sub": "填一下下面的表,我们 1-2 个工作日内联系你。",
       "button": "联系商务咨询",
       "emailSubject": "知眠企业版 - 咨询试点"
+    },
+    "form": {
+      "company": "公司名称",
+      "teamSize": "员工规模",
+      "teamSizeChoose": "请选择",
+      "teamSize50": "50 人以下",
+      "teamSize200": "50-200 人",
+      "teamSize500": "200-500 人",
+      "teamSize2000": "500-2000 人",
+      "teamSize2000plus": "2000 人以上",
+      "name": "你的姓名",
+      "email": "工作邮箱",
+      "phone": "联系电话(可选)",
+      "message": "想了解什么?",
+      "messagePlaceholder": "比如:试点规模、定价、合规要求、对接时间等。",
+      "privacyNote": "我们只用这些信息回复你的咨询,不发营销邮件,不卖给第三方。",
+      "submit": "提交咨询",
+      "successTitle": "已收到,谢谢!",
+      "altEmail": "急事可直接发邮件:",
+      "errRateLimited": "今天提交太多次了,请稍后再试(或直接发邮件给我们)。",
+      "errGeneric": "提交失败,请稍后重试。"
     },
     "footer": {
       "consumer": "个人版"

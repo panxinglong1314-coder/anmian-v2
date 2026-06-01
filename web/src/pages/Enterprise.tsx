@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { currentLocale } from "../i18n";
+import { submitSalesLead } from "../lib/api";
 import LanguageToggle from "../components/LanguageToggle";
 
 interface Card {
@@ -48,7 +50,7 @@ export default function Enterprise() {
         <div className="flex items-center gap-2">
           <LanguageToggle />
           <a
-            href={`mailto:${salesEmail}?subject=${encodeURIComponent(t("enterprise.cta.emailSubject"))}`}
+            href="#cta-form"
             className="rounded-full bg-gold text-deep text-sm font-medium px-4 py-1.5 hover:bg-goldlight transition"
           >
             {t("enterprise.nav.cta")}
@@ -78,7 +80,7 @@ export default function Enterprise() {
         </p>
         <div className="flex flex-wrap gap-3 justify-center mt-8">
           <a
-            href={`mailto:${salesEmail}?subject=${encodeURIComponent(t("enterprise.cta.emailSubject"))}`}
+            href="#cta-form"
             className="rounded-full bg-gold text-deep font-medium px-6 py-3 hover:bg-goldlight transition"
           >
             {t("enterprise.hero.ctaPrimary")}
@@ -199,18 +201,16 @@ export default function Enterprise() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="px-6 py-20 bg-navyx/50 text-center">
-        <p className="text-gold text-sm tracking-widest uppercase">{t("enterprise.cta.label")}</p>
-        <h2 className="text-2xl sm:text-3xl font-bold mt-2">{t("enterprise.cta.title")}</h2>
-        <p className="text-txt2 mt-3 max-w-xl mx-auto">{t("enterprise.cta.sub")}</p>
-        <a
-          href={`mailto:${salesEmail}?subject=${encodeURIComponent(t("enterprise.cta.emailSubject"))}`}
-          className="inline-block mt-8 rounded-full bg-gold text-deep font-medium px-8 py-3.5 hover:bg-goldlight transition"
-        >
-          {t("enterprise.cta.button")}
-        </a>
-        <p className="text-txt3 text-xs mt-4">{salesEmail}</p>
+      {/* CTA form */}
+      <section id="cta-form" className="px-6 py-20 bg-navyx/50">
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-8">
+            <p className="text-gold text-sm tracking-widest uppercase">{t("enterprise.cta.label")}</p>
+            <h2 className="text-2xl sm:text-3xl font-bold mt-2">{t("enterprise.cta.title")}</h2>
+            <p className="text-txt2 mt-3">{t("enterprise.cta.sub")}</p>
+          </div>
+          <ContactForm fallbackEmail={salesEmail} />
+        </div>
       </section>
 
       </main>
@@ -231,5 +231,144 @@ export default function Enterprise() {
         )}
       </footer>
     </div>
+  );
+}
+
+
+// ContactForm: 销售线索表单 — submit → /api/v1/sales/lead
+function ContactForm({ fallbackEmail }: { fallbackEmail: string }) {
+  const { t } = useTranslation();
+  const locale = currentLocale();
+  const [form, setForm] = useState({
+    company_name: "",
+    contact_name: "",
+    contact_email: "",
+    contact_phone: "",
+    team_size: "",
+    message: "",
+  });
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<{ message: string } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const set = (k: keyof typeof form, v: string) => setForm((s) => ({ ...s, [k]: v }));
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.company_name.trim() || !form.contact_email.trim()) return;
+    setErr(null);
+    setBusy(true);
+    try {
+      const res = await submitSalesLead({
+        ...form,
+        locale,
+        source: "/enterprise",
+      });
+      setDone({ message: res.message });
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg === "rate_limited") setErr(t("enterprise.form.errRateLimited"));
+      else setErr(t("enterprise.form.errGeneric"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="rounded-3xl bg-emerald-500/5 border border-emerald-500/30 p-8 text-center">
+        <div className="text-5xl mb-3">✓</div>
+        <h3 className="text-xl text-text font-semibold">{t("enterprise.form.successTitle")}</h3>
+        <p className="text-txt2 mt-2 leading-relaxed">{done.message}</p>
+        <p className="text-txt3 text-xs mt-6">
+          {t("enterprise.form.altEmail")} <span className="text-gold/80">{fallbackEmail}</span>
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="rounded-3xl bg-cardx/70 border border-gold/20 p-6 sm:p-8 space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label={t("enterprise.form.company")} required>
+          <input
+            type="text"
+            required
+            value={form.company_name}
+            onChange={(e) => set("company_name", e.target.value)}
+            className="w-full px-3 py-2.5 rounded bg-deep border border-white/10 text-text outline-none focus:border-gold/50 transition"
+          />
+        </Field>
+        <Field label={t("enterprise.form.teamSize")}>
+          <select
+            value={form.team_size}
+            onChange={(e) => set("team_size", e.target.value)}
+            className="w-full px-3 py-2.5 rounded bg-deep border border-white/10 text-text outline-none focus:border-gold/50 transition"
+          >
+            <option value="">{t("enterprise.form.teamSizeChoose")}</option>
+            <option value="<50">{t("enterprise.form.teamSize50")}</option>
+            <option value="50-200">{t("enterprise.form.teamSize200")}</option>
+            <option value="200-500">{t("enterprise.form.teamSize500")}</option>
+            <option value="500-2000">{t("enterprise.form.teamSize2000")}</option>
+            <option value="2000+">{t("enterprise.form.teamSize2000plus")}</option>
+          </select>
+        </Field>
+        <Field label={t("enterprise.form.name")}>
+          <input
+            type="text"
+            value={form.contact_name}
+            onChange={(e) => set("contact_name", e.target.value)}
+            className="w-full px-3 py-2.5 rounded bg-deep border border-white/10 text-text outline-none focus:border-gold/50 transition"
+          />
+        </Field>
+        <Field label={t("enterprise.form.email")} required>
+          <input
+            type="email"
+            required
+            value={form.contact_email}
+            onChange={(e) => set("contact_email", e.target.value)}
+            className="w-full px-3 py-2.5 rounded bg-deep border border-white/10 text-text outline-none focus:border-gold/50 transition"
+          />
+        </Field>
+        <Field label={t("enterprise.form.phone")}>
+          <input
+            type="tel"
+            value={form.contact_phone}
+            onChange={(e) => set("contact_phone", e.target.value)}
+            className="w-full px-3 py-2.5 rounded bg-deep border border-white/10 text-text outline-none focus:border-gold/50 transition"
+          />
+        </Field>
+      </div>
+      <Field label={t("enterprise.form.message")}>
+        <textarea
+          rows={4}
+          value={form.message}
+          onChange={(e) => set("message", e.target.value)}
+          placeholder={t("enterprise.form.messagePlaceholder")}
+          className="w-full px-3 py-2.5 rounded bg-deep border border-white/10 text-text outline-none focus:border-gold/50 transition resize-none"
+        />
+      </Field>
+      <p className="text-txt3 text-xs leading-relaxed">{t("enterprise.form.privacyNote")}</p>
+      {err && <p className="text-rose-300 text-sm">{err}</p>}
+      <button
+        type="submit"
+        disabled={busy || !form.company_name.trim() || !form.contact_email.trim()}
+        className="w-full sm:w-auto px-8 py-3 rounded-full bg-gold text-deep font-medium disabled:opacity-40 hover:bg-goldlight transition"
+      >
+        {busy ? "…" : t("enterprise.form.submit")}
+      </button>
+    </form>
+  );
+}
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="text-xs text-txt2 mb-1 block">
+        {label}
+        {required && <span className="text-gold ml-1">*</span>}
+      </span>
+      {children}
+    </label>
   );
 }

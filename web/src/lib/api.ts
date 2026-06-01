@@ -332,6 +332,36 @@ export function deleteAccount(): Promise<{ status: string; keys_deleted?: number
   return authRequest(`/api/v1/user/delete_account`, { method: "POST" });
 }
 
+// v2.5 B2B: 提交销售线索(公开端点,无需 auth)
+export interface SalesLeadInput {
+  company_name: string;
+  contact_name?: string;
+  contact_email: string;
+  contact_phone?: string;
+  team_size?: string;
+  message?: string;
+  locale?: string;
+  source?: string;
+}
+
+export async function submitSalesLead(input: SalesLeadInput) {
+  const res = await fetch(`/api/v1/sales/lead`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (res.status === 429) throw new Error("rate_limited");
+  if (!res.ok) {
+    let detail = "submit_failed";
+    try {
+      const j = await res.json();
+      detail = j.detail || j.error || detail;
+    } catch {}
+    throw new Error(detail);
+  }
+  return res.json() as Promise<{ status: string; lead_id: string; message: string }>;
+}
+
 /** Play a base64 mp3 chunk returned by the TTS stream. */
 export function playBase64Mp3(b64: string): HTMLAudioElement | null {
   if (!b64) return null;

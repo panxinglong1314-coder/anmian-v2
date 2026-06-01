@@ -388,9 +388,30 @@
     "cta": {
       "label": "Next step",
       "title": "Ready to take your team's pulse?",
-      "sub": "We offer a 30-day pilot (up to 100 seats, NDA-protected) so you can see what your team actually looks like before committing.",
+      "sub": "Fill in the form below and we'll get back to you within 1-2 business days.",
       "button": "Talk to sales",
       "emailSubject": "ZhiMian Enterprise - pilot inquiry"
+    },
+    "form": {
+      "company": "Company",
+      "teamSize": "Team size",
+      "teamSizeChoose": "Select",
+      "teamSize50": "Under 50",
+      "teamSize200": "50–200",
+      "teamSize500": "200–500",
+      "teamSize2000": "500–2000",
+      "teamSize2000plus": "2000+",
+      "name": "Your name",
+      "email": "Work email",
+      "phone": "Phone (optional)",
+      "message": "What would you like to know?",
+      "messagePlaceholder": "e.g. pilot size, pricing, compliance requirements, timeline.",
+      "privacyNote": "We only use this to reply to your inquiry. No marketing emails, no sharing with third parties.",
+      "submit": "Submit inquiry",
+      "successTitle": "Got it, thanks!",
+      "altEmail": "For anything urgent, email us:",
+      "errRateLimited": "Too many submissions for today. Please try again later (or email us directly).",
+      "errGeneric": "Couldn't submit. Please try again."
     },
     "footer": {
       "consumer": "For individuals"
