@@ -159,6 +159,7 @@ const pageTitles = {
   kb: '📚 知识库',
   feedback: '📮 用户反馈',
   leads: '💼 销售线索 (B2B)',
+  orgs: '🏢 企业管理 (B2B)',
 };
 
 function showPage(name) {
@@ -172,7 +173,7 @@ function showPage(name) {
                      users: loadUsers, health: loadHealth, retention: loadRetention,
                      crisis: loadCrisis, abconfig: loadABConfig, pricing: loadPricing,
                      sleep: loadSleepDashboard, kb: loadKB, feedback: loadFeedback,
-                     leads: loadLeads };
+                     leads: loadLeads, orgs: loadOrgs };
   if (loaders[name]) loaders[name](loaders[name] === loadDashboard ? 7 : 30);
 
   // 切到危机页面后，停止标题闪烁（视为"已读"）
@@ -1670,3 +1671,251 @@ async function submitLeadUpdate() {
 document.addEventListener('change', (e) => {
   if (e.target?.id === 'leads-status-filter') loadLeads();
 });
+
+// ============================================================
+// 🏢 B2B 企业管理面板 (v2.5)
+// ============================================================
+let _currentOrgId = null;
+let _currentOrgName = null;
+
+function orgFmtSeats(used, quota) {
+  const pct = quota > 0 ? Math.round(used / quota * 100) : 0;
+  let cls = 'text-emerald-600';
+  if (pct >= 90) cls = 'text-red-600';
+  else if (pct >= 70) cls = 'text-yellow-600';
+  return `<span class="${cls} tabular-nums">${used}</span><span class="text-gray-400">/${quota}</span>`;
+}
+
+function orgStatusBadge(status) {
+  const map = {
+    active:    'bg-emerald-100 text-emerald-700 border-emerald-300',
+    pending:   'bg-yellow-100 text-yellow-700 border-yellow-300',
+    cancelled: 'bg-gray-100 text-gray-500 border-gray-300',
+  };
+  const cls = map[status] || 'bg-gray-100 text-gray-600 border-gray-300';
+  return `<span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${cls}">${status || '-'}</span>`;
+}
+
+async function loadOrgs() {
+  try {
+    const r = await fetch(`${API_BASE}/orgs`, { headers: { 'X-Admin-Token': adminToken } });
+    if (!r.ok) throw new Error('http ' + r.status);
+    const d = await r.json();
+    const orgs = d.orgs || [];
+    document.getElementById('orgs-total').textContent = orgs.length;
+    document.getElementById('orgs-active').textContent = orgs.filter(o => o.status === 'active').length;
+    const totalUsed = orgs.reduce((a, o) => a + (o.seats_used || 0), 0);
+    const totalQuota = orgs.reduce((a, o) => a + (o.seat_quota || 0), 0);
+    document.getElementById('orgs-seats-used').textContent = totalUsed;
+    document.getElementById('orgs-seats-quota').textContent = totalQuota;
+
+    const tbody = document.getElementById('orgs-tbody');
+    if (!orgs.length) {
+      tbody.innerHTML = `<tr><td colspan="9" class="text-center text-gray-400 py-8">
+        暂无企业。点右上「+ 新建企业」开始。
+      </td></tr>`;
+      return;
+    }
+    tbody.innerHTML = orgs.map(o => `
+      <tr class="hover:bg-gray-50">
+        <td class="font-medium">${_escapeHtml(o.name)}</td>
+        <td class="text-[10px] font-mono text-gray-500">${o.org_id}</td>
+        <td class="text-xs">${_escapeHtml(o.industry) || '-'}</td>
+        <td class="text-xs">${_escapeHtml(o.contact_hr_email) || '-'}</td>
+        <td>${orgFmtSeats(o.seats_used, o.seat_quota)}</td>
+        <td class="text-center text-xs">${o.hr_admins_count}</td>
+        <td class="text-xs">${o.period_end ? o.period_end.slice(0, 10) : '<span class="text-gray-400">未设</span>'}</td>
+        <td>${orgStatusBadge(o.status)}</td>
+        <td class="text-xs">
+          <button onclick="openOrgActions('${o.org_id}', '${_escapeHtml(o.name).replace(/'/g, '&#39;')}')" class="btn btn-default btn-sm mr-1">管理</button>
+          <button onclick="copyToClipboard('${o.org_id}')" class="text-blue-600 hover:underline">复制 ID</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    document.getElementById('orgs-tbody').innerHTML =
+      `<tr><td colspan="9" class="text-center text-red-500 py-8">加载失败: ${e.message}</td></tr>`;
+  }
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => toast('已复制: ' + text, 'success'));
+}
+
+function openOrgCreateModal() {
+  document.getElementById('org-create-name').value = '';
+  document.getElementById('org-create-industry').value = '';
+  document.getElementById('org-create-quota').value = '50';
+  document.getElementById('org-create-hremail').value = '';
+  // 默认 1 年后
+  const oneYear = new Date();
+  oneYear.setFullYear(oneYear.getFullYear() + 1);
+  document.getElementById('org-create-periodend').value = oneYear.toISOString().slice(0, 10);
+  document.getElementById('org-create-auto-invite').checked = true;
+  document.getElementById('org-create-modal').classList.remove('hidden');
+}
+
+function hideOrgCreateModal() {
+  document.getElementById('org-create-modal').classList.add('hidden');
+}
+
+async function submitOrgCreate() {
+  const name = document.getElementById('org-create-name').value.trim();
+  const industry = document.getElementById('org-create-industry').value.trim();
+  const seat_quota = parseInt(document.getElementById('org-create-quota').value) || 50;
+  const contact_hr_email = document.getElementById('org-create-hremail').value.trim();
+  const period_end = document.getElementById('org-create-periodend').value;
+  const autoInvite = document.getElementById('org-create-auto-invite').checked;
+
+  if (!name || !contact_hr_email) {
+    toast('企业名和 HR 邮箱必填', 'error');
+    return;
+  }
+  try {
+    const r = await fetch(`${API_BASE}/org/create`, {
+      method: 'POST',
+      headers: { 'X-Admin-Token': adminToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, industry, seat_quota, contact_hr_email, period_end }),
+    });
+    if (!r.ok) throw new Error('http ' + r.status);
+    const d = await r.json();
+    const orgId = d.org_id;
+
+    let inviteCode = '';
+    if (autoInvite) {
+      const r2 = await fetch(`${API_BASE}/org/invite`, {
+        method: 'POST',
+        headers: { 'X-Admin-Token': adminToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ org_id: orgId, expire_days: 30, max_uses: 1 }),
+      });
+      if (r2.ok) {
+        const dd = await r2.json();
+        inviteCode = dd.code;
+      }
+    }
+
+    hideOrgCreateModal();
+    // 显示创建结果 + 引导下一步
+    const log = document.getElementById('orgs-log');
+    log.classList.remove('hidden');
+    log.innerHTML = `
+      <div class="font-semibold text-emerald-700 mb-2">✓ 企业创建成功</div>
+      <div>org_id: <span class="font-mono">${orgId}</span> <button onclick="copyToClipboard('${orgId}')" class="ml-2 text-blue-600 hover:underline">复制</button></div>
+      ${inviteCode ? `
+      <div class="mt-1">邀请码: <span class="font-mono font-semibold text-amber-700">${inviteCode}</span> <button onclick="copyToClipboard('${inviteCode}')" class="ml-2 text-blue-600 hover:underline">复制</button></div>
+      <div class="mt-3 text-xs text-gray-700 bg-amber-50 border border-amber-200 rounded p-2">
+        <strong>下一步:</strong><br>
+        1. 把邀请码 <code class="bg-white px-1">${inviteCode}</code> 发给 HR (邮箱 ${contact_hr_email})<br>
+        2. HR 用工作邮箱 + 邀请码在 <code class="bg-white px-1">https://sleepai.chat/login</code> 注册 (走 /auth/org/register)<br>
+        3. HR 注册完成后,回来这里找到该企业 → 点「管理」→ 升级 HR 为管理员<br>
+        4. 告知 HR 重新登录一次,即可看到完整 hr-admin 后台
+      </div>
+      ` : ''}
+    `;
+    loadOrgs();
+    toast('企业已创建', 'success');
+  } catch (e) {
+    toast('创建失败: ' + e.message, 'error');
+  }
+}
+
+async function openOrgActions(orgId, orgName) {
+  _currentOrgId = orgId;
+  _currentOrgName = orgName;
+  document.getElementById('org-actions-title').textContent = `${orgName} · 管理`;
+  document.getElementById('grant-hr-email').value = '';
+  document.getElementById('grant-result').innerHTML = '';
+  document.getElementById('org-actions-log').classList.add('hidden');
+  document.getElementById('org-actions-modal').classList.remove('hidden');
+  // 加载邀请码列表
+  await loadOrgInvites();
+}
+
+function hideOrgActionsModal() {
+  document.getElementById('org-actions-modal').classList.add('hidden');
+  _currentOrgId = null;
+}
+
+async function loadOrgInvites() {
+  if (!_currentOrgId) return;
+  const list = document.getElementById('org-invites-list');
+  list.innerHTML = '<div class="text-gray-400">加载中...</div>';
+  try {
+    const r = await fetch(`${API_BASE}/orgs/${_currentOrgId}/invites`, { headers: { 'X-Admin-Token': adminToken } });
+    if (!r.ok) throw new Error('http ' + r.status);
+    const d = await r.json();
+    if (!d.invites || !d.invites.length) {
+      list.innerHTML = '<div class="text-gray-400">无有效邀请码</div>';
+      return;
+    }
+    list.innerHTML = d.invites.map(inv => {
+      const expiry = inv.expire_at ? inv.expire_at.slice(0, 10) : '';
+      const usedUp = inv.used >= inv.max_uses;
+      const cls = usedUp ? 'text-gray-400 line-through' : 'text-gray-800';
+      return `
+        <div class="flex items-center justify-between py-1 px-2 hover:bg-gray-50 rounded ${cls}">
+          <span class="font-mono font-semibold">${inv.code}</span>
+          <span class="text-xs">${inv.used}/${inv.max_uses}·至${expiry}${inv.team_id ? '·'+inv.team_id : ''}</span>
+          <button onclick="copyToClipboard('${inv.code}')" class="text-blue-600 hover:underline text-xs">复制</button>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = `<div class="text-red-500">加载失败: ${e.message}</div>`;
+  }
+}
+
+async function generateInviteForCurrentOrg() {
+  if (!_currentOrgId) return;
+  const expire_days = parseInt(document.getElementById('invite-expire-days').value) || 30;
+  const max_uses = parseInt(document.getElementById('invite-max-uses').value) || 1;
+  try {
+    const r = await fetch(`${API_BASE}/org/invite`, {
+      method: 'POST',
+      headers: { 'X-Admin-Token': adminToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: _currentOrgId, expire_days, max_uses }),
+    });
+    if (!r.ok) throw new Error('http ' + r.status);
+    const d = await r.json();
+    toast(`生成邀请码: ${d.code}`, 'success');
+    const log = document.getElementById('org-actions-log');
+    log.classList.remove('hidden');
+    log.innerHTML += `<div>+ 生成邀请码 <strong>${d.code}</strong> (有效${expire_days}天,可用${max_uses}次)</div>`;
+    await loadOrgInvites();
+  } catch (e) {
+    toast('生成失败: ' + e.message, 'error');
+  }
+}
+
+async function grantHrAdmin() {
+  if (!_currentOrgId) return;
+  const email = document.getElementById('grant-hr-email').value.trim().toLowerCase();
+  const result = document.getElementById('grant-result');
+  if (!email) {
+    result.innerHTML = '<span class="text-red-600">请填 HR 邮箱</span>';
+    return;
+  }
+  try {
+    const r = await fetch(`${API_BASE}/org/grant_hr_admin`, {
+      method: 'POST',
+      headers: { 'X-Admin-Token': adminToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, org_id: _currentOrgId }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      result.innerHTML = `<span class="text-red-600">${d.detail || 'http ' + r.status}</span>`;
+      if (r.status === 400 && d.detail?.includes('未绑')) {
+        result.innerHTML += `<div class="text-gray-600 mt-1">提示:该邮箱还没用邀请码注册过。先让 HR 在 sleepai.chat 用邀请码注册,再回来升级。</div>`;
+      }
+      return;
+    }
+    result.innerHTML = `<span class="text-emerald-600">✓ ${email} 已升级为 hr_admin</span>
+      <div class="text-gray-600 mt-1">⚠️ 告知 HR 重新登录一次,新 JWT 才含 role=hr_admin</div>`;
+    const log = document.getElementById('org-actions-log');
+    log.classList.remove('hidden');
+    log.innerHTML += `<div>+ 升级 <strong>${email}</strong> → hr_admin</div>`;
+    loadOrgs();
+  } catch (e) {
+    result.innerHTML = `<span class="text-red-600">出错: ${e.message}</span>`;
+  }
+}

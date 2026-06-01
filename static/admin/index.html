@@ -165,6 +165,9 @@
       <div class="nav-item" data-page="leads" onclick="showPage('leads')">
         <span class="icon">💼</span>销售线索
       </div>
+      <div class="nav-item" data-page="orgs" onclick="showPage('orgs')">
+        <span class="icon">🏢</span>企业管理
+      </div>
       <div class="nav-group-label">系统</div>
       <div class="nav-item" data-page="health" onclick="showPage('health')">
         <span class="icon">🖥️</span>服务器监控
@@ -886,6 +889,163 @@
                 <tr><td colspan="8" class="text-center text-gray-400 py-8">加载中...</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- B2B 企业管理 -->
+      <div id="page-orgs" class="page hidden space-y-4">
+        <div class="grid grid-cols-4 gap-3">
+          <div class="card metric-card">
+            <div class="metric-value" id="orgs-total">--</div>
+            <div class="metric-label">企业总数</div>
+            <div class="metric-sub">所有 status</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-emerald-600" id="orgs-active">--</div>
+            <div class="metric-label">活跃</div>
+            <div class="metric-sub">status=active</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-blue-600" id="orgs-seats-used">--</div>
+            <div class="metric-label">激活席位</div>
+            <div class="metric-sub">已入职员工</div>
+          </div>
+          <div class="card metric-card">
+            <div class="metric-value text-gray-600" id="orgs-seats-quota">--</div>
+            <div class="metric-label">席位总数</div>
+            <div class="metric-sub">合同配额</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🏢 企业列表</span>
+            <div class="flex items-center gap-2">
+              <button onclick="openOrgCreateModal()" class="btn btn-primary btn-sm">+ 新建企业</button>
+              <button onclick="loadOrgs()" class="btn btn-default btn-sm">🔄 刷新</button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>企业名</th>
+                  <th style="width:130px">org_id</th>
+                  <th style="width:100px">行业</th>
+                  <th style="width:180px">HR 邮箱</th>
+                  <th style="width:110px">席位</th>
+                  <th style="width:80px">HR数</th>
+                  <th style="width:110px">服务到期</th>
+                  <th style="width:80px">状态</th>
+                  <th style="width:200px">操作</th>
+                </tr>
+              </thead>
+              <tbody id="orgs-tbody">
+                <tr><td colspan="9" class="text-center text-gray-400 py-8">加载中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 操作日志(小提示区域) -->
+        <div id="orgs-log" class="text-xs text-gray-600 bg-gray-50 rounded p-3 hidden"></div>
+      </div>
+
+      <!-- 创建企业弹框 -->
+      <div id="org-create-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl w-[560px] max-w-[95vw]" onclick="event.stopPropagation()">
+          <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-base font-semibold text-gray-900">新建企业</h3>
+            <button onclick="hideOrgCreateModal()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          </div>
+          <div class="px-5 py-4 space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">企业名 *</label>
+              <input id="org-create-name" type="text" placeholder="例如:Acme Corp" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">行业</label>
+                <input id="org-create-industry" type="text" placeholder="tech / fintech / ..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">席位数(seat_quota) *</label>
+                <input id="org-create-quota" type="number" min="1" max="10000" value="50" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">HR 联系邮箱 *</label>
+              <input id="org-create-hremail" type="email" placeholder="hr@yourcompany.com" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <p class="text-[10px] text-gray-500 mt-1">这是 HR 自己的邮箱(后面 grant_hr_admin 会用)</p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">服务到期日</label>
+              <input id="org-create-periodend" type="date" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <p class="text-[10px] text-gray-500 mt-1">默认 1 年后,可不填</p>
+            </div>
+            <div class="flex items-center gap-2 pt-2 border-t border-gray-200">
+              <input id="org-create-auto-invite" type="checkbox" checked class="accent-blue-500">
+              <label for="org-create-auto-invite" class="text-xs text-gray-700">
+                同时为 HR 生成一次性邀请码(给 HR 发邮件用)
+              </label>
+            </div>
+          </div>
+          <div class="px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+            <button onclick="hideOrgCreateModal()" class="btn btn-default btn-sm">取消</button>
+            <button onclick="submitOrgCreate()" class="btn btn-primary btn-sm">创建</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 邀请码 / HR 管理弹框 -->
+      <div id="org-actions-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl w-[640px] max-w-[95vw]" onclick="event.stopPropagation()">
+          <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-base font-semibold text-gray-900" id="org-actions-title">企业操作</h3>
+            <button onclick="hideOrgActionsModal()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          </div>
+          <div class="px-5 py-4 space-y-4">
+            <!-- 邀请码区 -->
+            <div class="border border-gray-200 rounded p-3">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-gray-800">📨 邀请码</span>
+                <button onclick="generateInviteForCurrentOrg()" class="btn btn-default btn-sm">+ 新邀请码</button>
+              </div>
+              <div id="org-invites-list" class="text-xs space-y-1 max-h-48 overflow-y-auto">
+                <div class="text-gray-400">点击加载...</div>
+              </div>
+              <div class="mt-2 grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <label class="block text-gray-700 mb-0.5">有效天数</label>
+                  <input id="invite-expire-days" type="number" min="1" max="90" value="30" class="w-full border rounded px-2 py-1">
+                </div>
+                <div>
+                  <label class="block text-gray-700 mb-0.5">最大使用次数</label>
+                  <input id="invite-max-uses" type="number" min="1" max="1000" value="1" class="w-full border rounded px-2 py-1">
+                </div>
+                <div class="flex items-end">
+                  <span class="text-gray-500 text-[10px]">max_uses=1 一次性</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 升级 HR 区 -->
+            <div class="border border-gray-200 rounded p-3">
+              <div class="text-sm font-medium text-gray-800 mb-2">👤 升级用户为 HR 管理员</div>
+              <p class="text-[11px] text-gray-500 mb-2">
+                前提:该邮箱已用 /auth/org/register 注册过(用了上面的邀请码)。
+                升级后 HR 需重登一次拿到带 role=hr_admin 的新 JWT。
+              </p>
+              <div class="flex gap-2">
+                <input id="grant-hr-email" type="email" placeholder="hr@company.com" class="flex-1 border rounded px-3 py-1.5 text-sm">
+                <button onclick="grantHrAdmin()" class="btn btn-primary btn-sm">升级</button>
+              </div>
+              <div id="grant-result" class="mt-2 text-xs"></div>
+            </div>
+
+            <!-- 操作记录区 -->
+            <div id="org-actions-log" class="text-[11px] text-gray-600 bg-gray-50 rounded p-2 hidden font-mono"></div>
           </div>
         </div>
       </div>

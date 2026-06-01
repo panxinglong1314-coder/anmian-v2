@@ -6335,6 +6335,79 @@ class CreateOrgBody(BaseModel):
     period_end: str = ""
 
 
+@app.get("/api/v1/admin/orgs")
+async def admin_orgs_list():
+    """运营列出所有企业 + 当前席位用量 + HR 数量。"""
+    from services.org import get_org, list_org_users, list_teams
+    if not redis_client:
+        return {"orgs": []}
+    items = []
+    for key in redis_client.scan_iter(match="org:org_*", count=200):
+        k = key.decode() if isinstance(key, bytes) else key
+        # 跳过 org:invite / org:teams / org:users 等
+        if k.count(":") != 1:
+            continue
+        org_id = k.split(":", 1)[1]
+        org = get_org(org_id)
+        if not org:
+            continue
+        seats_used = len(list_org_users(org_id))
+        teams_n = len(list_teams(org_id))
+        # 找到该 org 的 hr_admin 数量(扫 user:role:*)
+        hr_count = 0
+        for uk in redis_client.scan_iter(match="user:role:*", count=200):
+            uk_s = uk.decode() if isinstance(uk, bytes) else uk
+            v = redis_client.get(uk_s)
+            v = v.decode() if isinstance(v, bytes) else v
+            if v != "hr_admin": continue
+            uid = uk_s.split(":", 2)[2]
+            user_org = redis_client.get(f"user:org:{uid}")
+            user_org = user_org.decode() if isinstance(user_org, bytes) else user_org
+            if user_org == org_id:
+                hr_count += 1
+        items.append({
+            "org_id": org_id,
+            "name": org.get("name", ""),
+            "industry": org.get("industry", ""),
+            "contact_hr_email": org.get("contact_hr_email", ""),
+            "seat_quota": int(org.get("seat_quota", 0)),
+            "seats_used": seats_used,
+            "teams_count": teams_n,
+            "hr_admins_count": hr_count,
+            "status": org.get("status", ""),
+            "created_at": org.get("created_at", ""),
+            "period_end": org.get("period_end", ""),
+        })
+    items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return {"orgs": items, "total": len(items)}
+
+
+@app.get("/api/v1/admin/orgs/{org_id}/invites")
+async def admin_org_invites(org_id: str):
+    """列出某 org 的活跃邀请码(未过期且未用完)。"""
+    if not redis_client:
+        return {"invites": []}
+    from services.org import get_invite_code
+    items = []
+    # invite codes 没反向索引到 org,只能扫(规模小可接受)
+    for key in redis_client.scan_iter(match="org:invite:*", count=500):
+        k = key.decode() if isinstance(key, bytes) else key
+        code = k.rsplit(":", 1)[1]
+        inv = get_invite_code(code)
+        if not inv or inv.get("org_id") != org_id:
+            continue
+        items.append({
+            "code": code,
+            "team_id": inv.get("team_id", ""),
+            "expire_at": inv.get("expire_at", ""),
+            "max_uses": inv.get("max_uses", 1),
+            "used": inv.get("used", 0),
+            "created_at": inv.get("created_at", ""),
+        })
+    items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return {"org_id": org_id, "invites": items}
+
+
 @app.post("/api/v1/admin/org/create")
 async def admin_org_create(body: CreateOrgBody):
     """运营创建企业。返回 org_id。"""
