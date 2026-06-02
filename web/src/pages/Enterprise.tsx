@@ -90,6 +90,9 @@ export default function Enterprise() {
         </div>
       </section>
 
+      {/* HERO 之下统一 bg-deep 实色,把 MarketingShell 视频遮住 */}
+      <div className="relative bg-deep">
+
       {/* PROBLEM */}
       <section id="problem" className="px-6 py-20 max-w-5xl mx-auto">
         <p className="text-center text-gold text-sm tracking-widest uppercase">{t("enterprise.problem.label")}</p>
@@ -212,10 +215,12 @@ export default function Enterprise() {
         </div>
       </section>
 
+      </div>{/* /HERO 之下 bg-deep 包裹 */}
+
       </main>
 
       {/* FOOTER */}
-      <footer className="px-6 py-10 text-center text-txt2 text-xs space-y-2 border-t border-white/5">
+      <footer className="relative bg-deep px-6 py-10 text-center text-txt2 text-xs space-y-2 border-t border-white/5">
         <div className="flex gap-2 justify-center">
           <Link to="/" className="px-3 py-2 inline-block hover:text-text">{t("enterprise.footer.consumer")}</Link>
           <Link to="/privacy" className="px-3 py-2 inline-block hover:text-text">{t("landing.footer.privacy")}</Link>

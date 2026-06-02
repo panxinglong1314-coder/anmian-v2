@@ -88,6 +88,10 @@ export default function Landing() {
         <div className="absolute bottom-8 left-0 right-0 text-txt3 text-xs animate-bounce">{t("landing.hero.scroll")}</div>
       </section>
 
+      {/* HERO 之下统一 bg-deep 实色背景,把 MarketingShell 的视频遮住 —
+          视频只在首屏 HERO 区域可见,滚下来就是正常深色页面 */}
+      <div className="relative bg-deep">
+
       {/* SCENE */}
       <section id="scene" className="px-6 py-20 max-w-5xl mx-auto">
         <p className="text-center text-gold text-sm tracking-widest uppercase">{t("landing.scene.label")}</p>
@@ -230,10 +234,12 @@ export default function Landing() {
         )}
       </section>
 
+      </div>{/* /HERO 之下的 bg-deep 包裹 */}
+
       </main>
 
       {/* FOOTER */}
-      <footer className="px-6 py-10 text-center text-txt2 text-xs space-y-2 border-t border-white/5">
+      <footer className="relative bg-deep px-6 py-10 text-center text-txt2 text-xs space-y-2 border-t border-white/5">
         <div className="flex gap-2 justify-center">
           <Link to="/privacy" className="px-3 py-2 inline-block hover:text-text">{t("landing.footer.privacy")}</Link>
           <Link to="/terms" className="px-3 py-2 inline-block hover:text-text">{t("landing.footer.terms")}</Link>
