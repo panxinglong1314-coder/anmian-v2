@@ -14,18 +14,34 @@ from evaluation_tracker import record_evaluation
 
 # 共情质量：正向信号词
 EMPATHY_POSITIVE_SIGNALS = [
+    # zh
     "听到", "理解", "感受到", "不容易", "确实", "慢慢来",
     "先不急着", "不用急着", "听起来", "这很", "我知道",
     "这不容易", "我能理解", "这种感觉", "确实不容易",
     "辛苦了", "不容易", "委屈", "挣扎",
+    # en — 共情承接句式(同 microskills 的英文表达对齐)
+    "i hear you", "i hear that", "i understand",
+    "that sounds", "it sounds like", "that's a lot",
+    "that's heavy", "that's hard", "must be hard",
+    "must feel", "no rush", "take your time",
+    "i'm here", "i am here", "you're not alone",
+    "makes sense", "of course you", "no wonder",
+    "i can imagine", "that's understandable",
 ]
 
-# 共情质量：负向信号词（机械/模板化/评判/否认感受）
+# 共情质量:负向信号词（机械/模板化/评判/否认感受）
 EMPATHY_NEGATIVE_SIGNALS = [
+    # zh
     "没关系", "不用硬撑", "别怕", "别焦虑", "别想太多",
     "一切都会好", "你要坚强", "加油", "抱抱", "摸摸头",
     "不要难过", "别伤心", "没事的", "想开点", "看开点",
     "太敏感", "小题大做", "是你想多了", "没必要",
+    # en — 机械/否认/居高临下
+    "it's okay", "don't worry", "don't be sad", "don't be scared",
+    "cheer up", "stay strong", "you got this", "you can do it",
+    "everything will be fine", "don't think too much",
+    "you're overthinking", "you're being dramatic",
+    "it's not a big deal", "just relax", "calm down",
 ]
 
 # CBT-I 技术关键词映射（按三层分类）
@@ -376,21 +392,28 @@ class DialogueEvaluator:
 
         for i, turn in enumerate(assistant_turns):
             content = turn.get("content", "")
+            # EN 信号大小写不敏感; ZH 信号原样匹配
+            content_lower = content.lower()
             turn_pos = False
             turn_neg = False
             for signal in EMPATHY_POSITIVE_SIGNALS:
-                if signal in content:
+                # 含 ASCII 字母的当作 EN, 用 lower 比;否则 ZH 原样
+                is_en = any(ord(c) < 128 and c.isalpha() for c in signal)
+                hit = (signal in content_lower) if is_en else (signal in content)
+                if hit:
                     pos_count += 1
                     turn_pos = True
                     break
             for signal in EMPATHY_NEGATIVE_SIGNALS:
-                if signal in content:
+                is_en = any(ord(c) < 128 and c.isalpha() for c in signal)
+                hit = (signal in content_lower) if is_en else (signal in content)
+                if hit:
                     neg_count += 1
                     turn_neg = True
                     fragments.append({
                         "turn_idx": i,
                         "text": content[:80] + ("..." if len(content) > 80 else ""),
-                        "issue": f"检测到模板化/评判性语言：'{signal}'",
+                        "issue": f"检测到模板化/评判性语言:'{signal}'",
                     })
                     break
             # 额外：检测是否重复用户的话（敷衍）
@@ -507,7 +530,20 @@ class DialogueEvaluator:
                 if user_text and ai_text.startswith(user_text[:5]):
                     repetition_penalty += 15
 
-        score = max(0, min(100, avg_overlap * 80 + 40 - repetition_penalty))
+        # 评分逻辑修正(v2.5):
+        # 之前: score = overlap*80 + 40 → overlap=0 时 score=40 → 转 5 分制=2
+        #   (默认就低分,且**鼓励 AI 复读用户原话**才能拿高分,与"非模板化"目标矛盾)
+        #
+        # 根本问题: jieba keyword overlap **无法度量语义连贯性**。
+        # 反例 1: "失眠" / "睡不着" 语义同但词不同 → overlap=0 误判漂移
+        # 反例 2: "今晚睡不着" / "今晚月亮真亮" 完全跑题但 overlap=0.5 ✗
+        # 因此放弃 drift 检测,转而只用"硬证据":AI 是否复读用户原句。
+        #
+        # 新公式: score = 75 (良好基线) - repetition_penalty
+        # - 正常对话: 75/100 → 5 分制 round(75/20)=4 (良好)
+        # - 强复读: 75-30=45 → round=2 (需改进)
+        # - 多次复读: 75-60=15 → round=1 (不合格)
+        score = max(0, min(100, 75 - repetition_penalty))
 
         details = {
             "avg_keyword_overlap": round(avg_overlap, 2),
