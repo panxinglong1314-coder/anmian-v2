@@ -59,26 +59,12 @@ export default function Enterprise() {
       </nav>
 
       <main>
-      {/* HERO — 与 Landing 统一: 视频背景 + 暗色叠层 + z-index 三层 */}
+      {/* HERO — 背景视频由 MarketingShell 全局提供 */}
       <section
         id="top"
-        className="min-h-[85vh] flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 relative overflow-hidden"
+        className="min-h-[85vh] flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 relative"
       >
-        <video
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="auto"
-          poster="/hero.jpg"
-          className="absolute inset-0 w-full h-full object-cover z-0"
-        >
-          <source src="/hero.mp4" type="video/mp4" />
-        </video>
-        {/* 企业版稍深的叠层(82-92%)— 区分氛围:更克制、更专业 */}
-        <div className="absolute inset-0 bg-gradient-to-b from-deep/82 to-deep/92 z-10" />
-
-        <div className="relative z-20 flex flex-col items-center">
+        <div className="flex flex-col items-center">
           <div className="text-[4.5rem] mb-6 drop-shadow-[0_0_60px_rgba(201,149,106,0.45)]">🏢</div>
           <p className="text-gold text-sm tracking-widest uppercase mb-3">{t("enterprise.hero.label")}</p>
           <h1 className="text-3xl sm:text-5xl font-bold leading-tight max-w-3xl bg-gradient-to-br from-text to-goldlight bg-clip-text text-transparent">

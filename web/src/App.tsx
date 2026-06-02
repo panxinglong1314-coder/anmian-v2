@@ -16,6 +16,7 @@ const Privacy = lazy(() => import("./pages/Privacy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Contact = lazy(() => import("./pages/Contact"));
 const Enterprise = lazy(() => import("./pages/Enterprise"));
+import MarketingShell from "./components/MarketingShell";
 
 function Loading() {
   return (
@@ -41,12 +42,14 @@ export default function App() {
   return (
     <Suspense fallback={<Loading />}>
       <Routes>
-        {/* 营销官网(公开) */}
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        {/* 企业版宣传(公开,双语) */}
-        <Route path="/enterprise" element={<Enterprise />} />
-        {/* 法律/联系页(公开,双语) */}
+        {/* 营销/登录页 — 用 MarketingShell 共享持久化视频背景,
+            路由切换时视频不重新挂载,避免"图片闪一下再视频"的感受 */}
+        <Route element={<MarketingShell />}>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/enterprise" element={<Enterprise />} />
+        </Route>
+        {/* 法律/联系页(公开,双语) — 不需要 hero 视频 */}
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/contact" element={<Contact />} />

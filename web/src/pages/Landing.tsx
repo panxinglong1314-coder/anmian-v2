@@ -62,30 +62,12 @@ export default function Landing() {
       </nav>
 
       <main>
-      {/* HERO */}
+      {/* HERO — 背景视频由 MarketingShell 全局提供,这里只放内容 */}
       <section
         id="top"
-        className="min-h-screen flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 relative overflow-hidden"
+        className="min-h-screen flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 relative"
       >
-        {/* 背景视频 — 不能给父元素 bg-deep,否则会盖掉视频。
-            视频用 z-0,叠层 z-10,内容 z-20。
-            playsInline + muted: iOS Safari 自动播放必需 */}
-        <video
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="auto"
-          poster="/hero.jpg"
-          className="absolute inset-0 w-full h-full object-cover z-0"
-        >
-          <source src="/hero.mp4" type="video/mp4" />
-        </video>
-        {/* 暗色叠层 — 保持文字可读 */}
-        <div className="absolute inset-0 bg-gradient-to-b from-deep/70 to-deep/90 z-10" />
-
-        {/* 内容容器 — 必须 z-20 + relative 才能盖在视频之上 */}
-        <div className="relative z-20 flex flex-col items-center">
+        <div className="flex flex-col items-center">
         <div className="text-[5rem] mb-6 drop-shadow-[0_0_60px_rgba(201,149,106,0.45)]">🌙</div>
         <h1 className="text-3xl sm:text-5xl font-bold leading-tight max-w-3xl bg-gradient-to-br from-text to-goldlight bg-clip-text text-transparent">
           {lines(t("landing.hero.title"))}
@@ -100,8 +82,8 @@ export default function Landing() {
             {t("landing.hero.ctaSecondary")}
           </a>
         </div>
-        </div>{/* /content z-20 wrapper */}
-        <div className="absolute bottom-8 left-0 right-0 text-txt3 text-xs animate-bounce z-20">{t("landing.hero.scroll")}</div>
+        </div>{/* /content wrapper */}
+        <div className="absolute bottom-8 left-0 right-0 text-txt3 text-xs animate-bounce">{t("landing.hero.scroll")}</div>
       </section>
 
       {/* SCENE */}
