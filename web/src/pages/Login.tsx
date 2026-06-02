@@ -100,7 +100,6 @@ export default function Login() {
       <div className="absolute top-4 right-4">
         <LanguageToggle />
       </div>
-      <div className="relative flex flex-col items-center w-full">
       <div className="text-5xl mb-4">🌙</div>
       <h1 className="text-2xl font-semibold text-accent">{t("login.title")}</h1>
       <p className="text-muted mt-2 mb-8 text-center">{t("login.subtitle")}</p>
@@ -190,7 +189,6 @@ export default function Login() {
           {t("login.providerNote")}
         </p>
       </div>
-      </div>{/* /content wrapper */}
     </div>
   );
 }
