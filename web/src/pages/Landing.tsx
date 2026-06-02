@@ -40,7 +40,9 @@ export default function Landing() {
   const ctaSteps = t("landing.cta.steps", { returnObjects: true }) as string[];
 
   return (
-    <div className="starfield min-h-full overflow-y-auto bg-deep text-text">
+    <div className="min-h-full overflow-y-auto text-text">
+      {/* 视频背景由 MarketingShell 全局提供 — 不能在这里加 bg-deep / starfield,
+          否则会盖住底层视频。各 section 内自己用 bg-navyx/50 半透明蒙层。 */}
       {/* NAV */}
       <nav className="fixed top-0 inset-x-0 h-16 z-50 flex items-center justify-between px-5 sm:px-8 bg-deep/80 backdrop-blur border-b border-white/5">
         <a href="#top" className="font-bold tracking-wide text-text">

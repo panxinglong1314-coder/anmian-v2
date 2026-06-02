@@ -33,7 +33,8 @@ export default function Enterprise() {
   const salesEmail = "panxinglong-1@126.com";
 
   return (
-    <div className="starfield min-h-full overflow-y-auto bg-deep text-text">
+    <div className="min-h-full overflow-y-auto text-text">
+      {/* 视频背景由 MarketingShell 全局提供 */}
       {/* NAV */}
       <nav className="fixed top-0 inset-x-0 h-16 z-50 flex items-center justify-between px-5 sm:px-8 bg-deep/80 backdrop-blur border-b border-white/5">
         <Link to="/" className="font-bold tracking-wide text-text">
