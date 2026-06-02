@@ -88,23 +88,32 @@ export default function Login() {
   };
 
   return (
-    <div
-      className="min-h-full flex flex-col items-center justify-center px-6 bg-cover bg-center bg-fixed"
-      style={{
-        backgroundImage:
-          "linear-gradient(180deg, rgba(6,6,15,0.82), rgba(6,6,15,0.92)), url('/hero.jpg')"
-      }}
-    >
+    <div className="min-h-full flex flex-col items-center justify-center px-6 relative overflow-hidden">
+      {/* 与 Landing/Enterprise 统一: hero 视频背景 + z 三层堆叠 */}
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        poster="/hero.jpg"
+        className="fixed inset-0 w-full h-full object-cover z-0"
+      >
+        <source src="/hero.mp4" type="video/mp4" />
+      </video>
+      <div className="fixed inset-0 bg-gradient-to-b from-deep/82 to-deep/92 z-10" />
+
       <Link
         to="/"
-        className="absolute top-4 left-4 flex items-center gap-1.5 text-sm text-muted hover:text-text transition"
+        className="absolute top-4 left-4 flex items-center gap-1.5 text-sm text-muted hover:text-text transition z-20"
       >
         <span>←</span>
         <span className="font-semibold">🌙 {t("app.name")}</span>
       </Link>
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 z-20">
         <LanguageToggle />
       </div>
+      <div className="relative z-20 flex flex-col items-center w-full">
       <div className="text-5xl mb-4">🌙</div>
       <h1 className="text-2xl font-semibold text-accent">{t("login.title")}</h1>
       <p className="text-muted mt-2 mb-8 text-center">{t("login.subtitle")}</p>
@@ -194,6 +203,7 @@ export default function Login() {
           {t("login.providerNote")}
         </p>
       </div>
+      </div>{/* /z-20 content wrapper */}
     </div>
   );
 }

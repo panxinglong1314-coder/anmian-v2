@@ -59,35 +59,47 @@ export default function Enterprise() {
       </nav>
 
       <main>
-      {/* HERO */}
+      {/* HERO — 与 Landing 统一: 视频背景 + 暗色叠层 + z-index 三层 */}
       <section
         id="top"
-        className="min-h-[85vh] flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 bg-cover bg-center relative"
-        style={{
-          backgroundImage:
-            "linear-gradient(180deg, rgba(6,6,15,0.82), rgba(6,6,15,0.92)), url('/hero.jpg')"
-        }}
+        className="min-h-[85vh] flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 relative overflow-hidden"
       >
-        <div className="text-[4.5rem] mb-6 drop-shadow-[0_0_60px_rgba(201,149,106,0.45)]">🏢</div>
-        <p className="text-gold text-sm tracking-widest uppercase mb-3">{t("enterprise.hero.label")}</p>
-        <h1 className="text-3xl sm:text-5xl font-bold leading-tight max-w-3xl bg-gradient-to-br from-text to-goldlight bg-clip-text text-transparent">
-          {t("enterprise.hero.title").split("\n").map((l, i) => (
-            <span key={i}>{i > 0 && <br />}{l}</span>
-          ))}
-        </h1>
-        <p className="text-txt2 mt-5 max-w-2xl text-sm sm:text-base leading-relaxed">
-          {t("enterprise.hero.tagline")}
-        </p>
-        <div className="flex flex-wrap gap-3 justify-center mt-8">
-          <a
-            href="#cta-form"
-            className="rounded-full bg-gold text-deep font-medium px-6 py-3 hover:bg-goldlight transition"
-          >
-            {t("enterprise.hero.ctaPrimary")}
-          </a>
-          <a href="#how" className="rounded-full border border-white/15 text-text px-6 py-3 hover:bg-white/5 transition">
-            {t("enterprise.hero.ctaSecondary")}
-          </a>
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          poster="/hero.jpg"
+          className="absolute inset-0 w-full h-full object-cover z-0"
+        >
+          <source src="/hero.mp4" type="video/mp4" />
+        </video>
+        {/* 企业版稍深的叠层(82-92%)— 区分氛围:更克制、更专业 */}
+        <div className="absolute inset-0 bg-gradient-to-b from-deep/82 to-deep/92 z-10" />
+
+        <div className="relative z-20 flex flex-col items-center">
+          <div className="text-[4.5rem] mb-6 drop-shadow-[0_0_60px_rgba(201,149,106,0.45)]">🏢</div>
+          <p className="text-gold text-sm tracking-widest uppercase mb-3">{t("enterprise.hero.label")}</p>
+          <h1 className="text-3xl sm:text-5xl font-bold leading-tight max-w-3xl bg-gradient-to-br from-text to-goldlight bg-clip-text text-transparent">
+            {t("enterprise.hero.title").split("\n").map((l, i) => (
+              <span key={i}>{i > 0 && <br />}{l}</span>
+            ))}
+          </h1>
+          <p className="text-txt2 mt-5 max-w-2xl text-sm sm:text-base leading-relaxed">
+            {t("enterprise.hero.tagline")}
+          </p>
+          <div className="flex flex-wrap gap-3 justify-center mt-8">
+            <a
+              href="#cta-form"
+              className="rounded-full bg-gold text-deep font-medium px-6 py-3 hover:bg-goldlight transition"
+            >
+              {t("enterprise.hero.ctaPrimary")}
+            </a>
+            <a href="#how" className="rounded-full border border-white/15 text-text px-6 py-3 hover:bg-white/5 transition">
+              {t("enterprise.hero.ctaSecondary")}
+            </a>
+          </div>
         </div>
       </section>
 

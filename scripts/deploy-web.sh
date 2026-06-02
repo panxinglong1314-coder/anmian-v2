@@ -33,8 +33,16 @@ sudo find /home/ubuntu/anmian/web_dist -maxdepth 1 -type f \( -name "*.mp4" -o -
 echo "  清空旧 + 解压新..."
 sudo rm -rf /home/ubuntu/anmian/web_dist/*
 sudo tar xzf /tmp/web-dist-new.tar.gz -C /home/ubuntu/anmian/web_dist/
-echo "  恢复媒体文件..."
-sudo find /tmp/web-media-preserve -type f -exec mv {} /home/ubuntu/anmian/web_dist/ \; 2>/dev/null || true
+echo "  恢复媒体文件(若新 build 已包含同名文件,优先 build 版本)..."
+sudo find /tmp/web-media-preserve -type f | while read f; do
+  fname=$(basename "$f")
+  if [ -f "/home/ubuntu/anmian/web_dist/$fname" ]; then
+    echo "    跳过 $fname (新 build 已有,以 build 为准)"
+    sudo rm "$f"
+  else
+    sudo mv "$f" /home/ubuntu/anmian/web_dist/
+  fi
+done
 sudo rmdir /tmp/web-media-preserve 2>/dev/null || true
 sudo chown -R ubuntu:ubuntu /home/ubuntu/anmian/web_dist
 echo "  清理临时文件..."
