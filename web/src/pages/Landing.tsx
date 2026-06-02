@@ -65,12 +65,25 @@ export default function Landing() {
       {/* HERO */}
       <section
         id="top"
-        className="min-h-screen flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 bg-cover bg-center bg-fixed relative"
-        style={{
-          backgroundImage:
-            "linear-gradient(180deg, rgba(6,6,15,0.78), rgba(6,6,15,0.9)), url('/hero.jpg')"
-        }}
+        className="min-h-screen flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 relative overflow-hidden bg-deep"
       >
+        {/* 背景视频 — 失败时浏览器静默回落到 poster=hero.jpg
+            playsInline + muted: iOS Safari 自动播放必需
+            preload=auto: 滚到首屏前预拉 */}
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          poster="/hero.jpg"
+          className="absolute inset-0 w-full h-full object-cover -z-10"
+        >
+          <source src="/hero.mp4" type="video/mp4" />
+        </video>
+        {/* 视频之上的暗色叠层 — 保持文字可读 */}
+        <div className="absolute inset-0 bg-gradient-to-b from-deep/70 to-deep/90 -z-10" />
+
         <div className="text-[5rem] mb-6 drop-shadow-[0_0_60px_rgba(201,149,106,0.45)]">🌙</div>
         <h1 className="text-3xl sm:text-5xl font-bold leading-tight max-w-3xl bg-gradient-to-br from-text to-goldlight bg-clip-text text-transparent">
           {lines(t("landing.hero.title"))}
