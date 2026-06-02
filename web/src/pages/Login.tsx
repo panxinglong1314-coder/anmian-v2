@@ -88,7 +88,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-full flex flex-col items-center justify-center px-6 relative">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 relative">
       {/* 背景视频由 MarketingShell 全局提供 */}
       <Link
         to="/"
