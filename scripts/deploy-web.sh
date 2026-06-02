@@ -27,9 +27,15 @@ ssh -i ~/.ssh/id_ed25519 ubuntu@124.222.43.248 'bash -s' << 'REMOTE'
 set -e
 echo "  备份当前版本..."
 sudo cp -r /home/ubuntu/anmian/web_dist /home/ubuntu/anmian/web_dist.bak_$(date +%s) 2>&1 | tail -1
+echo "  保留媒体文件(*.mp4 / *.webm) 避免覆盖手动上传的大文件..."
+sudo mkdir -p /tmp/web-media-preserve
+sudo find /home/ubuntu/anmian/web_dist -maxdepth 1 -type f \( -name "*.mp4" -o -name "*.webm" \) -exec mv {} /tmp/web-media-preserve/ \; 2>/dev/null || true
 echo "  清空旧 + 解压新..."
 sudo rm -rf /home/ubuntu/anmian/web_dist/*
 sudo tar xzf /tmp/web-dist-new.tar.gz -C /home/ubuntu/anmian/web_dist/
+echo "  恢复媒体文件..."
+sudo find /tmp/web-media-preserve -type f -exec mv {} /home/ubuntu/anmian/web_dist/ \; 2>/dev/null || true
+sudo rmdir /tmp/web-media-preserve 2>/dev/null || true
 sudo chown -R ubuntu:ubuntu /home/ubuntu/anmian/web_dist
 echo "  清理临时文件..."
 rm /tmp/web-dist-new.tar.gz
