@@ -13,15 +13,16 @@ import { Outlet } from "react-router-dom";
 export default function MarketingShell() {
   return (
     <div className="relative min-h-full">
-      {/* 全局背景视频 — fixed 铺满 viewport, z-0 */}
+      {/* 全局背景视频 — fixed 铺满 viewport, z-0
+          无 poster: 视频加载前显示纯深色(MarketingShell 的 bg-deep 兜底),
+          避免出现"图片先闪一下再视频"的体验 */}
       <video
         autoPlay
         muted
         loop
         playsInline
         preload="auto"
-        poster="/hero.jpg"
-        className="fixed inset-0 w-full h-full object-cover z-0 pointer-events-none"
+        className="fixed inset-0 w-full h-full object-cover z-0 pointer-events-none bg-deep"
       >
         <source src="/hero.mp4" type="video/mp4" />
       </video>
