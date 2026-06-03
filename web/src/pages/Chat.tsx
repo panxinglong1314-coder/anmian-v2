@@ -7,8 +7,9 @@ import { clearToken } from "../lib/auth";
 import { currentLocale } from "../i18n";
 import { ASRClient } from "../lib/asr";
 import { enqueueTts, unlockAudio, stopTts, onTtsPlayingChange } from "../lib/audio";
+import { detectIntent, intentAck } from "../lib/voiceIntent";
 import LanguageToggle from "../components/LanguageToggle";
-import SoundPlayer from "../components/SoundPlayer";
+import SoundPlayer, { type SoundPlayerHandle } from "../components/SoundPlayer";
 
 interface Msg {
   role: "user" | "assistant";
@@ -68,6 +69,8 @@ export default function Chat() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const asrRef = useRef<ASRClient | null>(null);
   const finalTranscriptRef = useRef("");
+  // 白噪音播放器的 imperative handle, 给语音意图用
+  const soundPlayerRef = useRef<SoundPlayerHandle | null>(null);
   // VAD 自动停发 — 防止 onFinal 多次触发 race
   const autoSentRef = useRef(false);
 
@@ -118,7 +121,35 @@ export default function Chat() {
     setCrisis(false);
     setQuotaReached(false);
     setInput("");
-    setMessages((m) => [...m, { role: "user", text }, { role: "assistant", text: "" }]);
+
+    // ───── 语音/文字意图:听音乐 / 停止 ─────
+    // 命中即同步执行播放/停止,UI 里加一条简短 assistant 确认气泡,
+    // 同时仍把原文发给 LLM (让 AI 共情回应"为什么想听音乐") ——
+    // 用户得到"音乐先响起 + AI 关心继续聊"的双重反馈。
+    const intent = detectIntent(text);
+    let ackBubble = "";
+    if (intent.type === "play_sound") {
+      const ok = await soundPlayerRef.current?.play(intent.track);
+      if (ok) {
+        const locale = (currentLocale() === "en" ? "en" : "zh") as "zh" | "en";
+        ackBubble = intentAck(intent, locale);
+      }
+    } else if (intent.type === "stop_sound") {
+      soundPlayerRef.current?.stop();
+      const locale = (currentLocale() === "en" ? "en" : "zh") as "zh" | "en";
+      ackBubble = intentAck(intent, locale);
+    }
+
+    // 先把 user 气泡 + (可选) 立即的 ack + 待填的 assistant placeholder 一次性塞入
+    setMessages((m) => {
+      const next = [...m, { role: "user" as const, text }];
+      if (ackBubble) {
+        next.push({ role: "assistant" as const, text: ackBubble });
+      }
+      // 永远再加一个 placeholder, 即使 ack 已经显示, LLM 仍会跟一段共情回应
+      next.push({ role: "assistant" as const, text: "" });
+      return next;
+    });
     setBusy(true);
 
     const appendToLast = (chunk: string) =>
@@ -334,7 +365,7 @@ export default function Chat() {
           <span className="font-semibold text-accent">{t("app.name")}</span>
         </div>
         <div className="flex items-center gap-2">
-          <SoundPlayer />
+          <SoundPlayer ref={soundPlayerRef} />
           <button
             onClick={() => {
               setTtsOn((v) => {
