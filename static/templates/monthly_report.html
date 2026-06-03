@@ -91,6 +91,64 @@ body {
   color: #8a9aac;
 }
 
+/* --- V2-4: Executive Summary --- */
+.exec-summary {
+  margin: 0 0 18pt 0;
+  padding: 14pt 16pt 16pt 16pt;
+  background: linear-gradient(135deg, #fffbed 0%, #fff5d6 100%);
+  border-left: 4pt solid #f5c869;
+  border-radius: 4pt;
+  page-break-inside: avoid;
+}
+.exec-summary-head {
+  margin-bottom: 10pt;
+}
+.exec-summary-title {
+  font-size: 13.5pt;
+  font-weight: 700;
+  color: #5b3a00;
+  letter-spacing: 0.02em;
+}
+.exec-summary-sub {
+  font-size: 9pt;
+  color: #93733a;
+  margin-top: 3pt;
+}
+.exec-summary-list {
+  margin: 0;
+  padding-left: 18pt;
+  counter-reset: exec-counter;
+  list-style: none;
+}
+.exec-summary-list li {
+  position: relative;
+  padding: 5pt 0 5pt 18pt;
+  font-size: 10.5pt;
+  line-height: 1.55;
+  color: #1a2238;
+}
+.exec-summary-list li::before {
+  counter-increment: exec-counter;
+  content: counter(exec-counter);
+  position: absolute;
+  left: -10pt;
+  top: 5pt;
+  width: 18pt;
+  height: 18pt;
+  background: #f5c869;
+  color: #4a3000;
+  font-weight: bold;
+  font-size: 10pt;
+  text-align: center;
+  line-height: 18pt;
+  border-radius: 50%;
+}
+.exec-summary-fallback {
+  font-size: 10pt;
+  color: #93733a;
+  font-style: italic;
+}
+
 /* --- Metric grid --- */
 .metric-grid {
   display: grid;
@@ -233,6 +291,23 @@ body {
   </div>
 </div>
 {% else %}
+
+<!-- V2-4: EXECUTIVE SUMMARY (LLM) -->
+<section class="exec-summary">
+  <div class="exec-summary-head">
+    <div class="exec-summary-title">{{ labels.exec_summary_title }}</div>
+    <div class="exec-summary-sub">{{ labels.exec_summary_subtitle }}</div>
+  </div>
+  {% if exec_summary_lines and exec_summary_lines|length >= 2 %}
+  <ol class="exec-summary-list">
+    {% for line in exec_summary_lines[:3] %}
+    <li>{{ line }}</li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <div class="exec-summary-fallback">{{ labels.exec_summary_unavailable }}</div>
+  {% endif %}
+</section>
 
 <!-- ENGAGEMENT -->
 <section class="section">
