@@ -143,7 +143,21 @@ export function importEmployees(csvText: string, sendEmails = true, expireDays =
 
 // ============== 团队洞察 ==============
 type InsufficientData = { status: "insufficient_data"; n: number; k_min: number };
-type Ok<T> = { status: "ok"; n: number } & T;
+
+// V2-2: 同比环比 delta
+export type Trend = "improving" | "stable" | "deteriorating" | "unknown";
+export interface MetricDelta {
+  prev: number | null;
+  delta_vs_prev: number | null;
+  delta_pct: number | null;
+  trend: Trend;
+}
+export interface DeltaEnvelope {
+  deltas?: Record<string, MetricDelta>;
+  _period?: { current: [string, string]; previous: [string, string] };
+}
+
+type Ok<T> = { status: "ok"; n: number } & T & DeltaEnvelope;
 export type InsightResult<T> = Ok<T> | InsufficientData | { status: "error"; error: string; n: number };
 
 export interface OverviewMetrics {
@@ -165,6 +179,15 @@ export interface OverviewMetrics {
   };
   worry: { top_domain: string | null; total_records: number };
   crisis: { total: number; high: number; medium: number; low: number };
+  // V2-2: 顶层平铺,与 deltas 对齐
+  active_users?: number;
+  activation_rate?: number;
+  completion_rate?: number | null;
+  avg_se_pct?: number | null;
+  avg_tst_hours?: number | null;
+  low_se_ratio?: number | null;
+  crisis_total?: number;
+  crisis_high?: number;
 }
 
 export interface SleepMetrics {

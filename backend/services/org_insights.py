@@ -94,12 +94,17 @@ def parse_period(period: str) -> timedelta:
     return timedelta(days=30)
 
 
-def _within_period(iso_or_ts: str, cutoff: datetime) -> bool:
+def _within_period(iso_or_ts: str, cutoff: datetime, until: Optional[datetime] = None) -> bool:
+    """半开区间 [cutoff, until). until=None 表示无上界 (= now)。"""
     if not iso_or_ts:
         return False
     try:
         dt = datetime.fromisoformat(iso_or_ts.replace("Z", "").split("+")[0])
-        return dt >= cutoff
+        if dt < cutoff:
+            return False
+        if until is not None and dt >= until:
+            return False
+        return True
     except Exception:
         return False
 
@@ -145,8 +150,9 @@ def _load_user_profile(user_id: str) -> Dict[str, Any]:
     except Exception: return {}
 
 
-def _load_sleep_entries(user_id: str, cutoff: datetime) -> List[Dict[str, Any]]:
-    """扫该用户最近 N 天的 sleep_diary 条目。"""
+def _load_sleep_entries(user_id: str, cutoff: datetime,
+                         until: Optional[datetime] = None) -> List[Dict[str, Any]]:
+    """扫该用户在 [cutoff, until) 窗口内的 sleep_diary 条目。until=None ⇒ 无上界。"""
     if not redis_client:
         return []
     entries = []
@@ -157,6 +163,8 @@ def _load_sleep_entries(user_id: str, cutoff: datetime) -> List[Dict[str, Any]]:
         try:
             dt = datetime.fromisoformat(date_str)
             if dt < cutoff:
+                continue
+            if until is not None and dt >= until:
                 continue
         except Exception:
             continue
@@ -182,12 +190,17 @@ def _load_sleep_entries(user_id: str, cutoff: datetime) -> List[Dict[str, Any]]:
 # 6 个聚合 metric_fn
 # =========================================================================
 
-def metric_sleep(user_ids: List[str], cutoff: datetime) -> Dict[str, Any]:
-    """睡眠聚合: TST / SE / SE<70% 占比 / TST<6h 占比 / SE 分布。"""
+def metric_sleep(user_ids: List[str], cutoff: datetime,
+                  until: Optional[datetime] = None) -> Dict[str, Any]:
+    """睡眠聚合: TST / SE / SE<70% 占比 / TST<6h 占比 / SE 分布。
+
+    Args:
+        until: 时间窗口上界 (开区间)。None=now。V2-2 prev period 时使用。
+    """
     all_entries = []
     users_with_data = 0
     for uid in user_ids:
-        entries = _load_sleep_entries(uid, cutoff)
+        entries = _load_sleep_entries(uid, cutoff, until)
         if entries:
             users_with_data += 1
             all_entries.extend(entries)
@@ -218,8 +231,14 @@ def metric_sleep(user_ids: List[str], cutoff: datetime) -> Dict[str, Any]:
     }
 
 
-def metric_anxiety(user_ids: List[str], cutoff: datetime) -> Dict[str, Any]:
-    """焦虑聚合: 平均 anxiety_recovery_turns / momentum 分布。"""
+def metric_anxiety(user_ids: List[str], cutoff: datetime,
+                    until: Optional[datetime] = None) -> Dict[str, Any]:
+    """焦虑聚合: 平均 anxiety_recovery_turns / momentum 分布。
+
+    注: 数据源是 user:profile 快照,非时间桶事件流,until 当前不生效;
+    delta_vs_prev 在此指标上始终为 None (V2-2 文档已说明)。
+    """
+    _ = until  # 保留参数以便统一签名
     recovery_turns = []
     momentum_count = {"improving": 0, "stable": 0, "deteriorating": 0, "unknown": 0}
     users_with_data = 0
@@ -242,8 +261,14 @@ def metric_anxiety(user_ids: List[str], cutoff: datetime) -> Dict[str, Any]:
     }
 
 
-def metric_worry_domains(user_ids: List[str], cutoff: datetime) -> Dict[str, Any]:
-    """worry 域聚合: 各 domain 出现次数总计 + 占比。"""
+def metric_worry_domains(user_ids: List[str], cutoff: datetime,
+                          until: Optional[datetime] = None) -> Dict[str, Any]:
+    """worry 域聚合: 各 domain 出现次数总计 + 占比。
+
+    注: 数据源是 user:memory.triggers 快照计数器,非时间桶,
+    delta_vs_prev 当前指标始终为 None (V2-2 文档已说明)。
+    """
+    _ = until
     domain_counts: Dict[str, int] = {}
     users_with_data = 0
     for uid in user_ids:
@@ -270,21 +295,23 @@ def metric_worry_domains(user_ids: List[str], cutoff: datetime) -> Dict[str, Any
     }
 
 
-def metric_crisis(user_ids: List[str], cutoff: datetime, org_id: str = "") -> Dict[str, Any]:
+def metric_crisis(user_ids: List[str], cutoff: datetime, org_id: str = "",
+                   until: Optional[datetime] = None) -> Dict[str, Any]:
     """危机事件聚合: 各 level 计数 + 趋势,**绝不返 user_id / message**。
 
     扫 crisis_alerts:pending + resolved 两个 zset,按 org_id 过滤,
-    再按时间窗口过滤。
+    再按 [cutoff, until) 时间窗口过滤 (until=None ⇒ 无上界)。
     """
     if not redis_client:
         return {"high": 0, "medium": 0, "low": 0, "total": 0, "weekly_trend": []}
     counts = {"high": 0, "medium": 0, "low": 0}
     user_ids_set = set(user_ids)
     cutoff_ms = int(cutoff.timestamp() * 1000)
+    max_ms: Any = "+inf" if until is None else int(until.timestamp() * 1000)
     # 收集 event_id, 用 byscore 过滤时间
     seen = set()
     for key in ("crisis_alerts:pending", "crisis_alerts:resolved"):
-        for member in redis_client.zrangebyscore(key, cutoff_ms, "+inf"):
+        for member in redis_client.zrangebyscore(key, cutoff_ms, max_ms):
             if isinstance(member, bytes): member = member.decode()
             if member in seen: continue
             seen.add(member)
@@ -308,8 +335,15 @@ def metric_crisis(user_ids: List[str], cutoff: datetime, org_id: str = "") -> Di
     }
 
 
-def metric_engagement(user_ids: List[str], cutoff: datetime, org_id: str = "") -> Dict[str, Any]:
-    """参与度聚合: 活跃员工/总人数 + 会话总数 + 完成率。"""
+def metric_engagement(user_ids: List[str], cutoff: datetime, org_id: str = "",
+                       until: Optional[datetime] = None) -> Dict[str, Any]:
+    """参与度聚合: 活跃员工/总人数 + 会话总数 + 完成率。
+
+    Args:
+        until: 时间窗口上界 (开区间)。None=now。
+    注: total_sessions 是 user:memory 快照计数器,无法按窗口拆,
+    prev period 取值与 current 相同 (delta 在该字段上为 0,前端可隐藏)。
+    """
     total_users = len(user_ids)
     active_users = 0
     total_sessions = 0
@@ -317,7 +351,7 @@ def metric_engagement(user_ids: List[str], cutoff: datetime, org_id: str = "") -
         mem = _load_user_memory(uid)
         last_time = mem.get("last_session_time", "")
         sc = int(mem.get("session_count", 0) or 0)
-        if last_time and _within_period(last_time, cutoff):
+        if last_time and _within_period(last_time, cutoff, until):
             active_users += 1
         total_sessions += sc
     activation_rate = round(active_users / total_users * 100, 1) if total_users else 0
@@ -330,6 +364,7 @@ def metric_engagement(user_ids: List[str], cutoff: datetime, org_id: str = "") -
             try:
                 mtime = datetime.fromtimestamp(fp.stat().st_mtime)
                 if mtime < cutoff: continue
+                if until is not None and mtime >= until: continue
                 d = json.loads(fp.read_text(encoding="utf-8"))
             except Exception:
                 continue
@@ -359,13 +394,14 @@ def metric_engagement(user_ids: List[str], cutoff: datetime, org_id: str = "") -
     }
 
 
-def metric_overview(user_ids: List[str], cutoff: datetime, org_id: str = "") -> Dict[str, Any]:
+def metric_overview(user_ids: List[str], cutoff: datetime, org_id: str = "",
+                     until: Optional[datetime] = None) -> Dict[str, Any]:
     """总览: 把其它指标的核心点聚到一屏。"""
-    eng = metric_engagement(user_ids, cutoff, org_id)
-    sleep = metric_sleep(user_ids, cutoff)
-    anx = metric_anxiety(user_ids, cutoff)
-    worry = metric_worry_domains(user_ids, cutoff)
-    crisis = metric_crisis(user_ids, cutoff, org_id)
+    eng = metric_engagement(user_ids, cutoff, org_id, until)
+    sleep = metric_sleep(user_ids, cutoff, until)
+    anx = metric_anxiety(user_ids, cutoff, until)
+    worry = metric_worry_domains(user_ids, cutoff, until)
+    crisis = metric_crisis(user_ids, cutoff, org_id, until)
     return {
         "engagement": {
             "active_users": eng["active_users"],
@@ -393,6 +429,131 @@ def metric_overview(user_ids: List[str], cutoff: datetime, org_id: str = "") -> 
             "medium": crisis["medium"],
             "low": crisis["low"],
         },
+        # V2-2: 顶层平铺关键数值,让 _compute_deltas 能算 trend (嵌套 dict 不参与 delta)
+        "active_users": eng["active_users"],
+        "activation_rate": eng["activation_rate"],
+        "completion_rate": eng["completion_rate"],
+        "avg_se_pct": sleep["avg_se_pct"],
+        "avg_tst_hours": sleep["avg_tst_hours"],
+        "low_se_ratio": sleep["low_se_ratio"],
+        "crisis_total": crisis["total"],
+        "crisis_high": crisis["high"],
+    }
+
+
+# =========================================================================
+# V2-2 同比环比 delta 工具
+# =========================================================================
+
+# 哪些字段算"越大越好"(improving when delta > 0):
+#  avg_se_pct, avg_tst_hours, activation_rate, active_users, completion_rate
+# 哪些"越小越好"(improving when delta < 0):
+#  low_se_ratio, short_tst_ratio, avg_recovery_turns,
+#  crisis total/high/medium/low, anxiety_level
+_HIGHER_IS_BETTER = {
+    "avg_se_pct", "avg_tst_hours", "activation_rate",
+    "active_users", "completion_rate", "total_sessions",
+}
+_LOWER_IS_BETTER = {
+    "low_se_ratio", "short_tst_ratio", "avg_recovery_turns",
+    "total", "high", "medium", "low",
+    # overview 顶层平铺
+    "crisis_total", "crisis_high",
+}
+# 触发 trend 判定的最小相对变化(避免噪音被标 deteriorating)
+_TREND_EPSILON_PCT = 5.0  # ±5%
+
+
+def _classify_trend(field: str, delta_pct: Optional[float]) -> str:
+    """根据字段方向 + delta_pct 给出 trend 字符串。"""
+    if delta_pct is None:
+        return "unknown"
+    if abs(delta_pct) < _TREND_EPSILON_PCT:
+        return "stable"
+    if field in _HIGHER_IS_BETTER:
+        return "improving" if delta_pct > 0 else "deteriorating"
+    if field in _LOWER_IS_BETTER:
+        return "improving" if delta_pct < 0 else "deteriorating"
+    return "stable"  # 未定义方向 (例如 users_with_data) 不给 trend
+
+
+def _compute_deltas(current: Dict[str, Any], prev: Dict[str, Any]) -> Dict[str, Any]:
+    """对比 current / prev 两次 metric 结果, 为顶层数值字段加 delta_vs_prev / delta_pct / trend。
+
+    仅对**顶层**的数值字段计算 delta;嵌套 dict (如 se_distribution / momentum_distribution
+    / outcome_distribution) 不处理 — 那些是分布,delta 没有清晰语义。
+    数值字段为 None 或 prev 为 None 时, 对应 delta=None。
+    """
+    deltas: Dict[str, Any] = {}
+    for k, v_cur in current.items():
+        if not isinstance(v_cur, (int, float)) or isinstance(v_cur, bool):
+            continue
+        v_prev = prev.get(k)
+        if not isinstance(v_prev, (int, float)) or isinstance(v_prev, bool):
+            deltas[k] = {"prev": None, "delta_vs_prev": None,
+                         "delta_pct": None, "trend": "unknown"}
+            continue
+        delta = round(v_cur - v_prev, 2)
+        if v_prev == 0:
+            delta_pct = None if v_cur == 0 else float("inf")
+            delta_pct_out: Optional[float] = None  # +inf 不可序列化, 改成 None
+        else:
+            delta_pct = round((v_cur - v_prev) / abs(v_prev) * 100, 1)
+            delta_pct_out = delta_pct
+        deltas[k] = {
+            "prev": v_prev,
+            "delta_vs_prev": delta,
+            "delta_pct": delta_pct_out,
+            "trend": _classify_trend(k, delta_pct if delta_pct != float("inf") else None),
+        }
+    return deltas
+
+
+def _with_period_delta(
+    user_ids: List[str],
+    period_td: timedelta,
+    metric_fn: Callable[[List[str], datetime, Optional[datetime]], Dict[str, Any]],
+    k_min: int = DEFAULT_K_MIN,
+    now: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """跑 metric_fn 两次 (当前 period + 前一 period), 合并 delta 字段。
+
+    Args:
+        metric_fn: 必须接受 (user_ids, cutoff, until) 签名。
+                   对于带 org_id 的 metric, 调用方应预先 partial 掉。
+
+    Returns: k_anonymous_aggregate 的结果 + "_prev_period" 字段 (调试用)
+              + 每个顶层数值字段加 {prev/delta_vs_prev/delta_pct/trend} 子 dict。
+    """
+    if now is None:
+        now = datetime.now()
+    cutoff_cur = now - period_td
+    cutoff_prev = now - period_td * 2
+    until_prev = cutoff_cur
+
+    cur_result = k_anonymous_aggregate(
+        user_ids,
+        lambda uids: metric_fn(uids, cutoff_cur, None),
+        k_min=k_min,
+    )
+    # k 不足时直接返回, 不做 prev 比较
+    if cur_result.get("status") != "ok":
+        return cur_result
+
+    # prev 计算失败 (例如完全无数据) 不阻塞 current, 只是 delta=None
+    try:
+        prev_metric = metric_fn(user_ids, cutoff_prev, until_prev) or {}
+    except Exception:
+        prev_metric = {}
+
+    deltas = _compute_deltas(cur_result, prev_metric)
+    return {
+        **cur_result,
+        "deltas": deltas,
+        "_period": {
+            "current": [cutoff_cur.isoformat(), now.isoformat()],
+            "previous": [cutoff_prev.isoformat(), until_prev.isoformat()],
+        },
     }
 
 
@@ -411,10 +572,10 @@ def get_users_for_scope(org_id: str, team_id: Optional[str] = None) -> List[str]
 def insights_overview(org_id: str, team_id: Optional[str] = None,
                        period: str = "30d", k_min: int = DEFAULT_K_MIN) -> Dict[str, Any]:
     user_ids = get_users_for_scope(org_id, team_id)
-    cutoff = datetime.now() - parse_period(period)
-    return k_anonymous_aggregate(
-        user_ids,
-        lambda uids: metric_overview(uids, cutoff, org_id),
+    period_td = parse_period(period)
+    return _with_period_delta(
+        user_ids, period_td,
+        lambda uids, cutoff, until: metric_overview(uids, cutoff, org_id, until),
         k_min=k_min,
     )
 
@@ -422,10 +583,10 @@ def insights_overview(org_id: str, team_id: Optional[str] = None,
 def insights_sleep(org_id: str, team_id: Optional[str] = None,
                     period: str = "30d", k_min: int = DEFAULT_K_MIN) -> Dict[str, Any]:
     user_ids = get_users_for_scope(org_id, team_id)
-    cutoff = datetime.now() - parse_period(period)
-    return k_anonymous_aggregate(
-        user_ids,
-        lambda uids: metric_sleep(uids, cutoff),
+    period_td = parse_period(period)
+    return _with_period_delta(
+        user_ids, period_td,
+        lambda uids, cutoff, until: metric_sleep(uids, cutoff, until),
         k_min=k_min,
     )
 
@@ -433,10 +594,10 @@ def insights_sleep(org_id: str, team_id: Optional[str] = None,
 def insights_anxiety(org_id: str, team_id: Optional[str] = None,
                       period: str = "30d", k_min: int = DEFAULT_K_MIN) -> Dict[str, Any]:
     user_ids = get_users_for_scope(org_id, team_id)
-    cutoff = datetime.now() - parse_period(period)
-    return k_anonymous_aggregate(
-        user_ids,
-        lambda uids: metric_anxiety(uids, cutoff),
+    period_td = parse_period(period)
+    return _with_period_delta(
+        user_ids, period_td,
+        lambda uids, cutoff, until: metric_anxiety(uids, cutoff, until),
         k_min=k_min,
     )
 
@@ -444,10 +605,10 @@ def insights_anxiety(org_id: str, team_id: Optional[str] = None,
 def insights_worry(org_id: str, team_id: Optional[str] = None,
                     period: str = "30d", k_min: int = DEFAULT_K_MIN) -> Dict[str, Any]:
     user_ids = get_users_for_scope(org_id, team_id)
-    cutoff = datetime.now() - parse_period(period)
-    return k_anonymous_aggregate(
-        user_ids,
-        lambda uids: metric_worry_domains(uids, cutoff),
+    period_td = parse_period(period)
+    return _with_period_delta(
+        user_ids, period_td,
+        lambda uids, cutoff, until: metric_worry_domains(uids, cutoff, until),
         k_min=k_min,
     )
 
@@ -455,10 +616,10 @@ def insights_worry(org_id: str, team_id: Optional[str] = None,
 def insights_crisis(org_id: str, team_id: Optional[str] = None,
                      period: str = "30d", k_min: int = DEFAULT_K_MIN) -> Dict[str, Any]:
     user_ids = get_users_for_scope(org_id, team_id)
-    cutoff = datetime.now() - parse_period(period)
-    return k_anonymous_aggregate(
-        user_ids,
-        lambda uids: metric_crisis(uids, cutoff, org_id),
+    period_td = parse_period(period)
+    return _with_period_delta(
+        user_ids, period_td,
+        lambda uids, cutoff, until: metric_crisis(uids, cutoff, org_id, until),
         k_min=k_min,
     )
 
@@ -466,9 +627,9 @@ def insights_crisis(org_id: str, team_id: Optional[str] = None,
 def insights_engagement(org_id: str, team_id: Optional[str] = None,
                          period: str = "30d", k_min: int = DEFAULT_K_MIN) -> Dict[str, Any]:
     user_ids = get_users_for_scope(org_id, team_id)
-    cutoff = datetime.now() - parse_period(period)
-    return k_anonymous_aggregate(
-        user_ids,
-        lambda uids: metric_engagement(uids, cutoff, org_id),
+    period_td = parse_period(period)
+    return _with_period_delta(
+        user_ids, period_td,
+        lambda uids, cutoff, until: metric_engagement(uids, cutoff, org_id, until),
         k_min=k_min,
     )

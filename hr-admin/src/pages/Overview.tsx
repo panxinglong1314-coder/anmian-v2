@@ -54,6 +54,8 @@ export default function Overview() {
 
       {data && data.status === "ok" && (
         <>
+          {/* V2-2: deltas 字典 (可能为 undefined,例如旧 backend) */}
+          {(() => null)()}
           {/* Engagement row */}
           <section>
             <h2 className="text-xs uppercase tracking-widest text-muted mb-3">{t("overview.engagement")}</h2>
@@ -63,6 +65,7 @@ export default function Overview() {
                 value={`${data.engagement.active_users} / ${data.engagement.total_users}`}
                 hint={t("overview.activationRateLabel", { pct: data.engagement.activation_rate })}
                 tone={data.engagement.activation_rate >= 50 ? "ok" : "warn"}
+                delta={data.deltas?.active_users}
               />
               <MetricCard
                 label={t("overview.completionRate")}
@@ -73,6 +76,8 @@ export default function Overview() {
                     ? "neutral"
                     : data.engagement.completion_rate >= 60 ? "ok" : "warn"
                 }
+                delta={data.deltas?.completion_rate}
+                unit="%"
               />
               <MetricCard
                 label={t("overview.totalUsersN")}
@@ -95,6 +100,8 @@ export default function Overview() {
                   : data.sleep.avg_se_pct >= 85 ? "ok"
                   : data.sleep.avg_se_pct >= 75 ? "warn" : "bad"
                 }
+                delta={data.deltas?.avg_se_pct}
+                unit="%"
               />
               <MetricCard
                 label={t("overview.avgTST")}
@@ -105,6 +112,8 @@ export default function Overview() {
                   : data.sleep.avg_tst_hours >= 7 ? "ok"
                   : data.sleep.avg_tst_hours >= 6 ? "warn" : "bad"
                 }
+                delta={data.deltas?.avg_tst_hours}
+                unit="h"
               />
               <MetricCard
                 label={t("overview.lowSeRatio")}
@@ -115,6 +124,8 @@ export default function Overview() {
                   : data.sleep.low_se_ratio < 15 ? "ok"
                   : data.sleep.low_se_ratio < 30 ? "warn" : "bad"
                 }
+                delta={data.deltas?.low_se_ratio}
+                unit="%"
               />
               <MetricCard
                 label={t("overview.usersWithSleepData")}
@@ -143,12 +154,14 @@ export default function Overview() {
                 value={`${data.crisis.high} / ${data.crisis.medium}`}
                 hint={t("overview.crisisHint")}
                 tone={data.crisis.high > 0 ? "bad" : data.crisis.medium > 0 ? "warn" : "ok"}
+                delta={data.deltas?.crisis_high}
               />
               <MetricCard
                 label={t("overview.crisisTotal")}
                 value={data.crisis.total}
                 hint={t("overview.crisisAnonymousNote")}
                 tone="neutral"
+                delta={data.deltas?.crisis_total}
               />
             </div>
           </section>

@@ -272,3 +272,164 @@ def test_endpoint_client_cannot_specify_other_org(client, fake_redis):
     # FastAPI 端点签名只接 team_id,org_id query 被忽略 → 仍返 A 的数据
     assert r.status_code == 200
     assert r.json()["avg_se_pct"] < 60   # A 的低 SE
+
+
+# ============================ V2-2 同比环比 delta ============================
+# 验证项:
+# - status='ok' 时响应必含 deltas / _period 两个字段
+# - 当前 period 优(SE 高) vs 上一 period 劣(SE 低) → trend=improving
+# - 反向情况 → trend=deteriorating
+# - 当前与上 period 接近 → trend=stable
+# - 反方向 metric (low_se_ratio, crisis count) 判定方向相反
+# - k 不足时不计算 delta (短路返回)
+# - 嵌套 dict 字段 (se_distribution 等) 不出现在 deltas 里
+# - delta_pct 为浮点 (非 +inf 字符串)
+
+def _set_diary_in_window(fake_redis, user_id, days_ago, **kv):
+    """工具:把 sleep_diary 写在 days_ago 这一天 (用于跨 period 测试)。"""
+    d = (datetime.now() - timedelta(days=days_ago)).date().isoformat()
+    _set_sleep_diary(fake_redis, user_id, d, **kv)
+
+
+def test_v2_delta_response_shape(fake_redis):
+    """response 必含 deltas dict + _period 元信息。"""
+    from services.org_insights import insights_sleep
+    oid, uids = _seed_org_with_users(fake_redis, 5)
+    for u in uids:
+        _set_diary_in_window(fake_redis, u, days_ago=5, se=0.85, tst=7)
+    res = insights_sleep(oid, period="30d", k_min=5)
+    assert res["status"] == "ok"
+    assert "deltas" in res
+    assert isinstance(res["deltas"], dict)
+    assert "_period" in res
+    assert "current" in res["_period"]
+    assert "previous" in res["_period"]
+    # avg_se_pct 应有 delta 条目 (即使 prev 无数据)
+    assert "avg_se_pct" in res["deltas"]
+
+
+def test_v2_delta_improving_when_current_better_than_prev(fake_redis):
+    """当前 SE 高 + 上 period SE 低 → trend=improving。"""
+    from services.org_insights import insights_sleep
+    oid, uids = _seed_org_with_users(fake_redis, 5)
+    for u in uids:
+        # 当前 period (0-30d 内): SE 0.90
+        _set_diary_in_window(fake_redis, u, days_ago=5, se=0.90, tst=7.5)
+        # 前 period (30-60d 内): SE 0.65
+        _set_diary_in_window(fake_redis, u, days_ago=45, se=0.65, tst=5.5)
+    res = insights_sleep(oid, period="30d", k_min=5)
+    assert res["status"] == "ok"
+    d = res["deltas"]["avg_se_pct"]
+    assert d["prev"] is not None and d["prev"] < 70
+    assert d["delta_vs_prev"] is not None and d["delta_vs_prev"] > 10
+    assert d["trend"] == "improving"
+
+
+def test_v2_delta_deteriorating_when_current_worse(fake_redis):
+    """当前 SE 低 + 上 period SE 高 → trend=deteriorating。"""
+    from services.org_insights import insights_sleep
+    oid, uids = _seed_org_with_users(fake_redis, 5)
+    for u in uids:
+        _set_diary_in_window(fake_redis, u, days_ago=5, se=0.55, tst=4.5)
+        _set_diary_in_window(fake_redis, u, days_ago=45, se=0.88, tst=7.5)
+    res = insights_sleep(oid, period="30d", k_min=5)
+    d = res["deltas"]["avg_se_pct"]
+    assert d["delta_vs_prev"] < -10
+    assert d["trend"] == "deteriorating"
+    # tst 也应同向 (higher_is_better)
+    d_tst = res["deltas"]["avg_tst_hours"]
+    assert d_tst["trend"] == "deteriorating"
+
+
+def test_v2_delta_stable_when_within_epsilon(fake_redis):
+    """当前与上 period 接近(<5% 相对变化)→ trend=stable。"""
+    from services.org_insights import insights_sleep
+    oid, uids = _seed_org_with_users(fake_redis, 5)
+    for u in uids:
+        _set_diary_in_window(fake_redis, u, days_ago=5, se=0.80, tst=7.0)
+        _set_diary_in_window(fake_redis, u, days_ago=45, se=0.81, tst=7.0)
+    res = insights_sleep(oid, period="30d", k_min=5)
+    d = res["deltas"]["avg_se_pct"]
+    assert d["trend"] == "stable"
+
+
+def test_v2_delta_direction_for_lower_is_better_metric(fake_redis):
+    """low_se_ratio 是越小越好;current 更小 = improving。"""
+    from services.org_insights import insights_sleep
+    oid, uids = _seed_org_with_users(fake_redis, 5)
+    # current period: 全部 SE>0.7  → low_se_ratio=0
+    # prev period: 4 个 SE<0.7    → low_se_ratio 高
+    for u in uids:
+        _set_diary_in_window(fake_redis, u, days_ago=5, se=0.85, tst=7)
+    for u in uids[:4]:
+        _set_diary_in_window(fake_redis, u, days_ago=45, se=0.55, tst=5)
+    res = insights_sleep(oid, period="30d", k_min=5)
+    assert res["low_se_ratio"] == 0.0
+    d = res["deltas"]["low_se_ratio"]
+    assert d["prev"] > 0
+    assert d["trend"] == "improving"  # ratio 降了 = 改善
+
+
+def test_v2_delta_short_circuited_on_insufficient_data(fake_redis):
+    """k 不足时直接返回 insufficient_data,不应有 deltas / _period 字段。"""
+    from services.org_insights import insights_sleep
+    oid, uids = _seed_org_with_users(fake_redis, 4)
+    for u in uids:
+        _set_diary_in_window(fake_redis, u, days_ago=5, se=0.85, tst=7)
+    res = insights_sleep(oid, period="30d", k_min=5)
+    assert res["status"] == "insufficient_data"
+    assert "deltas" not in res
+    assert "_period" not in res
+
+
+def test_v2_delta_skips_nested_distribution_dicts(fake_redis):
+    """deltas 只对顶层数值字段计算,嵌套 dict 不出现。"""
+    from services.org_insights import insights_sleep
+    oid, uids = _seed_org_with_users(fake_redis, 5)
+    for u in uids:
+        _set_diary_in_window(fake_redis, u, days_ago=5, se=0.85, tst=7)
+    res = insights_sleep(oid, period="30d", k_min=5)
+    # se_distribution 是 dict,不该有它自己的 delta
+    assert "se_distribution" not in res["deltas"]
+
+
+def test_v2_delta_handles_prev_zero_gracefully(fake_redis):
+    """prev=0 时 delta_pct 应为 None(避免 +inf 序列化失败)。"""
+    from services.org_insights import insights_engagement
+    oid, uids = _seed_org_with_users(fake_redis, 5)
+    recent = datetime.now().isoformat(timespec="seconds")
+    for u in uids:
+        _set_user_memory(fake_redis, u, {
+            "session_count": 5,
+            "last_session_time": recent,
+        })
+    res = insights_engagement(oid, period="30d", k_min=5)
+    # prev period 无任何 active_users (60 天前没活动) → prev=0
+    d = res["deltas"]["active_users"]
+    assert d["prev"] == 0
+    # delta_pct 应为 None (除零) 或 0 (cur 也=0 的情况此处不适用)
+    assert d["delta_pct"] is None
+    # 但 delta_vs_prev 仍应是正常数字
+    assert d["delta_vs_prev"] == 5
+
+
+def test_v2_delta_crisis_direction(fake_redis):
+    """crisis count 越少越好;current 危机数=0 prev 有 → improving。"""
+    from services.org_insights import insights_crisis
+    from services.crisis_alert import emit_crisis_alert
+    oid, uids = _seed_org_with_users(fake_redis, 5)
+    # 灌一个 45 天前的 crisis (上一 period)
+    import time as _t
+    old_ts = (datetime.now() - timedelta(days=45)).timestamp()
+    fake_redis.zadd("crisis_alerts:pending", {"ev_old": int(old_ts * 1000)})
+    fake_redis.hset("crisis_alert:ev_old", mapping={
+        "level": "high", "user_id": uids[0], "org_id": oid,
+        "ts": str(old_ts),
+    })
+    res = insights_crisis(oid, period="30d", k_min=5)
+    assert res["status"] == "ok"
+    assert res["total"] == 0  # current period 无危机
+    d = res["deltas"]["total"]
+    assert d["prev"] == 1
+    # total 字段在 _LOWER_IS_BETTER 集合里;current(0) < prev(1) ⇒ improving
+    assert d["trend"] == "improving"
