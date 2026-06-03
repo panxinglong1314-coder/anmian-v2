@@ -1,0 +1,95 @@
+# 知眠 ASR 热词表 (中英混读优化)
+#
+# 格式: 单词|权重 (1-10, 越大越优先)
+# 用途:
+#   1. 腾讯云控制台手动批量导入:语音识别 → 热词管理 → 新建热词表 → 批量导入
+#   2. 也可用 backend/scripts/bootstrap_asr_hotwords.py 一键 SDK 创建
+#
+# 选词原则:
+#   - 用户口语高频出现且 16k_zh 易听错的英文术语
+#   - 涵盖:职场压力 / 睡眠 / CBT-I 技术词 / 产品名 / 时间表达
+#
+# 维护:把 prod ASR 日志里"实际听错但应识别"的词加进来,迭代权重
+
+# ============ 职场 / 压力源(用户最常说) ============
+deadline|10
+KPI|10
+OKR|10
+review|9
+meeting|9
+manager|8
+boss|7
+team|8
+project|8
+client|7
+sales|6
+demo|6
+presentation|7
+report|7
+mentor|6
+leader|6
+HR|8
+PM|8
+PR|6
+QA|6
+
+# ============ 时间 / 数字表达 ============
+Q1|8
+Q2|8
+Q3|8
+Q4|8
+H1|6
+H2|6
+weekend|7
+Monday|6
+Friday|6
+overtime|7
+
+# ============ 知眠 / CBT-I 技术词 ============
+PMR|10
+CBT|9
+CBTI|9
+SE|8
+TST|8
+SOL|6
+WASO|6
+meditation|9
+mindfulness|9
+breathing|8
+relaxation|7
+focus|7
+calm|6
+gratitude|6
+
+# ============ 情绪 / 心理词(用户夹用) ============
+burnout|9
+anxiety|8
+depression|7
+focus|7
+energy|6
+mood|6
+chill|6
+peaceful|6
+
+# ============ 产品 / 工具(用户提名) ============
+Notion|7
+Slack|7
+Zoom|7
+Teams|6
+Excel|6
+PPT|6
+ChatGPT|7
+GPT|6
+AI|7
+LLM|6
+SaaS|6
+B2B|6
+B2C|5
+
+# ============ 数字/缩写组合 ============
+9to5|6
+996|7
+007|6
+ROI|6
+MVP|6
+POC|5

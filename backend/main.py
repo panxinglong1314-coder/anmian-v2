@@ -3004,12 +3004,37 @@ async def tencent_asr_stream(audio_data: bytes, filename: str = "audio.mp3", loc
     req.Data = base64.b64encode(asr_data).decode()
     req.DataLen = len(asr_data)
     req.ProjectId = 0
+    # ASR 中英混读优化:热词表 (中文场景才用,英文场景禁用以免反噬)
+    if _loc != "en" and settings.tencent_asr_hotword_id:
+        req.HotwordId = settings.tencent_asr_hotword_id
 
     print(f"[腾讯ASR] 上传 {len(asr_data)} 字节进行识别")
     resp = client.SentenceRecognition(req)
     text = resp.Result or ""
     print(f"[腾讯ASR] 识别结果: '{text}'")
     return text
+
+
+# ==================== ASR 中英混读 LLM 纠错 ====================
+# 业务逻辑在 services/asr_repair.py — 此处仅做 settings 绑定 + 注入 LLM streamer
+
+async def llm_repair_transcript(raw: str, timeout: Optional[float] = None) -> str:
+    """对 ASR transcript 做中英混读纠错。失败回 raw,不抛错。"""
+    from services.asr_repair import repair_transcript
+    if not settings.deepseek_api_key:
+        return raw
+
+    async def _streamer(messages):
+        async for chunk in deepseek_chat(messages, stream=True):
+            yield chunk
+
+    return await repair_transcript(
+        raw,
+        llm_streamer=_streamer,
+        enabled=settings.asr_llm_repair_enabled,
+        timeout=timeout or settings.asr_llm_repair_timeout_s,
+        min_len=settings.asr_llm_repair_min_len,
+    )
 
 
 
@@ -3031,6 +3056,9 @@ async def asr_v2_signature(user_id: str = ""):
         "voice_format": 1,
         "voice_id": voice_id,
     }
+    # 中英混读热词表 (无则跳过)
+    if settings.tencent_asr_hotword_id:
+        params["hotword_id"] = settings.tencent_asr_hotword_id
     sorted_items = sorted(params.items())
     query_str = "&".join(f"{k}={v}" for k, v in sorted_items)
     path = f"/asr/v2/{settings.tencentcloud_app_id}"
@@ -3061,6 +3089,7 @@ async def asr_quick_upload(file: UploadFile = File(...)):
 
     try:
         text = await tencent_asr_stream(audio_data, file.filename or "audio.mp3")
+        text = await llm_repair_transcript(text)
         return {"text": text, "confidence": "high", "engine": "tencent", "source": "quick_upload"}
     except Exception as e:
         print(f"[ASR-Quick] 识别失败: {e}")
@@ -4018,6 +4047,7 @@ async def asr(file: UploadFile = File(...), locale: str = Query("zh")):
         text = await tencent_asr_stream(audio_data, file.filename or "audio.mp3", locale="en")
     else:
         text = await qwen_asr(audio_data, file.filename or "audio.mp3")
+    text = await llm_repair_transcript(text)
     return {"text": text, "confidence": "high"}
 
 
@@ -4035,11 +4065,13 @@ async def asr_stream(file: UploadFile = File(...)):
 
     try:
         text = await tencent_asr_stream(audio_data, file.filename or "audio.mp3")
+        text = await llm_repair_transcript(text)
         return {"text": text, "confidence": "high", "engine": "tencent"}
     except Exception as e:
         print(f"[流式ASR] 降级到千问 ASR: {e}")
         # 降级到千问 ASR
         text = await qwen_asr(audio_data, file.filename or "audio.mp3")
+        text = await llm_repair_transcript(text)
         return {"text": text, "confidence": "high", "engine": "qwen"}
 
 
@@ -4095,6 +4127,9 @@ class TencentASRStreamConnector:
             'filter_dirty': 1,         # 过滤脏话
             'convert_num_mode': 1,     # 阿拉伯数字转中文
         }
+        # 中英混读优化:挂热词表(仅中文引擎用,英文引擎挂会反噬)
+        if self.engine_model_type != "16k_en" and settings.tencent_asr_hotword_id:
+            params['hotword_id'] = settings.tencent_asr_hotword_id
         sorted_items = sorted(params.items())
         query_str = '&'.join(f"{k}={v}" for k, v in sorted_items)
         path = f"/asr/v2/{self.appid}"
@@ -4358,7 +4393,12 @@ async def asr_websocket(websocket: WebSocket):
     frame_count = 0
 
     async def result_forwarder():
-        """实时转发腾讯云识别结果给前端"""
+        """实时转发腾讯云识别结果给前端。
+
+        中英混读优化:仅对 is_final 结果跑 LLM 纠错(避免 partial 阶段加 200ms 延迟)。
+        纠错后追加一条 {"text":..., "is_final":True, "repaired":True} 事件,
+        前端可据此用最终版替换显示。
+        """
         try:
             while True:
                 result = await v2_connector.get_result(timeout=0.5)
@@ -4366,6 +4406,20 @@ async def asr_websocket(websocket: WebSocket):
                     print(f"[ASR-WS] forward result: {result}")
                     await websocket.send_json(result)
                     if result.get("is_final"):
+                        # 最终结果:尝试 LLM 纠错
+                        raw_text = result.get("text", "")
+                        try:
+                            fixed = await llm_repair_transcript(raw_text)
+                            if fixed and fixed != raw_text:
+                                await websocket.send_json({
+                                    "text": fixed,
+                                    "is_final": True,
+                                    "repaired": True,
+                                    "raw": raw_text,
+                                })
+                                print(f"[ASR-WS] repaired final: '{raw_text}' → '{fixed}'")
+                        except Exception as e:
+                            print(f"[ASR-WS] repair failed (non-fatal): {e}")
                         break
                 if v2_connector._done.is_set():
                     break

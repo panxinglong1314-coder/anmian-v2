@@ -49,6 +49,17 @@ class Settings(BaseSettings):
     # ASR 预热
     asr_warmup_connections: int = 2
 
+    # 腾讯云 ASR 热词表 ID (中英混读优化)。控制台 → 语音识别 → 热词管理 → 复制 ID 填这里。
+    # 空字符串表示不启用。
+    tencent_asr_hotword_id: str = ""
+
+    # ASR transcript LLM 二次纠错(中英混读纠错)。
+    # 仅当检测到 transcript 同时含中文 + 英文时触发,纯中文/纯英文跳过(避免无谓延迟)。
+    # 走 deepseek_chat,需 deepseek_api_key 已配置。
+    asr_llm_repair_enabled: bool = True
+    asr_llm_repair_timeout_s: float = 4.0
+    asr_llm_repair_min_len: int = 4  # 短于此长度不纠错
+
     # JWT
     jwt_secret: str = "dev-secret-change-in-prod"
 
