@@ -192,6 +192,23 @@ def update_lead(
     return get_lead(lead_id)
 
 
+def delete_lead(lead_id: str) -> bool:
+    """物理删除一条销售线索 (含 hash + 两个 zset 索引)。
+
+    Returns:
+        True 若实际删除了; False 若不存在
+    """
+    r = _redis_or_raise()
+    if not r.exists(_key(lead_id)):
+        return False
+    pipe = r.pipeline()
+    pipe.delete(_key(lead_id))
+    pipe.zrem(KEY_PENDING, lead_id)
+    pipe.zrem(KEY_ARCHIVED, lead_id)
+    pipe.execute()
+    return True
+
+
 def get_stats() -> Dict[str, Any]:
     """运营快速看板:各状态计数。"""
     r = _redis_or_raise()

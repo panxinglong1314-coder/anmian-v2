@@ -325,6 +325,65 @@ def list_team_users(team_id: str) -> List[str]:
     return sorted(_smembers_str(r, k_team_users(team_id)))
 
 
+def delete_org(org_id: str) -> Dict[str, int]:
+    """级联删除一家企业 + 所有相关索引 / 邀请码 / 报告缓存。
+
+    **不删用户的个人数据** (user_profile / sleep_diary / worry 等保留 B2C 历史),
+    只清理"该用户属于这个 org"的反向索引;HR 角色降级为 user。
+
+    Returns:
+        {"org_meta": 1/0, "teams": N, "invites": N, "users_unbound": N, "reports": N}
+    """
+    r = _redis_or_raise()
+    stats = {"org_meta": 0, "teams": 0, "invites": 0,
+             "users_unbound": 0, "reports": 0, "members": 0}
+
+    # 1) 列出该 org 下的 user_ids → 清反向索引 + 角色降级
+    user_ids = list_org_users(org_id)
+    for uid in user_ids:
+        r.delete(k_user_org(uid))
+        r.delete(k_user_team(uid))
+        # 角色降为普通用户 (避免遗留 hr_admin 在没企业的用户上)
+        if get_user_role(uid) == "hr_admin":
+            set_user_role(uid, "user")
+        stats["users_unbound"] += 1
+
+    # 2) 列出 org 下的 teams → 删 team meta + team_users set
+    team_ids = list(_smembers_str(r, k_org_teams(org_id)))
+    for tid in team_ids:
+        r.delete(k_team(tid))
+        r.delete(k_team_users(tid))
+        stats["teams"] += 1
+    r.delete(k_org_teams(org_id))
+
+    # 3) 扫所有 org:invite:* → 把属于该 org 的码删掉
+    for key in r.scan_iter(match="org:invite:*", count=500):
+        k = key.decode() if isinstance(key, bytes) else key
+        inv_org = r.hget(k, "org_id")
+        if isinstance(inv_org, bytes): inv_org = inv_org.decode()
+        if inv_org == org_id:
+            r.delete(k)
+            stats["invites"] += 1
+
+    # 4) 清月报缓存 org:report:{org_id}:*
+    for key in r.scan_iter(match=f"org:report:{org_id}:*", count=200):
+        r.delete(key)
+        stats["reports"] += 1
+
+    # 5) 计费 + members 集合 + org 元数据
+    r.delete(f"org:billing:{org_id}")
+    stats["members"] = r.scard(k_org_users(org_id)) or 0
+    r.delete(k_org_users(org_id))
+
+    deleted = r.delete(k_org(org_id))
+    stats["org_meta"] = int(deleted or 0)
+
+    # 6) 全局 org 索引 set (列表用)
+    r.srem("org_index", org_id)
+
+    return stats
+
+
 def org_seat_usage(org_id: str) -> Tuple[int, int]:
     """Returns (current_used, seat_quota)。"""
     r = _redis_or_raise()

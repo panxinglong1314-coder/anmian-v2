@@ -5197,6 +5197,16 @@ async def admin_sales_lead_update(lead_id: str, body: SalesLeadUpdateBody):
     return rec
 
 
+@app.delete("/api/v1/admin/sales/leads/{lead_id}")
+async def admin_sales_lead_delete(lead_id: str):
+    """admin 物理删除一条销售线索 (含两个索引 zset)。"""
+    from services.sales_lead import delete_lead
+    ok = delete_lead(lead_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="lead not found")
+    return {"success": True, "lead_id": lead_id}
+
+
 class SubscriptionRequest(BaseModel):
     user_id: str
     plan: str
@@ -6244,6 +6254,22 @@ async def admin_safety(days: int = Query(30, le=90), limit: int = Query(500, le=
     return get_safety_events(days=days, limit=limit)
 
 
+@app.delete("/api/v1/admin/safety/{session_id}")
+async def admin_safety_delete(session_id: str):
+    """从安全中心列表"隐藏"该事件 (软删除)。
+
+    审计资产 (evaluation_tracking/bias_*.jsonl) 保留不动,
+    只是后续 get_safety_events 不再展示。
+    """
+    from services.safety_dismiss import dismiss_safety_event
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id required")
+    ok = dismiss_safety_event(session_id)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Redis unavailable")
+    return {"success": True, "session_id": session_id, "soft_deleted": True}
+
+
 @app.get("/api/v1/admin/quality")
 async def admin_quality(days: int = Query(30, le=90), limit: int = Query(500, le=2000)):
     """AI 质量监控统计"""
@@ -6474,6 +6500,31 @@ async def admin_org_create(body: CreateOrgBody):
         period_end=body.period_end or None,
     )
     return {"org_id": oid}
+
+
+@app.delete("/api/v1/admin/orgs/{org_id}")
+async def admin_org_delete(
+    org_id: str,
+    confirm_name: str = Query(..., description="必须等于企业名,二次安全确认"),
+):
+    """级联删除企业 — 危险操作,需 confirm_name = 企业当前名才放行。
+
+    清理:org meta + 所有 teams + 所有邀请码 + reverse user 索引 +
+    HR 角色降级 + 月报缓存 + billing。**不删用户的个人数据**
+    (user_profile / sleep_diary / worry / 对话日志等保留 B2C 体验)。
+    """
+    from services.org import get_org, delete_org
+    meta = get_org(org_id)
+    if not meta:
+        raise HTTPException(status_code=404, detail="org not found")
+    actual_name = (meta.get("name") or "").strip()
+    if (confirm_name or "").strip() != actual_name:
+        raise HTTPException(
+            status_code=400,
+            detail=f"confirm_name 必须等于 '{actual_name}' 才允许删除",
+        )
+    stats = delete_org(org_id)
+    return {"success": True, "org_id": org_id, "stats": stats}
 
 
 class CreateInviteBody(BaseModel):
@@ -6757,6 +6808,16 @@ async def admin_feedback_list(limit: int = Query(100, le=500), days: int = Query
     """用户反馈列表（按时间倒序）"""
     from services import feedback_service
     return {"feedbacks": feedback_service.get_feedback_list(limit=limit, days=days)}
+
+
+@app.delete("/api/v1/admin/feedback/{feedback_id}")
+async def admin_feedback_delete(feedback_id: str):
+    """admin 物理删除一条反馈 (string item + zset 索引)。"""
+    from services import feedback_service
+    ok = feedback_service.delete_feedback(feedback_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="feedback not found")
+    return {"success": True, "feedback_id": feedback_id}
 
 
 @app.get("/api/v1/admin/feedback/stats")

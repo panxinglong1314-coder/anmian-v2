@@ -468,10 +468,22 @@ def get_dashboard_stats(days: int = 7, limit: int = 500) -> Dict[str, Any]:
 # ==================== 安全中心 ====================
 
 def get_safety_events(days: int = 30, limit: int = 500) -> List[Dict]:
-    """安全事件：分析评估数据中低分+高偏差会话，标记潜在风险"""
+    """安全事件：分析评估数据中低分+高偏差会话，标记潜在风险。
+
+    被运营在 admin 界面"删除"的事件 (软删除, services.safety_dismiss)
+    会从列表过滤掉,审计资产本身保留在 evaluation_tracking/ 不动。
+    """
+    try:
+        from services.safety_dismiss import list_dismissed
+        dismissed = list_dismissed()
+    except Exception:
+        dismissed = set()
+
     eval_records = _load_evaluation_records(days=days)
     events = []
     for rec in eval_records:
+        if rec.get("session_id") in dismissed:
+            continue
         empathy = rec.get("auto_empathy", 5)
         tech = rec.get("auto_technical", 9)
         coherence = rec.get("auto_coherence", 5)

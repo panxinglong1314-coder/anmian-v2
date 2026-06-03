@@ -338,12 +338,36 @@ async function _loadFeedbackList() {
           <td class="text-xs text-gray-500">${_formatTime(f.created_at)}</td>
           <td class="text-xs">${who}</td>
           <td class="text-xs max-w-md truncate" title="${_escapeHtml(f.content || '')}">${_escapeHtml((f.content || '').slice(0, 60))}</td>
-          <td><button onclick="showFeedbackDetail(${idx})" class="btn btn-sm bg-blue-600 text-white hover:bg-blue-700">查看</button></td>
+          <td>
+            <button onclick="showFeedbackDetail(${idx})" class="btn btn-sm bg-blue-600 text-white hover:bg-blue-700">查看</button>
+            <button onclick="deleteFeedback('${_escapeHtml(f.feedback_id || '')}', this)" class="btn btn-sm ml-1 text-red-600 hover:bg-red-50">删除</button>
+          </td>
         </tr>
       `;
     }).join('');
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="4" class="text-center text-red-500 py-4">加载失败: ${e.message}</td></tr>`;
+  }
+}
+
+async function deleteFeedback(feedbackId, btnEl) {
+  if (!feedbackId) return;
+  if (!confirm('确定删除这条用户反馈吗？删除后不可恢复。')) return;
+  btnEl.disabled = true; btnEl.textContent = '删除中...';
+  try {
+    const r = await fetch(`${API_BASE}/feedback/${encodeURIComponent(feedbackId)}`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Token': adminToken },
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${r.status}`);
+    }
+    toast('反馈已删除', 'success');
+    loadFeedback();
+  } catch (e) {
+    toast('删除失败: ' + e.message, 'error');
+    btnEl.disabled = false; btnEl.textContent = '删除';
   }
 }
 
@@ -1612,12 +1636,36 @@ async function loadLeads() {
         <td class="text-xs">${_escapeHtml(l.team_size) || '-'}</td>
         <td class="text-xs text-gray-600 max-w-md truncate" title="${_escapeHtml(l.message || '')}">${_escapeHtml(l.message) || '-'}${l.notes ? '<div class="text-[10px] text-emerald-600 mt-1">📌 ' + _escapeHtml(l.notes) + '</div>' : ''}</td>
         <td>${leadStatusBadge(l.status)} ${l.follow_up_operator ? '<div class="text-[10px] text-gray-500 mt-1">by ' + _escapeHtml(l.follow_up_operator) + '</div>' : ''}</td>
-        <td><button onclick="openLeadModal('${l.lead_id}')" class="btn btn-default btn-sm">更新</button></td>
+        <td>
+          <button onclick="openLeadModal('${l.lead_id}')" class="btn btn-default btn-sm">更新</button>
+          <button onclick="deleteLead('${l.lead_id}', '${_escapeHtml(l.company_name).replace(/'/g, '&apos;')}', this)" class="btn btn-sm text-red-600 hover:bg-red-50 ml-1">删除</button>
+        </td>
       </tr>
     `).join('');
   } catch (e) {
     document.getElementById('leads-tbody').innerHTML =
       `<tr><td colspan="8" class="text-center text-red-500 py-8">加载失败: ${e.message}</td></tr>`;
+  }
+}
+
+async function deleteLead(leadId, companyName, btnEl) {
+  if (!leadId) return;
+  if (!confirm(`确定删除「${companyName || leadId}」这条销售线索吗？\n删除后不可恢复。`)) return;
+  btnEl.disabled = true; btnEl.textContent = '删除中...';
+  try {
+    const r = await fetch(`${API_BASE}/sales/leads/${encodeURIComponent(leadId)}`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Token': adminToken },
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${r.status}`);
+    }
+    toast('销售线索已删除', 'success');
+    loadLeads();
+  } catch (e) {
+    toast('删除失败: ' + e.message, 'error');
+    btnEl.disabled = false; btnEl.textContent = '删除';
   }
 }
 
@@ -1728,13 +1776,51 @@ async function loadOrgs() {
         <td>${orgStatusBadge(o.status)}</td>
         <td class="text-xs">
           <button onclick="openOrgActions('${o.org_id}', '${_escapeHtml(o.name).replace(/'/g, '&#39;')}')" class="btn btn-default btn-sm mr-1">管理</button>
-          <button onclick="copyToClipboard('${o.org_id}')" class="text-blue-600 hover:underline">复制 ID</button>
+          <button onclick="copyToClipboard('${o.org_id}')" class="text-blue-600 hover:underline mr-1">复制 ID</button>
+          <button onclick="deleteOrg('${o.org_id}', '${_escapeHtml(o.name).replace(/'/g, '&#39;')}')" class="text-red-600 hover:underline">删除</button>
         </td>
       </tr>
     `).join('');
   } catch (e) {
     document.getElementById('orgs-tbody').innerHTML =
       `<tr><td colspan="9" class="text-center text-red-500 py-8">加载失败: ${e.message}</td></tr>`;
+  }
+}
+
+async function deleteOrg(orgId, orgName) {
+  // 危险操作:二次确认 — 必须 prompt 输入企业名才允许继续
+  const typed = prompt(
+    `⚠️ 删除企业【${orgName}】将级联清理:\n` +
+    `  • 企业元数据 + 计费记录\n` +
+    `  • 所有团队 + 邀请码 + 月报缓存\n` +
+    `  • 所有员工的 org_id 反向索引(HR 角色会被降级)\n\n` +
+    `用户的个人数据(对话/睡眠/担忧)会保留。\n\n` +
+    `如确认删除,请准确输入企业名称:`
+  );
+  if (typed === null) return; // 用户取消
+  if (typed.trim() !== orgName.trim()) {
+    toast('企业名输入不匹配,已取消', 'error');
+    return;
+  }
+  try {
+    const r = await fetch(
+      `${API_BASE}/orgs/${encodeURIComponent(orgId)}?confirm_name=${encodeURIComponent(orgName)}`,
+      { method: 'DELETE', headers: { 'X-Admin-Token': adminToken } }
+    );
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${r.status}`);
+    }
+    const d = await r.json();
+    const s = d.stats || {};
+    toast(
+      `✓ 已删除【${orgName}】 · ${s.users_unbound || 0} 个员工解绑 · ` +
+      `${s.teams || 0} 个团队 · ${s.invites || 0} 个邀请码`,
+      'success', 6000
+    );
+    loadOrgs();
+  } catch (e) {
+    toast('删除失败: ' + e.message, 'error');
   }
 }
 

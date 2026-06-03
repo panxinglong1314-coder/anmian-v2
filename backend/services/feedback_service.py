@@ -142,6 +142,25 @@ def get_feedback_list(limit: int = 100, days: int = 0) -> List[Dict[str, Any]]:
         return []
 
 
+def delete_feedback(feedback_id: str) -> bool:
+    """物理删除一条反馈 (string item + 索引 zset)。
+
+    Returns:
+        True 若实际删除了; False 若不存在
+    """
+    if not redis_client:
+        return False
+    if not redis_client.exists(_item_key(feedback_id)):
+        # 也尝试只清 zset (老数据 item 已 TTL 过期但 zset 残留)
+        zret = redis_client.zrem(KEY_ALL, feedback_id) or 0
+        return zret > 0
+    pipe = redis_client.pipeline()
+    pipe.delete(_item_key(feedback_id))
+    pipe.zrem(KEY_ALL, feedback_id)
+    pipe.execute()
+    return True
+
+
 def get_feedback_stats() -> Dict[str, Any]:
     """反馈统计：总数 + 近 7 天数"""
     if not redis_client:
