@@ -119,24 +119,56 @@
     box-shadow: 0 0 0 3px rgba(245, 200, 105, 0.15);
     background: rgba(13, 27, 42, 0.7);
   }
-  /* 按钮配色与品牌图标圆底统一(深夜蓝),金色描边 + 文字 */
+  /* 按钮:深夜蓝底 + 金色文字/描边,加微高光顶脊与底反光,质感像 Apple 金色机型 */
   .login-btn {
-    background: linear-gradient(135deg, #1f2a4a 0%, #161e36 100%);
-    color: #f5c869;
+    background:
+      linear-gradient(180deg, rgba(245,200,105,0.06) 0%, rgba(245,200,105,0) 50%),
+      linear-gradient(135deg, #232b54 0%, #141a36 100%);
+    color: #ffd57a;
     font-weight: 600;
-    border: 1px solid rgba(245, 200, 105, 0.38);
-    transition: filter 0.18s, transform 0.05s, box-shadow 0.18s, border-color 0.18s;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35),
-                inset 0 1px 0 rgba(245, 200, 105, 0.12);
+    letter-spacing: 0.06em;
+    border: 1px solid rgba(245, 200, 105, 0.5);
+    border-radius: 10px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    transition: transform 0.08s ease,
+                box-shadow 0.22s ease,
+                border-color 0.22s ease,
+                background 0.22s ease,
+                color 0.22s ease;
+    box-shadow:
+      0 6px 22px rgba(0, 0, 0, 0.42),
+      0 0 22px rgba(245, 200, 105, 0.10),
+      inset 0 1px 0 rgba(255, 224, 168, 0.22),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.25);
   }
   .login-btn:hover {
-    filter: brightness(1.12);
-    border-color: rgba(245, 200, 105, 0.6);
-    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45),
-                inset 0 1px 0 rgba(245, 200, 105, 0.18),
-                0 0 0 3px rgba(245, 200, 105, 0.08);
+    border-color: rgba(245, 200, 105, 0.85);
+    color: #ffe8b6;
+    transform: translateY(-1px);
+    background:
+      linear-gradient(180deg, rgba(245,200,105,0.10) 0%, rgba(245,200,105,0) 60%),
+      linear-gradient(135deg, #2b3463 0%, #1a213f 100%);
+    box-shadow:
+      0 10px 28px rgba(0, 0, 0, 0.5),
+      0 0 32px rgba(245, 200, 105, 0.32),
+      0 0 0 4px rgba(245, 200, 105, 0.12),
+      inset 0 1px 0 rgba(255, 224, 168, 0.32),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.25);
   }
-  .login-btn:active { transform: translateY(1px); }
+  .login-btn:active {
+    transform: translateY(1px);
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.4),
+      inset 0 2px 6px rgba(0, 0, 0, 0.35);
+  }
+  .login-btn:focus-visible {
+    outline: none;
+    border-color: rgba(245, 200, 105, 0.9);
+    box-shadow:
+      0 0 0 4px rgba(245, 200, 105, 0.22),
+      0 6px 22px rgba(0, 0, 0, 0.42),
+      inset 0 1px 0 rgba(255, 224, 168, 0.22);
+  }
   .topbar { height:48px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; padding:0 20px; }
 
   .tab-btn { padding:4px 12px; border-radius:4px; font-size:13px; cursor:pointer; color:#6b7280; border:none; background:transparent; }
