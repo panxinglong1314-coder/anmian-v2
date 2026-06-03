@@ -5,15 +5,49 @@
 // over SSE (no gesture), so we reuse ONE audio element and "unlock" it on a
 // real gesture (tapping Send / enabling TTS) by playing a short silent clip.
 // After that, swapping its src and calling play() works without a gesture.
+//
+// 2026-06: Added playsinline + Media Session API so the audio survives going
+// to background / lockscreen on iOS-PWA. Also publishes a playing-state
+// observable so the UI can show a "🔊 playing" indicator.
 
 let ttsEl: HTMLAudioElement | null = null;
 let queue: string[] = [];
 let playing = false;
+const playingListeners = new Set<(p: boolean) => void>();
+
+function setPlaying(next: boolean) {
+  if (playing === next) return;
+  playing = next;
+  playingListeners.forEach((cb) => {
+    try { cb(next); } catch { /* noop */ }
+  });
+}
 
 function getEl(): HTMLAudioElement {
   if (!ttsEl) {
     ttsEl = new Audio();
     ttsEl.preload = "auto";
+    // iOS:必须设 playsinline,否则进入"全屏播放器"模式,后台立刻 pause
+    ttsEl.setAttribute("playsinline", "");
+    ttsEl.setAttribute("webkit-playsinline", "");
+    // Media Session API:让锁屏 / 控制中心显示标题 + 播放图标,
+    // 切到后台也不会立刻 pause(浏览器视为"媒体应用")
+    if ("mediaSession" in navigator) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: "ZhiMian · 知眠",
+          artist: "AI Sleep Companion",
+          artwork: [
+            { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+            { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+          ],
+        });
+        navigator.mediaSession.setActionHandler("pause", () => { stopTts(); });
+        navigator.mediaSession.setActionHandler("stop", () => { stopTts(); });
+      } catch {
+        /* noop — old Safari */
+      }
+    }
   }
   return ttsEl;
 }
@@ -79,21 +113,25 @@ function playNext(): void {
   const a = getEl();
   const src = queue.shift();
   if (!src) {
-    playing = false;
+    setPlaying(false);
     return;
   }
-  playing = true;
+  setPlaying(true);
   a.src = src;
   a.onended = () => playNext();
   a.onerror = () => playNext();
   const p = a.play();
   if (p && typeof p.catch === "function") p.catch(() => playNext());
+  // 告诉 Media Session 正在播
+  if ("mediaSession" in navigator) {
+    try { navigator.mediaSession.playbackState = "playing"; } catch { /* noop */ }
+  }
 }
 
 /** Stop all TTS playback and clear the queue. */
 export function stopTts(): void {
   queue = [];
-  playing = false;
+  setPlaying(false);
   if (ttsEl) {
     try {
       ttsEl.pause();
@@ -102,4 +140,20 @@ export function stopTts(): void {
       /* noop */
     }
   }
+  if ("mediaSession" in navigator) {
+    try { navigator.mediaSession.playbackState = "paused"; } catch { /* noop */ }
+  }
+}
+
+/** Subscribe to playing state changes. Returns an unsubscribe function. */
+export function onTtsPlayingChange(cb: (playing: boolean) => void): () => void {
+  playingListeners.add(cb);
+  // 同步发一次当前状态
+  try { cb(playing); } catch { /* noop */ }
+  return () => { playingListeners.delete(cb); };
+}
+
+/** Current TTS playing state (synchronous getter for one-off checks). */
+export function isTtsPlaying(): boolean {
+  return playing;
 }

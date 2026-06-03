@@ -5,6 +5,10 @@ import { getToken } from "./auth";
 // then a {"type":"end"} JSON message. Browsers' MediaRecorder produces
 // webm/opus (not PCM), so we capture raw samples via Web Audio, downsample
 // to 16 kHz, and convert to Int16 ourselves.
+//
+// 2026-06: Migrated from ScriptProcessor (deprecated 2014) to AudioWorklet
+// — separate worker thread, no main-thread jank on low-end Android.
+// Falls back to ScriptProcessor on browsers without worklet support.
 
 export interface ASRCallbacks {
   onPartial?: (text: string) => void;
@@ -12,6 +16,8 @@ export interface ASRCallbacks {
   onError?: (err: string) => void;
   onOpen?: () => void;
   onClose?: () => void;
+  /** RMS volume 0..1 sampled ~every 50ms; for waveform visualisation. */
+  onVolume?: (rms: number) => void;
 }
 
 function wsBase(): string {
@@ -54,8 +60,10 @@ export class ASRClient {
   private ws: WebSocket | null = null;
   private ctx: AudioContext | null = null;
   private stream: MediaStream | null = null;
-  private processor: ScriptProcessorNode | null = null;
+  private workletNode: AudioWorkletNode | null = null;
+  private processor: ScriptProcessorNode | null = null;  // fallback only
   private source: MediaStreamAudioSourceNode | null = null;
+  private inRate = 16000;
 
   constructor(private locale: string, private cb: ASRCallbacks) {}
 
@@ -106,24 +114,61 @@ export class ASRClient {
       }
     }
     this.source = this.ctx.createMediaStreamSource(this.stream);
-    this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
-    const inRate = this.ctx.sampleRate;
+    this.inRate = this.ctx.sampleRate;
 
+    // Prefer AudioWorklet (Chrome 66+, Firefox 76+, Safari 14.5+).
+    // Fall back to ScriptProcessor on ancient browsers.
+    const hasWorklet = !!(this.ctx.audioWorklet && typeof this.ctx.audioWorklet.addModule === "function");
+    if (hasWorklet) {
+      try {
+        await this.ctx.audioWorklet.addModule("/asr-worklet.js");
+        this.workletNode = new AudioWorkletNode(this.ctx, "asr-processor");
+        this.workletNode.port.onmessage = (e) => {
+          const msg = e.data as { type: string; pcm?: Float32Array; rms?: number };
+          if (msg.type === "pcm" && msg.pcm) {
+            if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+            const ds = downsample(msg.pcm, this.inRate, 16000);
+            this.ws.send(floatTo16BitPCM(ds));
+          } else if (msg.type === "vol" && typeof msg.rms === "number") {
+            this.cb.onVolume?.(msg.rms);
+          }
+        };
+        this.source.connect(this.workletNode);
+        this.workletNode.connect(this.ctx.destination);
+        return;
+      } catch (err) {
+        console.warn("[ASR] AudioWorklet failed, falling back to ScriptProcessor:", err);
+      }
+    }
+
+    // Fallback: ScriptProcessor (deprecated but universal)
+    this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
+    let volTick = 0;
+    let volEma = 0;
     this.processor.onaudioprocess = (ev) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
       const input = ev.inputBuffer.getChannelData(0);
-      const ds = downsample(input, inRate, 16000);
+      const ds = downsample(input, this.inRate, 16000);
       this.ws.send(floatTo16BitPCM(ds));
+      // RMS volume EMA, emit every ~50ms (every 3rd quantum @ 4096/44100)
+      let sum = 0;
+      for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+      const rms = Math.sqrt(sum / input.length);
+      volEma = volEma * 0.6 + rms * 0.4;
+      volTick++;
+      if (volTick >= 3) {
+        volTick = 0;
+        this.cb.onVolume?.(volEma);
+      }
     };
-
     this.source.connect(this.processor);
-    // Connect to destination so onaudioprocess fires; output buffer is never
-    // written, so nothing is actually played back (no echo).
     this.processor.connect(this.ctx.destination);
   }
 
   async stop(): Promise<void> {
     try {
+      this.workletNode?.port?.close?.();
+      this.workletNode?.disconnect();
       this.processor?.disconnect();
       this.source?.disconnect();
     } catch {
@@ -150,6 +195,7 @@ export class ASRClient {
         }
       }, 1800);
     }
+    this.workletNode = null;
     this.processor = null;
     this.source = null;
     this.ctx = null;

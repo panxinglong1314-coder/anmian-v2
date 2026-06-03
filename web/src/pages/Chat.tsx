@@ -6,7 +6,7 @@ import { streamChat, AuthError, QuotaError, getMe, type ChatEvent, type MeRespon
 import { clearToken } from "../lib/auth";
 import { currentLocale } from "../i18n";
 import { ASRClient } from "../lib/asr";
-import { enqueueTts, unlockAudio, stopTts } from "../lib/audio";
+import { enqueueTts, unlockAudio, stopTts, onTtsPlayingChange } from "../lib/audio";
 import LanguageToggle from "../components/LanguageToggle";
 import SoundPlayer from "../components/SoundPlayer";
 
@@ -53,16 +53,38 @@ export default function Chat() {
   const [messages, setMessages] = useState<Msg[]>(loadMessages);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [ttsOn, setTtsOn] = useState(false);
+  // v2026-06: TTS 默认开 — 让"语音陪伴"是默认体验,
+  // 用户嫌吵再关。iOS unlock 在第一次 send/mic gesture 时触发。
+  const [ttsOn, setTtsOn] = useState(true);
+  const [ttsPlaying, setTtsPlaying] = useState(false);
   const [crisis, setCrisis] = useState(false);
   const [quotaReached, setQuotaReached] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
+  // 0..1 RMS volume during recording — 用于麦克风按钮的"呼吸 + 波形条"
+  const [micVolume, setMicVolume] = useState(0);
   const [me, setMe] = useState<MeResponse | null>(null);
   const sessionRef = useRef(loadSessionId());
   const scrollRef = useRef<HTMLDivElement>(null);
   const asrRef = useRef<ASRClient | null>(null);
   const finalTranscriptRef = useRef("");
+  // VAD 自动停发 — 防止 onFinal 多次触发 race
+  const autoSentRef = useRef(false);
+
+  // 订阅 TTS 播放状态,用于顶部三态条
+  useEffect(() => {
+    return onTtsPlayingChange((p) => setTtsPlaying(p));
+  }, []);
+
+  // 首次访问的"试试说话"提示(localStorage 记一次性)
+  const [showVoiceHint, setShowVoiceHint] = useState(() => {
+    try { return !localStorage.getItem("zhimian_voice_hint_seen"); }
+    catch { return false; }
+  });
+  const dismissVoiceHint = () => {
+    setShowVoiceHint(false);
+    try { localStorage.setItem("zhimian_voice_hint_seen", "1"); } catch { /* noop */ }
+  };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -178,11 +200,13 @@ export default function Chat() {
     const client = asrRef.current;
     asrRef.current = null;
     setListening(false);
+    setMicVolume(0);
     await client?.stop();
     // Final transcript arrives via onFinal/onClose; auto-send if we got one.
     const finalText = finalTranscriptRef.current.trim();
     finalTranscriptRef.current = "";
-    if (finalText) {
+    if (finalText && !autoSentRef.current) {
+      autoSentRef.current = true;
       setInput("");
       void send(finalText);
     }
@@ -195,16 +219,39 @@ export default function Chat() {
     }
     if (busy) return;
     setError(null);
+    dismissVoiceHint();
     finalTranscriptRef.current = "";
+    autoSentRef.current = false;
+    // iOS Safari:第一次点 mic 也是用户 gesture,顺手 unlock TTS
+    if (ttsOn) unlockAudio();
     const client = new ASRClient(currentLocale(), {
       onPartial: (txt) => setInput(txt),
-      onFinal: (txt) => {
+      // 后端 needvad=1 → 静音 600ms 触发 is_final → 这里**自动停 + 自动发**,
+      // 用户不用再点一次麦克风。autoSentRef 防止 onFinal + 手动 stop 双发。
+      onFinal: async (txt) => {
         finalTranscriptRef.current = txt;
         setInput(txt);
+        if (autoSentRef.current) return;
+        autoSentRef.current = true;
+        const inner = asrRef.current;
+        asrRef.current = null;
+        setListening(false);
+        setMicVolume(0);
+        try { await inner?.stop(); } catch { /* noop */ }
+        const trimmed = txt.trim();
+        if (trimmed) {
+          setInput("");
+          void send(trimmed);
+        }
+      },
+      onVolume: (rms) => {
+        // 用 sqrt 拉伸低音量段,让"小声说话"也能看到波动
+        setMicVolume(Math.min(1, Math.sqrt(rms) * 2.4));
       },
       onError: () => {
         setError(t("chat.micError"));
         setListening(false);
+        setMicVolume(0);
         asrRef.current = null;
       }
     });
@@ -243,6 +290,41 @@ export default function Chat() {
           <Link to="/app/profile" className="underline whitespace-nowrap hover:text-gold">
             {t("chat.orgBadge.privacy")}
           </Link>
+        </div>
+      )}
+      {/* v2026-06: 三态进行条 — 让用户随时知道系统在哪一步 */}
+      {(listening || (busy && !listening) || ttsPlaying) && (
+        <div className={`px-4 py-1 text-[11px] flex items-center justify-center gap-2 border-b ${
+          listening ? "bg-coral/10 border-coral/20 text-coral"
+          : ttsPlaying ? "bg-accent/10 border-accent/20 text-accent"
+          : "bg-night-card border-night-line text-muted"
+        }`}>
+          {listening ? (
+            <>
+              <span className="inline-flex gap-0.5 items-end h-3">
+                {[0, 1, 2, 3, 4].map((i) => {
+                  // 用 volume 驱动 5 格波形条,每格根据 micVolume + i 的相位错峰
+                  const h = Math.max(2, Math.min(12, micVolume * 12 * (1 + Math.sin(Date.now() / 100 + i)) / 1.5));
+                  return (
+                    <span key={i} className="w-0.5 bg-coral rounded-full"
+                          style={{ height: `${h}px` }} />
+                  );
+                })}
+              </span>
+              <span>{t("chat.listening")}</span>
+            </>
+          ) : ttsPlaying ? (
+            <>🔊 <span>{t("chat.statePlaying")}</span></>
+          ) : (
+            <>
+              <span className="inline-flex gap-0.5">
+                <span className="w-1 h-1 rounded-full bg-muted animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-1 h-1 rounded-full bg-muted animate-bounce" style={{ animationDelay: "120ms" }} />
+                <span className="w-1 h-1 rounded-full bg-muted animate-bounce" style={{ animationDelay: "240ms" }} />
+              </span>
+              <span>{t("chat.stateThinking")}</span>
+            </>
+          )}
         </div>
       )}
       {/* Header */}
@@ -329,14 +411,33 @@ export default function Chat() {
 
       {/* Composer */}
       <div className="px-4 py-3 border-t border-night-line">
+        {/* 首次访问引导:tell users they can talk */}
+        {showVoiceHint && messages.length === 0 && (
+          <div className="mb-2 rounded-xl bg-accent/10 border border-accent/30 px-3 py-2 text-[12px] text-accent flex items-center justify-between gap-2">
+            <span>💡 {t("chat.voiceHint")}</span>
+            <button onClick={dismissVoiceHint} className="text-muted hover:text-text text-base leading-none">×</button>
+          </div>
+        )}
         <div className="flex items-end gap-2">
           <button
             onClick={() => void toggleMic()}
-            disabled={busy}
+            disabled={busy && !listening}
             aria-label="Voice input"
-            className={`rounded-full px-3 py-2.5 border transition disabled:opacity-40 ${
-              listening ? "border-coral text-coral animate-pulse" : "border-night-line text-muted hover:text-text"
+            className={`relative rounded-full px-3 py-2.5 border transition disabled:opacity-40 ${
+              listening
+                ? "border-coral text-coral"
+                : "border-night-line text-muted hover:text-text hover:border-accent/40"
             }`}
+            style={
+              listening
+                ? {
+                    // 跟着音量"呼吸",最大缩到 1.18x
+                    transform: `scale(${1 + micVolume * 0.18})`,
+                    boxShadow: `0 0 ${8 + micVolume * 20}px rgba(255,127,127,${0.25 + micVolume * 0.45})`,
+                    transition: "transform 60ms ease-out, box-shadow 60ms ease-out",
+                  }
+                : undefined
+            }
           >
             🎙️
           </button>
@@ -350,7 +451,11 @@ export default function Chat() {
               }
             }}
             rows={1}
-            placeholder={listening ? t("chat.listening") : t("chat.inputPlaceholder")}
+            placeholder={
+              listening ? t("chat.listening")
+              : messages.length === 0 ? t("chat.inputPlaceholderFirst")
+              : t("chat.inputPlaceholder")
+            }
             className="flex-1 resize-none rounded-2xl bg-night-card border border-night-line px-4 py-2.5 text-[15px] text-text placeholder:text-muted/60 focus:outline-none focus:border-accent max-h-32"
           />
           <button
@@ -362,7 +467,9 @@ export default function Chat() {
           </button>
         </div>
         <p className="text-muted/50 text-[11px] mt-1.5 text-center">
-          {listening ? t("chat.tapToStop") : t("chat.tapMic")}
+          {listening
+            ? t("chat.vadHint")     // "停下来 0.6 秒就自动发"
+            : t("chat.tapMic")}
         </p>
       </div>
     </div>
