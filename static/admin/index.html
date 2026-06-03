@@ -95,11 +95,15 @@
       0 0 0 1px rgba(255, 255, 255, 0.04) inset,
       0 -1px 0 rgba(245, 200, 105, 0.08) inset;
   }
+  /* 品牌图标:深夜蓝圆底 + 金月亮 + 红"知眠"字 — 与品牌主视觉一致 */
   .login-icon {
-    background: linear-gradient(135deg, #f5c869 0%, #c9956a 100%);
-    color: #1a2238;
-    box-shadow: 0 4px 14px rgba(245, 200, 105, 0.32);
+    background: transparent;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45),
+                0 0 0 1px rgba(245, 200, 105, 0.18);
+    border-radius: 50%;
+    overflow: hidden;
   }
+  .login-icon svg { width: 100%; height: 100%; display: block; }
   .login-title { color: #f5e8c8; letter-spacing: 0.02em; }
   .login-subtitle { color: rgba(245, 232, 200, 0.55); }
   .login-input {
@@ -115,14 +119,23 @@
     box-shadow: 0 0 0 3px rgba(245, 200, 105, 0.15);
     background: rgba(13, 27, 42, 0.7);
   }
+  /* 按钮配色与品牌图标圆底统一(深夜蓝),金色描边 + 文字 */
   .login-btn {
-    background: linear-gradient(135deg, #f5c869 0%, #c9956a 100%);
-    color: #1a2238;
+    background: linear-gradient(135deg, #1f2a4a 0%, #161e36 100%);
+    color: #f5c869;
     font-weight: 600;
-    transition: filter 0.18s, transform 0.05s, box-shadow 0.18s;
-    box-shadow: 0 4px 18px rgba(245, 200, 105, 0.25);
+    border: 1px solid rgba(245, 200, 105, 0.38);
+    transition: filter 0.18s, transform 0.05s, box-shadow 0.18s, border-color 0.18s;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(245, 200, 105, 0.12);
   }
-  .login-btn:hover { filter: brightness(1.07); box-shadow: 0 6px 22px rgba(245, 200, 105, 0.36); }
+  .login-btn:hover {
+    filter: brightness(1.12);
+    border-color: rgba(245, 200, 105, 0.6);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45),
+                inset 0 1px 0 rgba(245, 200, 105, 0.18),
+                0 0 0 3px rgba(245, 200, 105, 0.08);
+  }
   .login-btn:active { transform: translateY(1px); }
   .topbar { height:48px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; padding:0 20px; }
 
@@ -197,7 +210,31 @@
   <div class="login-bg-overlay"></div>
   <form onsubmit="event.preventDefault();doLogin();" class="login-card p-8 w-full max-w-sm mx-4">
     <div class="text-center mb-6">
-      <div class="login-icon w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center text-2xl">🌙</div>
+      <div class="login-icon w-16 h-16 mx-auto mb-4" aria-label="知眠">
+        <svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="知眠 logo">
+          <!-- 深夜蓝圆底 -->
+          <circle cx="48" cy="48" r="48" fill="#171f3a"/>
+          <!-- 金色月亮(crescent: 大圆 - 偏移叠加圆,自然得弯月) -->
+          <defs>
+            <mask id="crescentMask">
+              <rect width="96" height="96" fill="white"/>
+              <circle cx="48" cy="32" r="14" fill="black"/>
+            </mask>
+          </defs>
+          <circle cx="40" cy="34" r="14" fill="#f5c869" mask="url(#crescentMask)"/>
+          <!-- 3 颗金色星星 (右上角) -->
+          <!-- 大星 4 角 -->
+          <path d="M 70 22 L 71.5 26 L 76 27.5 L 71.5 29 L 70 33 L 68.5 29 L 64 27.5 L 68.5 26 Z" fill="#f5c869"/>
+          <!-- 小星(上) -->
+          <circle cx="78" cy="33" r="1.4" fill="#f5c869"/>
+          <!-- 小星(下) -->
+          <circle cx="64" cy="38" r="1.1" fill="#f5c869"/>
+          <!-- 红色 "知眠" 字, 居中下方 -->
+          <text x="48" y="74" text-anchor="middle"
+                font-family="-apple-system,Microsoft YaHei,PingFang SC,sans-serif"
+                font-size="18" font-weight="700" fill="#d24a3d">知眠</text>
+        </svg>
+      </div>
       <h1 class="login-title text-xl font-bold">知眠运营后台</h1>
       <p class="login-subtitle text-xs mt-1.5">AI 陪伴质量监控中心</p>
     </div>
