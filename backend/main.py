@@ -6402,6 +6402,7 @@ async def admin_org_invites(org_id: str):
             "expire_at": inv.get("expire_at", ""),
             "max_uses": inv.get("max_uses", 1),
             "used": inv.get("used", 0),
+            "role": inv.get("role", "user"),  # v2.6
             "created_at": inv.get("created_at", ""),
         })
     items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
@@ -6426,17 +6427,27 @@ class CreateInviteBody(BaseModel):
     team_id: Optional[str] = None
     expire_days: int = 30
     max_uses: int = 1
+    role: str = "user"   # v2.6: "user" | "hr_admin"
 
 
 @app.post("/api/v1/admin/org/invite")
 async def admin_org_invite(body: CreateInviteBody):
-    """运营手动生成邀请码(给 HR 自己用 / 测试用)。"""
+    """运营手动生成邀请码(给 HR 自己用 / 测试用)。
+
+    role:
+      - "user" (默认): 普通员工码 — 用码后只绑 org_id
+      - "hr_admin": HR 入职码 — 用码后绑 org_id 并自动拉成 hr_admin
+    """
     from services.org import create_invite_code
-    code = create_invite_code(
-        body.org_id, team_id=body.team_id,
-        expire_days=body.expire_days, max_uses=body.max_uses,
-    )
-    return {"code": code, "org_id": body.org_id}
+    try:
+        code = create_invite_code(
+            body.org_id, team_id=body.team_id,
+            expire_days=body.expire_days, max_uses=body.max_uses,
+            role=body.role,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"code": code, "org_id": body.org_id, "role": body.role}
 
 
 class GrantHrAdminBody(BaseModel):

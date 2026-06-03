@@ -87,11 +87,16 @@ export default function Enterprise() {
               {t("enterprise.hero.ctaSecondary")}
             </a>
           </div>
+          <div className="mt-4 text-xs text-txt3">
+            <Link to="/enterprise/register" className="text-gold hover:underline">
+              {t("entReg.title")} →
+            </Link>
+          </div>
         </div>
       </section>
 
-      {/* HERO 之下统一 bg-deep 实色,把 MarketingShell 视频遮住 */}
-      <div className="relative bg-deep">
+      {/* HERO 之下统一 bg-deep + 星空(section-scoped) */}
+      <div className="relative bg-deep starfield-section">
 
       {/* PROBLEM */}
       <section id="problem" className="px-6 py-20 max-w-5xl mx-auto">

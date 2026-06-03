@@ -1024,18 +1024,25 @@
                   <label class="block text-gray-700 mb-0.5">最大使用次数</label>
                   <input id="invite-max-uses" type="number" min="1" max="1000" value="1" class="w-full border rounded px-2 py-1">
                 </div>
-                <div class="flex items-end">
-                  <span class="text-gray-500 text-[10px]">max_uses=1 一次性</span>
+                <div>
+                  <label class="block text-gray-700 mb-0.5">角色</label>
+                  <select id="invite-role" class="w-full border rounded px-2 py-1">
+                    <option value="user">员工 (user)</option>
+                    <option value="hr_admin">HR 入职 (hr_admin)</option>
+                  </select>
                 </div>
               </div>
+              <p class="text-[10px] text-gray-500 mt-1">
+                HR 入职码:用码后自动拉成 HR 角色,可直发 <code class="bg-gray-100 px-1">/enterprise/register</code> 链接给 HR。
+              </p>
             </div>
 
-            <!-- 升级 HR 区 -->
+            <!-- 升级 HR 区(兜底) -->
             <div class="border border-gray-200 rounded p-3">
-              <div class="text-sm font-medium text-gray-800 mb-2">👤 升级用户为 HR 管理员</div>
+              <div class="text-sm font-medium text-gray-800 mb-2">👤 兜底:手动升级用户为 HR</div>
               <p class="text-[11px] text-gray-500 mb-2">
-                前提:该邮箱已用 /auth/org/register 注册过(用了上面的邀请码)。
-                升级后 HR 需重登一次拿到带 role=hr_admin 的新 JWT。
+                v2.6 之后正常路径:生成 hr_admin 邀请码 → HR 自助注册即直接是 HR。
+                仅当 HR 已用普通员工码绑过 org,或需修复时才用此功能。
               </p>
               <div class="flex gap-2">
                 <input id="grant-hr-email" type="email" placeholder="hr@company.com" class="flex-1 border rounded px-3 py-1.5 text-sm">

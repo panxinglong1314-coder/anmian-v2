@@ -243,6 +243,31 @@
     "signOut": "退出登录",
     "back": "返回"
   },
+  "entReg": {
+    "title": "企业 HR 入驻",
+    "subtitle": "用工作邮箱 + 销售给的邀请码,3 步开通你的 HR 仪表盘。",
+    "backToEnterprise": "知眠企业版",
+    "emailLabel": "工作邮箱",
+    "emailPlaceholder": "you@company.com",
+    "workEmailHint": "请使用公司域名邮箱;Gmail/QQ 等个人邮箱无法通过审核。",
+    "sendCode": "发送验证码",
+    "sending": "发送中…",
+    "codeLabel": "邮箱验证码",
+    "codeSentTo": "我们已发送 6 位验证码到",
+    "devCode": "调试码",
+    "inviteLabel": "邀请码",
+    "inviteHint": "6 位邀请码(如 ACME01),在开通邮件里。",
+    "register": "创建 HR 账号",
+    "registering": "开通中…",
+    "changeEmail": "← 换个邮箱",
+    "consentNote": "继续即表示同意",
+    "privacy": "隐私政策",
+    "terms": "服务条款",
+    "noInvite": "没有邀请码?",
+    "contactSales": "联系销售 →",
+    "errSendCode": "验证码发送失败,请稍后重试。",
+    "errRegister": "开通失败,请检查验证码与邀请码后重试。"
+  },
   "enterprise": {
     "nav": {
       "badge": "企业版",

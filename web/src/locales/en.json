@@ -243,6 +243,31 @@
     "signOut": "Sign out",
     "back": "Back"
   },
+  "entReg": {
+    "title": "Enterprise HR sign-up",
+    "subtitle": "Use your work email + the invite code from your sales rep to activate your dashboard.",
+    "backToEnterprise": "ZhiMian for Business",
+    "emailLabel": "Work email",
+    "emailPlaceholder": "you@company.com",
+    "workEmailHint": "Use a corporate domain — Gmail/Outlook personal addresses won't be approved.",
+    "sendCode": "Send verification code",
+    "sending": "Sending…",
+    "codeLabel": "Email code",
+    "codeSentTo": "We sent a 6-digit code to",
+    "devCode": "Dev code",
+    "inviteLabel": "Invite code",
+    "inviteHint": "6-character code from your activation email (e.g. ACME01).",
+    "register": "Create my HR account",
+    "registering": "Activating…",
+    "changeEmail": "← Use a different email",
+    "consentNote": "By continuing you agree to our",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "noInvite": "Don't have an invite code?",
+    "contactSales": "Talk to sales →",
+    "errSendCode": "Couldn't send the code — try again in a moment.",
+    "errRegister": "Sign-up failed. Check the code and try again."
+  },
   "enterprise": {
     "nav": {
       "badge": "for HR",

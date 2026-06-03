@@ -160,7 +160,15 @@ def create_invite_code(
     team_id: Optional[str] = None,
     expire_days: int = 30,
     max_uses: int = 1,
+    role: str = "user",   # v2.6: 邀请码可以是 HR 入职码
 ) -> str:
+    """创建邀请码。
+
+    Args:
+        role: "user" (员工,默认) | "hr_admin" (HR — 用码加入即自动拉成 HR)
+    """
+    if role not in ("user", "hr_admin"):
+        raise ValueError(f"invalid role: {role!r}")
     r = _redis_or_raise()
     if not r.exists(k_org(org_id)):
         raise ValueError(f"org {org_id} does not exist")
@@ -177,6 +185,7 @@ def create_invite_code(
         "expire_at": expire_at,
         "max_uses": int(max_uses),
         "used": 0,
+        "role": role,
         "created_at": _now_iso(),
     })
     # 邀请码 hash 设 TTL,过期自动消失(给 expire_days + 7 天兜底)
@@ -258,11 +267,18 @@ def bind_user_to_org(
     # 邀请码用量 +1
     r.hincrby(k_org_invite(code), "used", 1)
 
+    # v2.6: HR 入职码 (role=hr_admin) 自动拉升为 HR;
+    # 普通员工码 (role=user) 不降级既有 HR (避免误操作)
+    invite_role = (inv.get("role") or "user").strip()
+    if invite_role == "hr_admin" and get_user_role(user_id) != "hr_admin":
+        set_user_role(user_id, "hr_admin")
+
     return True, "ok", {
         "org_id": org_id,
         "team_id": team_id or "",
         "code": code,
         "org_name": org.get("name", ""),
+        "role": get_user_role(user_id),
     }
 
 

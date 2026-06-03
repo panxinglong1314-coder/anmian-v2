@@ -1783,10 +1783,11 @@ async function submitOrgCreate() {
 
     let inviteCode = '';
     if (autoInvite) {
+      // v2.6: 企业创建时的自动码默认是 HR 入职码,用了即直接是 HR(零运营介入)
       const r2 = await fetch(`${API_BASE}/org/invite`, {
         method: 'POST',
         headers: { 'X-Admin-Token': adminToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ org_id: orgId, expire_days: 30, max_uses: 1 }),
+        body: JSON.stringify({ org_id: orgId, expire_days: 30, max_uses: 1, role: 'hr_admin' }),
       });
       if (r2.ok) {
         const dd = await r2.json();
@@ -1798,17 +1799,27 @@ async function submitOrgCreate() {
     // 显示创建结果 + 引导下一步
     const log = document.getElementById('orgs-log');
     log.classList.remove('hidden');
+    const registerUrl = inviteCode
+      ? `${window.location.origin}/enterprise/register?invite=${inviteCode}`
+      : '';
     log.innerHTML = `
       <div class="font-semibold text-emerald-700 mb-2">✓ 企业创建成功</div>
       <div>org_id: <span class="font-mono">${orgId}</span> <button onclick="copyToClipboard('${orgId}')" class="ml-2 text-blue-600 hover:underline">复制</button></div>
       ${inviteCode ? `
-      <div class="mt-1">邀请码: <span class="font-mono font-semibold text-amber-700">${inviteCode}</span> <button onclick="copyToClipboard('${inviteCode}')" class="ml-2 text-blue-600 hover:underline">复制</button></div>
-      <div class="mt-3 text-xs text-gray-700 bg-amber-50 border border-amber-200 rounded p-2">
-        <strong>下一步:</strong><br>
-        1. 把邀请码 <code class="bg-white px-1">${inviteCode}</code> 发给 HR (邮箱 ${contact_hr_email})<br>
-        2. HR 用工作邮箱 + 邀请码在 <code class="bg-white px-1">https://sleepai.chat/login</code> 注册 (走 /auth/org/register)<br>
-        3. HR 注册完成后,回来这里找到该企业 → 点「管理」→ 升级 HR 为管理员<br>
-        4. 告知 HR 重新登录一次,即可看到完整 hr-admin 后台
+      <div class="mt-1">
+        HR 入职邀请码: <span class="font-mono font-semibold text-purple-700">${inviteCode}</span>
+        <span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] rounded ml-1">hr_admin</span>
+        <button onclick="copyToClipboard('${inviteCode}')" class="ml-2 text-blue-600 hover:underline">复制码</button>
+      </div>
+      <div class="mt-1 break-all">
+        注册链接: <a href="${registerUrl}" target="_blank" class="text-purple-700 hover:underline font-mono text-[11px]">${registerUrl}</a>
+        <button onclick="copyToClipboard('${registerUrl}')" class="ml-2 text-blue-600 hover:underline">复制链接</button>
+      </div>
+      <div class="mt-3 text-xs text-gray-700 bg-purple-50 border border-purple-200 rounded p-2">
+        <strong>下一步(全自助,0 运营介入):</strong><br>
+        1. 把上面的<strong>注册链接</strong>发给 HR(邮箱 ${contact_hr_email})<br>
+        2. HR 点链接 → 输工作邮箱 + 邮箱验证码 → 自动跳 <code class="bg-white px-1">/hr-admin/</code><br>
+        3. 用的是 hr_admin 邀请码,绑定时已自动拉权,无需再回来升级
       </div>
       ` : ''}
     `;
@@ -1852,11 +1863,26 @@ async function loadOrgInvites() {
       const expiry = inv.expire_at ? inv.expire_at.slice(0, 10) : '';
       const usedUp = inv.used >= inv.max_uses;
       const cls = usedUp ? 'text-gray-400 line-through' : 'text-gray-800';
+      const isHR = (inv.role || 'user') === 'hr_admin';
+      const roleBadge = isHR
+        ? '<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] rounded">HR 入职</span>'
+        : '<span class="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[10px] rounded">员工</span>';
+      // HR 入职码可直接组装 /enterprise/register?invite=CODE 链接
+      const registerUrl = `${window.location.origin}/enterprise/register?invite=${inv.code}`;
+      const copyLinkBtn = isHR
+        ? `<button onclick="copyToClipboard('${registerUrl}')" title="复制带邀请码的注册链接" class="text-purple-700 hover:underline text-xs">复制链接</button>`
+        : '';
       return `
-        <div class="flex items-center justify-between py-1 px-2 hover:bg-gray-50 rounded ${cls}">
-          <span class="font-mono font-semibold">${inv.code}</span>
-          <span class="text-xs">${inv.used}/${inv.max_uses}·至${expiry}${inv.team_id ? '·'+inv.team_id : ''}</span>
-          <button onclick="copyToClipboard('${inv.code}')" class="text-blue-600 hover:underline text-xs">复制</button>
+        <div class="flex items-center justify-between gap-2 py-1 px-2 hover:bg-gray-50 rounded ${cls}">
+          <div class="flex items-center gap-2 flex-1 min-w-0">
+            <span class="font-mono font-semibold">${inv.code}</span>
+            ${roleBadge}
+          </div>
+          <span class="text-xs whitespace-nowrap">${inv.used}/${inv.max_uses}·至${expiry}${inv.team_id ? '·'+inv.team_id : ''}</span>
+          <div class="flex gap-1.5">
+            <button onclick="copyToClipboard('${inv.code}')" class="text-blue-600 hover:underline text-xs">复制码</button>
+            ${copyLinkBtn}
+          </div>
         </div>
       `;
     }).join('');
@@ -1869,18 +1895,30 @@ async function generateInviteForCurrentOrg() {
   if (!_currentOrgId) return;
   const expire_days = parseInt(document.getElementById('invite-expire-days').value) || 30;
   const max_uses = parseInt(document.getElementById('invite-max-uses').value) || 1;
+  const role = document.getElementById('invite-role').value || 'user';
   try {
     const r = await fetch(`${API_BASE}/org/invite`, {
       method: 'POST',
       headers: { 'X-Admin-Token': adminToken, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ org_id: _currentOrgId, expire_days, max_uses }),
+      body: JSON.stringify({ org_id: _currentOrgId, expire_days, max_uses, role }),
     });
-    if (!r.ok) throw new Error('http ' + r.status);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || 'http ' + r.status);
+    }
     const d = await r.json();
-    toast(`生成邀请码: ${d.code}`, 'success');
+    const isHR = role === 'hr_admin';
+    toast(`生成${isHR ? ' HR 入职' : ''}邀请码: ${d.code}`, 'success');
     const log = document.getElementById('org-actions-log');
     log.classList.remove('hidden');
-    log.innerHTML += `<div>+ 生成邀请码 <strong>${d.code}</strong> (有效${expire_days}天,可用${max_uses}次)</div>`;
+    const roleLabel = isHR ? ' [HR 入职]' : '';
+    log.innerHTML += `<div>+ 生成邀请码 <strong>${d.code}</strong>${roleLabel} (有效${expire_days}天,可用${max_uses}次)</div>`;
+    // HR 入职码:同时复制注册链接到剪贴板,方便直接贴邮件
+    if (isHR) {
+      const url = `${window.location.origin}/enterprise/register?invite=${d.code}`;
+      copyToClipboard(url);
+      log.innerHTML += `<div class="text-purple-700">↪ 已复制注册链接:${url}</div>`;
+    }
     await loadOrgInvites();
   } catch (e) {
     toast('生成失败: ' + e.message, 'error');

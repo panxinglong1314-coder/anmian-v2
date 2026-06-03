@@ -268,6 +268,22 @@ export function getMe() {
   return authRequest<MeResponse>(`/api/v1/auth/me`);
 }
 
+// 一站式企业注册:邮箱 + 验证码 + 邀请码 → 直接拿带 org_id 的 JWT。
+// 邀请码若为 hr_admin 类型,后端自动拉成 HR 角色。
+export interface RegisterOrgResult {
+  token: string;
+  user_id: string;
+  is_new_user: boolean;
+  org: { org_id: string; org_name: string; team_id: string };
+}
+export function registerOrg(email: string, code: string, inviteCode: string) {
+  return postJson<RegisterOrgResult>("/api/v1/auth/org/register", {
+    email: email.trim().toLowerCase(),
+    code: code.trim(),
+    invite_code: inviteCode.trim().toUpperCase(),
+  });
+}
+
 // 员工绑定企业(已登录用户用邀请码加入)
 export function joinOrg(inviteCode: string) {
   return authRequest<{ token: string; user_id: string; org: { org_id: string; org_name: string; team_id: string } }>(`/api/v1/auth/org/join`, {

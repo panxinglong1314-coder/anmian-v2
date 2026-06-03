@@ -199,3 +199,39 @@ def test_create_invite_rejects_unknown_org():
     from services.org import create_invite_code
     with pytest.raises(ValueError):
         create_invite_code("org_nonexistent")
+
+
+# ============================ v2.6: HR 入职邀请码 ============================
+
+def test_hr_admin_invite_code_promotes_user_role(fake_redis):
+    """role=hr_admin 邀请码绑定后,用户被自动拉成 hr_admin。"""
+    from services.org import (create_org, create_invite_code,
+                               bind_user_to_org, get_user_role)
+    oid = create_org("Acme", seat_quota=10)
+    code = create_invite_code(oid, role="hr_admin")
+    assert get_user_role("user_HR") == "user"  # 初始
+    ok, _, info = bind_user_to_org("user_HR", code)
+    assert ok
+    assert get_user_role("user_HR") == "hr_admin"
+    assert info["role"] == "hr_admin"
+
+
+def test_regular_invite_does_not_change_role(fake_redis):
+    """默认 role=user 邀请码不应触动角色字段。"""
+    from services.org import (create_org, create_invite_code,
+                               bind_user_to_org, set_user_role, get_user_role)
+    oid = create_org("Acme", seat_quota=10)
+    code = create_invite_code(oid)  # 默认 role="user"
+    # 先把某用户设为 hr_admin (模拟已是 HR)
+    set_user_role("user_X", "hr_admin")
+    ok, _, _ = bind_user_to_org("user_X", code)
+    assert ok
+    # 不应降级
+    assert get_user_role("user_X") == "hr_admin"
+
+
+def test_create_invite_rejects_invalid_role():
+    from services.org import create_org, create_invite_code
+    oid = create_org("Acme")
+    with pytest.raises(ValueError):
+        create_invite_code(oid, role="superuser")

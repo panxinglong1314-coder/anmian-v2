@@ -16,6 +16,7 @@ const Privacy = lazy(() => import("./pages/Privacy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Contact = lazy(() => import("./pages/Contact"));
 const Enterprise = lazy(() => import("./pages/Enterprise"));
+const EnterpriseRegister = lazy(() => import("./pages/EnterpriseRegister"));
 import MarketingShell from "./components/MarketingShell";
 
 function Loading() {
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/enterprise" element={<Enterprise />} />
+          <Route path="/enterprise/register" element={<EnterpriseRegister />} />
         </Route>
         {/* 法律/联系页(公开,双语) — 不需要 hero 视频 */}
         <Route path="/privacy" element={<Privacy />} />
