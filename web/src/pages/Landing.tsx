@@ -64,10 +64,12 @@ export default function Landing() {
       </nav>
 
       <main>
-      {/* HERO — 背景视频由 MarketingShell 全局提供,这里只放内容 */}
+      {/* HERO — 背景视频由 MarketingShell 全局提供,这里只放内容。
+          100svh 兜底,避免 iOS Safari URL 栏吃掉一截视口。 */}
       <section
         id="top"
         className="min-h-screen flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 relative"
+        style={{ minHeight: "100svh" }}
       >
         <div className="flex flex-col items-center">
         <div className="text-[5rem] mb-6 drop-shadow-[0_0_60px_rgba(201,149,106,0.45)]">🌙</div>

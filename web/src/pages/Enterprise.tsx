@@ -60,10 +60,13 @@ export default function Enterprise() {
       </nav>
 
       <main>
-      {/* HERO — 背景视频由 MarketingShell 全局提供 */}
+      {/* HERO — 背景视频由 MarketingShell 全局提供。
+          min-h-screen 让第一屏完整占满视口,与 Landing 一致;
+          移动端 100vh 误差用 svh fallback (iOS Safari 工具栏)。 */}
       <section
         id="top"
-        className="min-h-[85vh] flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 relative"
+        className="min-h-screen flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 relative"
+        style={{ minHeight: "100svh" }}
       >
         <div className="flex flex-col items-center">
           <div className="text-[4.5rem] mb-6 drop-shadow-[0_0_60px_rgba(201,149,106,0.45)]">🏢</div>
