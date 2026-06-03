@@ -88,9 +88,8 @@ export default function Landing() {
         <div className="absolute bottom-8 left-0 right-0 text-txt3 text-xs animate-bounce">{t("landing.hero.scroll")}</div>
       </section>
 
-      {/* HERO 之下统一 bg-deep 实色背景,把 MarketingShell 的视频遮住 —
-          视频只在首屏 HERO 区域可见,滚下来就是正常深色页面 */}
-      <div className="relative bg-deep">
+      {/* HERO 之下统一 bg-deep + 星空(section-scoped,不溢出到 hero 视频区) */}
+      <div className="relative bg-deep starfield-section">
 
       {/* SCENE */}
       <section id="scene" className="px-6 py-20 max-w-5xl mx-auto">

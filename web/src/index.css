@@ -81,6 +81,66 @@ body {
   opacity: 0.92;
 }
 
+/* ---- section-scoped 变体: 星空仅在该容器的 BOX 内(不溢出到 hero/video) ---- */
+/* 用于 Landing/Enterprise 中包裹 "post-hero 内容" 的 bg-deep wrapper。
+ * 与 .starfield 区别:::before/::after 用 position:absolute 而非 fixed,
+ * 仅在 wrapper 自身高度范围内绘制星云 + 星点,不会盖到 hero 视频区。
+ * 要求父元素必须 position:relative (我们的 wrapper 已是 relative bg-deep)。
+ */
+.starfield-section::before,
+.starfield-section::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.starfield-section::before {
+  background:
+    radial-gradient(60% 50% at 50% 0%, rgba(72, 90, 175, 0.32), transparent 70%),
+    radial-gradient(45% 40% at 85% 18%, rgba(140, 100, 196, 0.20), transparent 70%),
+    radial-gradient(50% 45% at 8% 78%, rgba(58, 110, 185, 0.20), transparent 70%);
+}
+.starfield-section::after {
+  background-repeat: no-repeat;
+  background-size: 100% 1200px;  /* 沿垂直方向 tile,避免长页星点太疏 */
+  background-image:
+    radial-gradient(2.5px 2.5px at 6% 11%, rgba(255, 255, 255, 0.95), transparent 62%),
+    radial-gradient(1.5px 1.5px at 14% 32%, rgba(255, 255, 255, 0.85), transparent 62%),
+    radial-gradient(1.5px 1.5px at 9% 64%, rgba(255, 255, 255, 0.85), transparent 62%),
+    radial-gradient(2.5px 2.5px at 22% 18%, rgba(245, 215, 170, 0.92), transparent 62%),
+    radial-gradient(1.5px 1.5px at 27% 48%, rgba(255, 255, 255, 0.8), transparent 62%),
+    radial-gradient(2px 2px at 33% 8%, rgba(255, 255, 255, 0.92), transparent 62%),
+    radial-gradient(1.5px 1.5px at 31% 73%, rgba(255, 255, 255, 0.8), transparent 62%),
+    radial-gradient(1.5px 1.5px at 41% 27%, rgba(255, 255, 255, 0.88), transparent 62%),
+    radial-gradient(1.5px 1.5px at 46% 58%, rgba(225, 180, 140, 0.95), transparent 62%),
+    radial-gradient(2.5px 2.5px at 52% 14%, rgba(255, 255, 255, 0.95), transparent 62%),
+    radial-gradient(1.5px 1.5px at 49% 84%, rgba(255, 255, 255, 0.8), transparent 62%),
+    radial-gradient(2px 2px at 58% 40%, rgba(255, 255, 255, 0.88), transparent 62%),
+    radial-gradient(1.5px 1.5px at 63% 67%, rgba(255, 255, 255, 0.8), transparent 62%),
+    radial-gradient(2.5px 2.5px at 68% 22%, rgba(245, 215, 170, 0.92), transparent 62%),
+    radial-gradient(1.5px 1.5px at 71% 52%, rgba(255, 255, 255, 0.8), transparent 62%),
+    radial-gradient(2px 2px at 77% 9%, rgba(255, 255, 255, 0.92), transparent 62%),
+    radial-gradient(1.5px 1.5px at 79% 78%, rgba(255, 255, 255, 0.85), transparent 62%),
+    radial-gradient(2px 2px at 85% 35%, rgba(255, 255, 255, 0.88), transparent 62%),
+    radial-gradient(1.5px 1.5px at 88% 61%, rgba(255, 255, 255, 0.8), transparent 62%),
+    radial-gradient(2.5px 2.5px at 93% 17%, rgba(255, 255, 255, 0.95), transparent 62%),
+    radial-gradient(1.5px 1.5px at 95% 45%, rgba(225, 180, 140, 0.92), transparent 62%),
+    radial-gradient(2px 2px at 91% 88%, rgba(255, 255, 255, 0.85), transparent 62%),
+    radial-gradient(1.5px 1.5px at 4% 42%, rgba(255, 255, 255, 0.8), transparent 62%),
+    radial-gradient(1.5px 1.5px at 38% 92%, rgba(255, 255, 255, 0.8), transparent 62%),
+    radial-gradient(2px 2px at 60% 6%, rgba(255, 255, 255, 0.88), transparent 62%),
+    radial-gradient(1.5px 1.5px at 74% 64%, rgba(255, 255, 255, 0.8), transparent 62%),
+    radial-gradient(2px 2px at 17% 84%, rgba(255, 255, 255, 0.85), transparent 62%);
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.45));
+  opacity: 0.85;
+}
+/* section 内的真实内容需要 z>0 才能盖在星点之上 */
+.starfield-section > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* ---- 暗色变体:用于登录后 App,更深更暗、亮点更少(更助眠) ---- */
 .starfield-dim::before {
   /* 较深的底色铺满视口 + 适度的星云辉光 */
