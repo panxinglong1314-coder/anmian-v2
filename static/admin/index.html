@@ -54,7 +54,33 @@
   .btn-default:disabled { opacity:.6; cursor:not-allowed; }
   .btn-sm { padding:3px 10px; font-size:12px; }
 
-  .login-bg { background:linear-gradient(135deg, #1a1d24 0%, #252a33 100%); }
+  /* 登录页背景:复用官网 hero 视频,统一品牌观感。
+     视频铺满,上层叠 60% 黑半透盖增加表单对比度。 */
+  .login-bg {
+    background: #0d1b2a; /* 视频加载前的兜底 */
+    position: relative;
+    overflow: hidden;
+  }
+  .login-bg-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .login-bg-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(13,27,42,0.62) 0%, rgba(13,27,42,0.78) 100%);
+    z-index: 1;
+    pointer-events: none;
+  }
+  .login-bg > form {
+    position: relative;
+    z-index: 2;
+  }
   .topbar { height:48px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; padding:0 20px; }
 
   .tab-btn { padding:4px 12px; border-radius:4px; font-size:13px; cursor:pointer; color:#6b7280; border:none; background:transparent; }
@@ -113,6 +139,19 @@
 
 <!-- 登录页 -->
 <div id="login-page" class="fixed inset-0 login-bg flex items-center justify-center z-50">
+  <!-- 官网首页 hero 视频背景 (与 sleepai.chat 主站统一品牌观感) -->
+  <video
+    class="login-bg-video"
+    src="/hero.mp4"
+    autoplay
+    muted
+    loop
+    playsinline
+    webkit-playsinline
+    preload="auto"
+    aria-hidden="true"
+  ></video>
+  <div class="login-bg-overlay"></div>
   <form onsubmit="event.preventDefault();doLogin();" class="bg-white rounded-lg shadow-2xl p-8 w-full max-w-sm mx-4">
     <div class="text-center mb-6">
       <div class="w-12 h-12 bg-blue-600 rounded-lg mx-auto mb-3 flex items-center justify-center text-white text-xl font-bold">🌙</div>
