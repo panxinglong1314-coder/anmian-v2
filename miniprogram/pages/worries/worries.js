@@ -1,6 +1,6 @@
 // pages/worries/worries.js
 const app = getApp()
-const API = app.globalData.apiBaseUrl || 'https://sleepai.chat'
+const API = app.globalData.apiBaseUrl || 'https://www.sleepai.chat'
 
 // 必须用 app.authRequest 注入 JWT (Authorization: Bearer ...);
 // 直接用裸 wx.request 调用 /api/v1/worries/* 会被 UserAuthMiddleware 拦截返 401。

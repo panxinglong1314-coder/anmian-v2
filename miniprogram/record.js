@@ -1,7 +1,7 @@
 // pages/record/record.js - v2: 睡眠追踪 + 月度报告 + 分享
 
 const app = getApp()
-const API = app.globalData.apiBaseUrl || 'https://sleepai.chat'
+const API = app.globalData.apiBaseUrl || 'https://www.sleepai.chat'
 
 // 封装 wx.request，加 10 秒超时防止请求无限挂起
 function _apiReq(url, data, extra = {}) {

@@ -12,7 +12,7 @@ const innerAudioContext = wx.createInnerAudioContext({
 // 禁用静音开关限制，确保可以播放
 innerAudioContext.obeyMuteSwitch = false
 
-const API = app.globalData.apiBaseUrl || 'https://sleepai.chat'
+const API = app.globalData.apiBaseUrl || 'https://www.sleepai.chat'
 
 function _decodeUTF8(buf) {
   if (typeof TextDecoder !== "undefined") {
@@ -2415,7 +2415,7 @@ Page({
       // 错开 200ms 启动，避免 5 个并发抢带宽
       setTimeout(() => {
         wx.downloadFile({
-          url: `https://sleepai.chat/static/sounds/${id}.mp3`,
+          url: `https://www.sleepai.chat/static/sounds/${id}.mp3`,
           timeout: 180000,
           success: (res) => {
             if (res.statusCode === 200 && res.tempFilePath) {
@@ -2510,7 +2510,7 @@ Page({
     } catch (e) { /* 无缓存，走下载 */ }
 
     // 2) 无缓存 → wx.downloadFile 下载到本地后播放（dev tool 对 HTTPS URL 直连兼容性差，必须本地播）
-    const streamUrl = `https://sleepai.chat/static/sounds/${soundId}.mp3`
+    const streamUrl = `https://www.sleepai.chat/static/sounds/${soundId}.mp3`
     this.setData({ currentSound: soundId })  // 立即高亮按钮，避免点击无反馈
     wx.showLoading({ title: '加载中...', mask: false })
     wx.downloadFile({
