@@ -10,6 +10,7 @@ import { enqueueTts, unlockAudio, stopTts, onTtsPlayingChange } from "../lib/aud
 import { detectIntent, intentAck } from "../lib/voiceIntent";
 import LanguageToggle from "../components/LanguageToggle";
 import SoundPlayer, { type SoundPlayerHandle } from "../components/SoundPlayer";
+import OnboardingModal, { shouldShowOnboarding } from "../components/OnboardingModal";
 
 interface Msg {
   role: "user" | "assistant";
@@ -79,15 +80,10 @@ export default function Chat() {
     return onTtsPlayingChange((p) => setTtsPlaying(p));
   }, []);
 
-  // 首次访问的"试试说话"提示(localStorage 记一次性)
-  const [showVoiceHint, setShowVoiceHint] = useState(() => {
-    try { return !localStorage.getItem("zhimian_voice_hint_seen"); }
-    catch { return false; }
-  });
-  const dismissVoiceHint = () => {
-    setShowVoiceHint(false);
-    try { localStorage.setItem("zhimian_voice_hint_seen", "1"); } catch { /* noop */ }
-  };
+  // 首次访问的 60 秒 onboarding 引导(localStorage 记一次性)
+  const [showOnboarding, setShowOnboarding] = useState(() => shouldShowOnboarding());
+  // 兼容老版本"voiceHint"清理(已被 onboarding 替代)
+  try { localStorage.removeItem("zhimian_voice_hint_seen"); } catch { /* noop */ }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -250,7 +246,6 @@ export default function Chat() {
     }
     if (busy) return;
     setError(null);
-    dismissVoiceHint();
     finalTranscriptRef.current = "";
     autoSentRef.current = false;
     // iOS Safari:第一次点 mic 也是用户 gesture,顺手 unlock TTS
@@ -311,6 +306,9 @@ export default function Chat() {
 
   return (
     <div className="h-full flex flex-col">
+      {showOnboarding && (
+        <OnboardingModal onDone={() => setShowOnboarding(false)} />
+      )}
       {/* v2.5 B2B: 企业 badge — 用户属于某企业时,顶部显示「XX 公司提供」+ 隐私链接 */}
       {me?.org && (
         <div className="bg-gold/10 border-b border-gold/20 px-4 py-1.5 text-[11px] text-gold/90 flex items-center justify-between gap-2">
@@ -443,12 +441,7 @@ export default function Chat() {
       {/* Composer */}
       <div className="px-4 py-3 border-t border-night-line">
         {/* 首次访问引导:tell users they can talk */}
-        {showVoiceHint && messages.length === 0 && (
-          <div className="mb-2 rounded-xl bg-accent/10 border border-accent/30 px-3 py-2 text-[12px] text-accent flex items-center justify-between gap-2">
-            <span>💡 {t("chat.voiceHint")}</span>
-            <button onClick={dismissVoiceHint} className="text-muted hover:text-text text-base leading-none">×</button>
-          </div>
-        )}
+        {/* 旧的"试试说话"小条已被首次访问的 OnboardingModal 替代 (覆盖更全面) */}
         <div className="flex items-end gap-2">
           <button
             onClick={() => void toggleMic()}

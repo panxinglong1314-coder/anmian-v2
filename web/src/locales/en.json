@@ -181,6 +181,28 @@
     "error": "Something went wrong. Please try again.",
     "providerNote": "Apple sign-in coming soon."
   },
+  "onboarding": {
+    "skip": "Skip",
+    "back": "Back",
+    "next": "Next",
+    "start": "Start my sleep journey",
+    "footnote": "60-second tour · revisit anytime in Profile",
+    "s1": {
+      "title": "Just talk to me",
+      "body": "Tap the mic and speak like you would in WeChat. Pause for a second and it auto-sends. A gentle voice will reply.",
+      "try": "Try: tap 🎙️ and say \"Today was rough\""
+    },
+    "s2": {
+      "title": "Ambient sounds, by voice",
+      "body": "Say \"play ocean waves\" or \"play some rain\" and a background loop starts. Say \"stop\" to silence.",
+      "try": "Try: say \"play rain\""
+    },
+    "s3": {
+      "title": "One quick log a day, see your 30-day change",
+      "body": "Log last night's sleep on the Sleep tab. A month from now you'll see your sleep-efficiency and time-to-sleep curve.",
+      "try": "Try: open Sleep when you wake up, tap a few times"
+    }
+  },
   "chat": {
     "greetingNew": "I'm here. How's tonight feeling?",
     "inputPlaceholder": "Type how you're feeling…",
