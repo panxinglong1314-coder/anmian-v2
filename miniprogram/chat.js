@@ -11,7 +11,7 @@ const innerAudioContext = wx.createInnerAudioContext({
 // 禁用静音开关限制，确保可以播放
 innerAudioContext.obeyMuteSwitch = false
 
-const API = app.globalData.apiBaseUrl || 'https://www.sleepai.chat'
+const API = app.globalData.apiBaseUrl || 'https://sleepai.chat'
 
 function _decodeUTF8(buf) {
   if (typeof TextDecoder !== "undefined") {

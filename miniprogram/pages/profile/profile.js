@@ -1,6 +1,6 @@
 // pages/profile/profile.js - 个人中心
 const app = getApp()
-const API = app.globalData.apiBaseUrl || 'https://www.sleepai.chat'
+const API = app.globalData.apiBaseUrl || 'https://sleepai.chat'
 
 Page({
   data: {

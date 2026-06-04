@@ -4,9 +4,8 @@
 App({
   globalData: {
     // API 配置（生产环境）
-    // 必须用 www: 裸域 https://sleepai.chat 会被 nginx 301 重定向到 www,
-    // 而 wx.request 不跟随跨域 301 + 微信安全层会拦白名单外的 host
-    apiBaseUrl: 'https://www.sleepai.chat',
+    // nginx 已配置 sleepai.chat / www.sleepai.chat 都直接服务,无 301 重定向
+    apiBaseUrl: 'https://sleepai.chat',
 
     // 会话信息
     userId: null,
