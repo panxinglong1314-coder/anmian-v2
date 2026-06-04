@@ -765,6 +765,30 @@ Examples (reference only, do not copy verbatim):
                 _push_to_admin("high", ["suicide"])
                 return self._safety_response(state, crisis_level="high", crisis_types=["suicide"], locale=locale)
 
+            # ===== 用户主动退出放松练习的关键词识别 (2026-06) =====
+            # 在 RELAXATION / CLOSURE 阶段听到这些口令 → 立刻退回 ASSESSMENT
+            # 让用户有"我说了算"的掌控感,而不是被流程绑架
+            _exit_relax_kw = [
+                "继续聊", "想聊", "聊聊", "先聊", "聊一下", "聊会",
+                "换一个", "换别的", "换个方式",
+                "不想做", "不想练", "不想放松", "不要做", "别做",
+                "停一下", "停下", "先停", "暂停", "等会", "等等",
+                "先说", "我想说", "我想讲",
+            ]
+            if state.phase in [SessionPhase.RELAXATION_INDUCTION, SessionPhase.CLOSURE]:
+                if any(kw in user_message for kw in _exit_relax_kw):
+                    state.phase = SessionPhase.ASSESSMENT
+                    state.turns_in_phase = 0
+                    state.relaxation_technique = None  # 清掉技术,下次可重选
+                    # 简短共情应答,让 LLM 自然回到聊天
+                    resp = self._build_response(
+                        "text",
+                        "好，那我们继续聊。你现在想说点什么？",
+                        state,
+                    )
+                    resp["_meta"] = {"user_exited_relaxation": True}
+                    return resp
+
             # ===== 情绪节奏自适应：越来越紧张 → 回退到接住 =====
             if state.emotional_momentum == EmotionalMomentum.DETERIORATING:
                 if state.phase in [SessionPhase.RELAXATION_INDUCTION, SessionPhase.CLOSURE]:

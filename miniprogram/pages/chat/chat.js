@@ -2074,6 +2074,29 @@ Page({
     }
   },
 
+  // 用户主动退出放松练习 (点击 ✕ 继续聊聊 按钮)
+  // 1) 立刻收起前端面板 (即时反馈,不等后端)
+  // 2) 发"继续聊"给后端,后端识别口令把阶段切回 ASSESSMENT
+  exitRelaxation() {
+    console.log('[exitRelaxation] user dismissed relaxation panel')
+    try { wx.vibrateShort({ type: 'light' }) } catch (e) {}
+    this._stopRelaxSequence()
+    this._relaxAutoAdvancing = false
+    this._relaxAdvanceCount = 0
+    if (this._relaxAdvanceTimer) {
+      clearTimeout(this._relaxAdvanceTimer)
+      this._relaxAdvanceTimer = null
+    }
+    this.setData({
+      'relaxSync.active': false,
+      'relaxSync.phase': '',
+      'relaxSync.orbState': 'idle',
+      'relaxSync.countdown': 0,
+    })
+    // 发"继续聊"触发后端识别(_exit_relax_kw)切回 ASSESSMENT 阶段
+    this._sendToAI('继续聊', true, { silent: true })
+  },
+
   onPMRDone() {
     if (this.data.pmrTimer) clearInterval(this.data.pmrTimer)
     this.setData({ _pmrActive: false })

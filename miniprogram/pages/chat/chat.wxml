@@ -47,22 +47,6 @@
       <!-- 【2026-05-15】低调阶段提示（替代 5-step 进度条）— CBT-I 强调"陪伴不是流程" -->
       <text wx:if="{{showCbtPhase && cbtTrailText}}" class="cbt-trail">{{cbtTrailText}}</text>
 
-      <!-- 放松同步面板：PMR / 呼吸引导时显示，与 TTS 语音同步 -->
-      <view wx:if="{{relaxSync.active}}" class="relax-sync relax-sync-{{relaxSync.phase}}">
-        <view class="relax-sync-region" wx:if="{{relaxSync.region}}">{{relaxSync.region}}</view>
-        <view class="relax-sync-orb">
-          <view class="relax-sync-orb-core orb-{{relaxSync.orbState}}">
-            <text wx:if="{{relaxSync.countdown > 0}}" class="relax-sync-count">{{relaxSync.countdown}}</text>
-          </view>
-        </view>
-        <view class="relax-sync-label">
-          <text wx:if="{{relaxSync.subPhase}}" class="relax-sync-sub">{{relaxSync.subPhase}} </text>{{relaxSync.label}}
-        </view>
-        <view class="relax-sync-progress">
-          <view class="relax-sync-progress-fill" style="width: {{relaxSync.progressPct}}%"></view>
-        </view>
-        <view class="relax-sync-step">{{relaxSync.stepCurrent}} / {{relaxSync.stepTotal}}</view>
-      </view>
     </view>
 
     <!-- 白噪音 -->
@@ -96,6 +80,28 @@
       <text class="sleep-desc">
         {{sleepModeActive ? '手机放在枕边，开口说话即可' : '点击开始，将手机放在枕边'}}
       </text>
+    </view>
+
+    <!-- 放松同步面板：PMR / 呼吸引导。位置在白噪音 + 睡眠按钮之后,
+         不再压住主操作区。右上角加 ✕ 继续聊聊 按钮可即时退出。 -->
+    <view wx:if="{{relaxSync.active}}" class="relax-sync relax-sync-{{relaxSync.phase}}">
+      <view class="relax-sync-dismiss" bindtap="exitRelaxation">
+        <text class="relax-sync-dismiss-icon">✕</text>
+        <text class="relax-sync-dismiss-label">继续聊</text>
+      </view>
+      <view class="relax-sync-region" wx:if="{{relaxSync.region}}">{{relaxSync.region}}</view>
+      <view class="relax-sync-orb">
+        <view class="relax-sync-orb-core orb-{{relaxSync.orbState}}">
+          <text wx:if="{{relaxSync.countdown > 0}}" class="relax-sync-count">{{relaxSync.countdown}}</text>
+        </view>
+      </view>
+      <view class="relax-sync-label">
+        <text wx:if="{{relaxSync.subPhase}}" class="relax-sync-sub">{{relaxSync.subPhase}} </text>{{relaxSync.label}}
+      </view>
+      <view class="relax-sync-progress">
+        <view class="relax-sync-progress-fill" style="width: {{relaxSync.progressPct}}%"></view>
+      </view>
+      <view class="relax-sync-step">{{relaxSync.stepCurrent}} / {{relaxSync.stepTotal}}</view>
     </view>
 
     <!-- 声波可视化 -->
