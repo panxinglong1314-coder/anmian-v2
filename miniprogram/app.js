@@ -189,19 +189,25 @@ App({
     if (!headers['Content-Type'] && (opts.method || 'GET').toUpperCase() !== 'GET') {
       headers['Content-Type'] = 'application/json'
     }
+    // 显式 keep-alive — 让微信复用 TCP 连接,真机第 2+ 个请求免 TLS 握手
+    if (!headers['Connection']) headers['Connection'] = 'keep-alive'
+    // 默认超时 60s 太长 — 真机调试时被中转代理拖延也最多 8s,prod 用户 < 1s
+    const timeoutMs = opts.timeout || 8000
 
     // callback 模式
     if (opts.success || opts.fail || opts.complete) {
-      return wx.request(Object.assign({}, opts, { header: headers }))
+      return wx.request(Object.assign({ enableHttp2: true, enableQuic: true, enableCache: false, timeout: timeoutMs },
+        opts, { header: headers }))
     }
 
     // Promise 模式
     return new Promise((resolve, reject) => {
-      wx.request(Object.assign({}, opts, {
-        header: headers,
-        success: resolve,
-        fail: reject,
-      }))
+      wx.request(Object.assign({ enableHttp2: true, enableQuic: true, enableCache: false, timeout: timeoutMs },
+        opts, {
+          header: headers,
+          success: resolve,
+          fail: reject,
+        }))
     })
   },
 
