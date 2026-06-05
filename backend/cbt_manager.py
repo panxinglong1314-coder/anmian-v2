@@ -163,6 +163,9 @@ class SessionState:
     relaxation_technique: Optional[str] = None
     relaxation_cycles_completed: int = 0
     technique_effectiveness: Dict[str, float] = field(default_factory=dict)  # 技术名→有效性评分
+    # 2026-06: opt-in 询问标记 — 第一次满足放松进入条件时, 不直接进, 先问用户;
+    #          只在用户回 consent 后才推进, 防止"还没说几句就被推到呼吸引导"
+    relaxation_offered: bool = False
     
     # 轮次追踪
     turns_in_phase: int = 0
@@ -798,12 +801,14 @@ Examples (reference only, do not copy verbatim):
                     return self._build_response("text", "嗯，我在。继续说。", state)
 
             # ===== 反刍检测 =====
-            # P1 fix: 4 次连续反刍 → 不直接 CLOSURE，先走 RELAXATION 用身体技术打断认知循环
+            # 2026-06: 阈值 4 → 6 + 加最小总轮次门槛 (避免新用户绕同一话题立刻被推到放松)
             if self.emotion_detector.detect_rumination(conversation_history, user_message):
                 state.consecutive_rumination += 1
-                if state.consecutive_rumination >= 4 and state.phase not in [
-                    SessionPhase.RELAXATION_INDUCTION, SessionPhase.CLOSURE
-                ]:
+                if (state.consecutive_rumination >= 6
+                    and state.total_turns >= 6
+                    and state.phase not in [
+                        SessionPhase.RELAXATION_INDUCTION, SessionPhase.CLOSURE
+                    ]):
                     state.phase = SessionPhase.RELAXATION_INDUCTION
                     state.turns_in_phase = 0   # P0 fix: phase 切换必须 reset
                     state.relaxation_technique = "pmr_tiny"  # 反刍优先用身体锚定
@@ -878,18 +883,37 @@ Examples (reference only, do not copy verbatim):
                     personalized_relax_threshold = max(2, min(6, round(avg_recovery * 0.9)))
 
             if state.phase in [SessionPhase.WORRY_CAPTURE, SessionPhase.COGNITIVE_RESTRUCTURING]:
-                if state.turns_in_phase >= personalized_relax_threshold:
+                # 2026-06: 加最小总轮次门槛 — 至少 6 轮才允许进放松,
+                # 避免新用户"还没说几句"就被推到呼吸引导(用户主诉痛点)
+                if (state.turns_in_phase >= personalized_relax_threshold
+                    and state.total_turns >= 6):
                     # 联盟门禁:若用户此刻明确说"不想做/不要",不强行推进到放松练习,
                     # 多陪一回合。其他情况(默认配合或主动同意)正常推进。
                     from services.alliance_detector import user_signals_decline
                     if not user_signals_decline(user_message):
-                        state.phase = SessionPhase.RELAXATION_INDUCTION
-                        state.turns_in_phase = 0   # P0 fix
-                        state.relaxation_technique = self._select_relaxation_technique(
-                            anxiety_level, worry_category=worry_category,
-                            user_style=state.user_style, scenario=state.detected_scenario
-                        )
-                        return self._relaxation_response(state)
+                        # 2026-06: 不再直接进放松, 先 OPT-IN 询问 — 治疗联盟核心,
+                        # 让用户掌控节奏。用户在下一轮回"好/可以/试试" → 真进放松;
+                        # 回"再聊会儿/还没想好" → 留 ASSESSMENT 继续陪。
+                        if not state.relaxation_offered:
+                            state.relaxation_offered = True
+                            return self._build_response(
+                                "text",
+                                "听起来挺重的。要不要我教你一个 1 分钟的呼吸练习,先把神经系统调一调?\n回\"好\"我们就开始,回\"再聊\"我陪你继续。",
+                                state,
+                            )
+                        # 用户已经被问过,现在判断意向
+                        from services.alliance_detector import alliance_state
+                        ali = alliance_state(user_message)
+                        if ali.get("consent"):
+                            state.phase = SessionPhase.RELAXATION_INDUCTION
+                            state.turns_in_phase = 0
+                            state.relaxation_technique = self._select_relaxation_technique(
+                                anxiety_level, worry_category=worry_category,
+                                user_style=state.user_style, scenario=state.detected_scenario
+                            )
+                            return self._relaxation_response(state)
+                        # 没同意 → 留在当前阶段继续陪,relaxation_offered 保持 True
+                        # 下次满阈值会重新询问
 
             # ===== 情绪节奏加速：越来越放松 → 可提前关闭 =====
             # 关闭阈值也基于用户历史动态调整（历史平均 + 1 轮缓冲）
@@ -1773,6 +1797,7 @@ def _serialize_state(state: SessionState) -> Dict[str, Any]:
         "detected_distortion_id": state.detected_distortion_id,
         "relaxation_technique": state.relaxation_technique,
         "relaxation_cycles_completed": state.relaxation_cycles_completed,
+        "relaxation_offered": state.relaxation_offered,
         "turns_in_phase": state.turns_in_phase,
         "total_turns": state.total_turns,
         "consecutive_rumination": state.consecutive_rumination,
@@ -1796,6 +1821,7 @@ def _deserialize_state(data: Dict[str, Any]) -> SessionState:
         detected_distortion_id=data.get("detected_distortion_id"),
         relaxation_technique=data.get("relaxation_technique"),
         relaxation_cycles_completed=data.get("relaxation_cycles_completed", 0),
+        relaxation_offered=data.get("relaxation_offered", False),
         turns_in_phase=data.get("turns_in_phase", 0),
         total_turns=data.get("total_turns", 0),
         consecutive_rumination=data.get("consecutive_rumination", 0),
