@@ -698,11 +698,18 @@ Examples (reference only, do not copy verbatim):
             state.anxiety_level = anxiety_level
 
             # P0-1: 写入个人焦虑基线滚动窗口 + 计算偏离度。
-            # 失败不阻断主流程。结果挂在 _meta.baseline_deviation 给前端用。
+            # 失败不阻断主流程。compute_deviation 是只读 (~1ms Redis),保持同步;
+            # record_anxiety 含 zset 写 + 可能触发重算,挪到 asyncio fire-and-forget,
+            # 避免阻塞 SSE 首字节 (用户感知延迟)。
             try:
                 from services.anxiety_baseline import record_anxiety, compute_deviation
-                record_anxiety(user_id, anxiety_level)
                 state.last_baseline_deviation = compute_deviation(user_id, anxiety_level)
+                try:
+                    import asyncio
+                    asyncio.create_task(asyncio.to_thread(record_anxiety, user_id, anxiety_level))
+                except RuntimeError:
+                    # 不在 event loop 里 (单测路径) → 退到同步
+                    record_anxiety(user_id, anxiety_level)
             except Exception as _e:
                 state.last_baseline_deviation = None
                 # 静默 — anxiety_baseline 模块本身已有 print, 这里不重复

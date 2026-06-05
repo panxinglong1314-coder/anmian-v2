@@ -3356,6 +3356,10 @@ async def _chat_events(req: ChatRequest, user_id: str):
     session_id = req.session_id or f"cbt_{datetime.now().strftime('%Y%m%d')}"
     skip_tts = getattr(req, 'skip_tts', False)
 
+    # 立即首字节 — 让小程序 / web 立刻知道连接已建,停止 wx.request timeout 计时,
+    # 排查"真机 5-8s 看似卡死"的体验问题。客户端可以选择忽略此事件。
+    yield {"event": "ack", "ts": int(time.time() * 1000)}
+
     # 时间限额检查（所有 AI 生成内容均计入）
     q = _get_remaining_quota(user_id)
     estimated_tts = _estimate_tts_duration(req.message)
