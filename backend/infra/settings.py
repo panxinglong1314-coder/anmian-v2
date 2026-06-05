@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     # 空字符串表示不启用。
     tencent_asr_hotword_id: str = ""
 
+    # 腾讯云 ASR 中文引擎模型。可选:
+    #   16k_zh        通用 (默认, 准确率 baseline)
+    #   16k_zh_large  大模型 (准确率 +5-15%, 单价 +18%, 需要控制台开通)
+    #   16k_zh-PY     中文+粤语+英文混读 (需开通)
+    # 英文场景固定 16k_en, 不受此设置影响。
+    tencent_asr_zh_engine: str = "16k_zh"
+
     # ASR transcript LLM 二次纠错(中英混读纠错)。
     # 仅当检测到 transcript 同时含中文 + 英文时触发,纯中文/纯英文跳过(避免无谓延迟)。
     # 走 deepseek_chat,需 deepseek_api_key 已配置。

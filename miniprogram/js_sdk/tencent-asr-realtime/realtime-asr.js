@@ -145,6 +145,9 @@ class RealtimeASR {
       sampleRate: this.sampleRate,
       numberOfChannels: this.numberOfChannels,
       encodeBitRate: this.encodeBitRate,
+      // ASR 优化 (2026-06): voice_communication 启用手机 DSP/AEC/NS,
+      // 不支持的设备会 fallback 到默认 mic
+      audioSource: 'voice_communication',
       // duration 必须设置，否则真机上可能没有 onFrame 回调
       duration: 60000,  // 最大 60 秒
     }

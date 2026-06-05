@@ -592,7 +592,14 @@ Page({
     console.log('[_VAD] calling recorderManager.start()')
     recorderManager.start({
       format: 'mp3', sampleRate: 16000,
-      numberOfChannels: 1, encodeBitRate: 48000, duration: 1200
+      numberOfChannels: 1,
+      // ASR 优化 (2026-06):
+      // 1. encodeBitRate 48 → 96 kbps: 降低 mp3 压缩损失 → 识别精度↑
+      // 2. audioSource 'voice_communication': 启用系统 DSP/AEC/降噪 (Android+iOS)
+      //    回退到默认 mic 如果平台不支持
+      encodeBitRate: 96000,
+      audioSource: 'voice_communication',
+      duration: 1200
     })
   },
 
@@ -786,6 +793,8 @@ Page({
     recorderManager.start({
       format: 'pcm', sampleRate: 16000,
       numberOfChannels: 1, encodeBitRate: 48000,
+      // PCM 路径无压缩,encodeBitRate 不影响; 但 audioSource 必加,启用手机 DSP
+      audioSource: 'voice_communication',
       duration: 60000,
       enableFrameRecord: true,  // ✅ 启用实时帧回调
       frameSize: 1              // ✅ 每帧约 40ms，触发 onFrameRecorded

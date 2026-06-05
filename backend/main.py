@@ -2456,7 +2456,7 @@ async def _warmup_asr_pool():
                 str(warmup_creds.app_id),
                 warmup_creds.secret_id,
                 warmup_creds.secret_key,
-                engine_model_type="16k_zh"
+                engine_model_type=settings.tencent_asr_zh_engine
             )
             await conn.connect(timeout=5.0)
             _asr_warmup_pool.append(conn)
@@ -2999,7 +2999,7 @@ async def tencent_asr_stream(audio_data: bytes, filename: str = "audio.mp3", loc
     req.SubServiceType = 2
     req.VoiceFormat = voice_format
     _loc = (locale or "zh").lower().split("-")[0]
-    req.EngSerViceType = "16k_en" if _loc == "en" else "16k_zh"
+    req.EngSerViceType = "16k_en" if _loc == "en" else settings.tencent_asr_zh_engine
     req.SourceType = 1
     req.Data = base64.b64encode(asr_data).decode()
     req.DataLen = len(asr_data)
@@ -3048,7 +3048,7 @@ async def asr_v2_signature(user_id: str = ""):
     voice_id = str(uuid.uuid4())
     ts = int(time.time())
     params = {
-        "engine_model_type": "16k_zh",
+        "engine_model_type": settings.tencent_asr_zh_engine,
         "expired": ts + 86400,
         "nonce": int(time.time() * 1000) % 1000000000,
         "secretid": settings.tencentcloud_secret_id,
@@ -4345,7 +4345,7 @@ class TencentASRConnector:
 
         pcm_b64 = base64.b64encode(pcm_data).decode()
         req = models.SentenceRecognitionRequest()
-        req.EngSerViceType = '16k_zh'
+        req.EngSerViceType = settings.tencent_asr_zh_engine
         req.SourceType = 1  # 1 = 语音数据（base64）
         req.VoiceFormat = 'pcm'
         req.SubServiceType = 2  # 2 = 一句话识别
@@ -4404,9 +4404,9 @@ async def asr_websocket(websocket: WebSocket):
         await websocket.close(code=4001, reason="Token 无效或已过期")
         return
 
-    # locale 决定 ASR 模型:'en' → '16k_en',其他 → '16k_zh'
+    # locale 决定 ASR 模型: 'en' → '16k_en', 其他 → settings.tencent_asr_zh_engine
     _locale_raw = (websocket.query_params.get("locale", "zh") or "zh").lower().split("-")[0]
-    asr_engine_model = "16k_en" if _locale_raw == "en" else "16k_zh"
+    asr_engine_model = "16k_en" if _locale_raw == "en" else settings.tencent_asr_zh_engine
 
     await websocket.accept()
 
