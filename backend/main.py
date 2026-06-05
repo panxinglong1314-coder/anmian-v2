@@ -3052,6 +3052,14 @@ async def asr_v2_signature(user_id: str = ""):
         "expired": ts + 86400,
         "nonce": int(time.time() * 1000) % 1000000000,
         "secretid": settings.tencentcloud_secret_id,
+        # ASR 调优 (2026-06): 与 TencentASRStreamConnector 保持一致
+        "vad_silence_time": 800,
+        "filter_modal": 0,
+        "filter_punc": 0,
+        "filter_dirty": 1,
+        "convert_num_mode": 0,
+        "noise_threshold": 0.5,
+        "word_info": 1,
         "timestamp": ts,
         "voice_format": 1,
         "voice_id": voice_id,
@@ -4151,12 +4159,15 @@ class TencentASRStreamConnector:
             'timestamp': ts,
             'voice_format': 1,
             'voice_id': self.voice_id,
-            'needvad': 1,              # 开启服务端 VAD 切句（最关键：收到 slice_type=2 后自动停止）
-            'vad_silence_time': 600,   # 静音 600ms 后触发结束（默认 1000ms 太长）
-            'filter_modal': 2,         # 过滤语气词（"嗯""啊"等）
+            'needvad': 1,              # 开启服务端 VAD 切句
+            # ASR 调优 (2026-06):
+            'vad_silence_time': 800,   # 600 → 800ms: 给用户思考停顿,不被打断
+            'filter_modal': 0,         # 2 → 0: 不过滤"嗯/啊", 保留语气帮助情绪检测
             'filter_punc': 0,          # 保留标点
             'filter_dirty': 1,         # 过滤脏话
-            'convert_num_mode': 1,     # 阿拉伯数字转中文
+            'convert_num_mode': 0,     # 1 → 0: 不转中文 ("8 点" 不变成 "八点"), 保护英文/数字混读
+            'noise_threshold': 0.5,    # 新增: 0-1, 越大越严 (默认 0). 0.5 过滤低能量噪声
+            'word_info': 1,            # 新增: 返回每词时间戳, 便于后处理/纠错对齐
         }
         # 中英混读优化:挂热词表(仅中文引擎用,英文引擎挂会反噬)
         if self.engine_model_type != "16k_en" and settings.tencent_asr_hotword_id:

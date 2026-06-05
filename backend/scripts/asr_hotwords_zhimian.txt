@@ -84,7 +84,6 @@ AI|7
 LLM|6
 SaaS|6
 B2B|6
-B2C|5
 
 # ============ 数字/缩写组合 ============
 9to5|6
@@ -93,3 +92,68 @@ B2C|5
 ROI|6
 MVP|6
 POC|5
+
+# ============ CBT-I 专业术语 (v2 扩展 2026-06) ============
+SRT|10
+SCT|9
+PSG|8
+ISI|8
+PSQI|8
+DBAS|7
+RLS|6
+OSA|7
+REM|8
+NREM|7
+melatonin|8
+cortisol|7
+circadian|7
+chronotype|6
+jetlag|7
+nap|7
+TIB|7
+
+# ============ 心理学专业词 (v2 扩展) ============
+ACT|7
+DBT|7
+EMDR|6
+MBCT|6
+MBSR|7
+EAP|7
+GAD7|7
+PHQ9|7
+PTSD|7
+ADHD|7
+OCD|6
+catastrophizing|6
+rumination|7
+mindful|7
+journaling|6
+grounding|7
+
+# ============ 产品 / 知眠相关 (v2 扩展) ============
+知眠|10
+sleepai|9
+worry|7
+diary|6
+sleep window|6
+sleep restriction|6
+4-7-8|7
+box breathing|6
+
+# ============ 高频场景词 (v2 扩展) ============
+WeChat|7
+miniprogram|6
+podcast|6
+playlist|5
+oncall|7
+standup|6
+all-hands|6
+1on1|7
+offsite|6
+onboarding|7
+PIP|6
+layoff|7
+salary|6
+bonus|6
+appraisal|6
+promotion|7
