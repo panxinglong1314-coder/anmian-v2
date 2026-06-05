@@ -471,4 +471,46 @@
     </view>
   </view>
 
+  <!-- P0-2a 危机援助资源面板 (后端 SSE crisis_alert 事件触发) -->
+  <view wx:if="{{crisisAlert.active}}" class="crisis-overlay" catchtap="dismissCrisisAlert">
+    <view class="crisis-card" catchtap="">
+      <view class="crisis-card-head">
+        <text class="crisis-card-icon">🤝</text>
+        <text class="crisis-card-title">你不是一个人</text>
+      </view>
+      <view class="crisis-card-msg">{{crisisAlert.message}}</view>
+      <view class="crisis-card-section-title">24 小时援助热线</view>
+      <view class="crisis-hotline-list">
+        <view
+          wx:for="{{crisisAlert.hotlines}}"
+          wx:for-item="h"
+          wx:key="contact"
+          class="crisis-hotline-row"
+          data-phone="{{h.contact}}"
+          bindtap="callHotline"
+        >
+          <view class="crisis-hotline-text">
+            <view class="crisis-hotline-name">{{h.name}}</view>
+            <view class="crisis-hotline-hours">{{h.hours}}</view>
+          </view>
+          <view class="crisis-hotline-call">{{h.contact}}  ☎️</view>
+        </view>
+      </view>
+      <view wx:if="{{crisisAlert.online_platforms.length > 0}}" class="crisis-card-section-title">在线心理咨询</view>
+      <view class="crisis-online-list">
+        <view
+          wx:for="{{crisisAlert.online_platforms}}"
+          wx:for-item="p"
+          wx:key="contact"
+          class="crisis-online-row"
+        >
+          <view class="crisis-online-name">{{p.name}}</view>
+          <view class="crisis-online-type">{{p.type}}</view>
+        </view>
+      </view>
+      <view class="crisis-card-close" bindtap="dismissCrisisAlert">我已了解,继续</view>
+      <view class="crisis-card-footer">本平台不替代专业医疗服务</view>
+    </view>
+  </view>
+
 </view>

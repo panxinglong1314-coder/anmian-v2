@@ -163,6 +163,9 @@ class SessionState:
     # next_socratic_questions: 本轮选好的 1-2 个问题, 给 LLM prompt 注入用
     asked_socratic: List[str] = field(default_factory=list)
     next_socratic_questions: List[str] = field(default_factory=list)
+    # 2026-06 (P0-1): 个人焦虑基线偏离 — 本轮焦虑分相对个人均值的 z-score
+    # None = 冷启动 (n<10); 否则 dict { z_score, deviation_class, alert, baseline }
+    last_baseline_deviation: Optional[Dict[str, Any]] = None
     
     # 放松
     relaxation_technique: Optional[str] = None
@@ -693,7 +696,17 @@ Examples (reference only, do not copy verbatim):
             # ── 1. 情绪检测（关键词 + 语义兜底）─────────────────
             anxiety_level, domain, action = self.emotion_detector.detect_anxiety(user_message)
             state.anxiety_level = anxiety_level
-            
+
+            # P0-1: 写入个人焦虑基线滚动窗口 + 计算偏离度。
+            # 失败不阻断主流程。结果挂在 _meta.baseline_deviation 给前端用。
+            try:
+                from services.anxiety_baseline import record_anxiety, compute_deviation
+                record_anxiety(user_id, anxiety_level)
+                state.last_baseline_deviation = compute_deviation(user_id, anxiety_level)
+            except Exception as _e:
+                state.last_baseline_deviation = None
+                # 静默 — anxiety_baseline 模块本身已有 print, 这里不重复
+
             # ── 2. 焦虑分数序列（用于情绪节奏追踪）──────────────
             ANXIETY_SCORE_MAP = {AnxietyLevel.NORMAL: 1.0, AnxietyLevel.MILD: 2.5, 
                                  AnxietyLevel.MODERATE: 4.0, AnxietyLevel.SEVERE: 5.0}
@@ -807,6 +820,28 @@ Examples (reference only, do not copy verbatim):
                     state.phase = SessionPhase.ASSESSMENT
                     state.turns_in_phase = 0
                     return self._build_response("text", "嗯，我在。继续说。", state)
+
+            # ===== P0-3 (2026-06): 严重焦虑 + 已说几句 → 提前 opt-in 问呼吸 =====
+            # 不直接进 RELAXATION (那是 CALM_DOWN 强加方案,与 opt-in 哲学冲突),
+            # 只是让"先放松"这个询问发生得早一些。用户掌控节奏。
+            # 防御:relaxation_offered 只允许问一次,避免用户烦;
+            #       阶段必须是接住期(ASSESSMENT/WORRY/COGNITIVE),不打断已在进行的放松/关闭。
+            if (anxiety_level == AnxietyLevel.SEVERE
+                    and state.total_turns >= 3
+                    and not state.relaxation_offered
+                    and state.phase in [
+                        SessionPhase.ASSESSMENT,
+                        SessionPhase.WORRY_CAPTURE,
+                        SessionPhase.COGNITIVE_RESTRUCTURING,
+                    ]):
+                state.relaxation_offered = True
+                resp = self._build_response(
+                    "text",
+                    "你看起来很紧绷。要不要先做一个 1 分钟的呼吸练习,再继续聊?回\"好\"开始,回\"再聊\"我陪你。",
+                    state,
+                )
+                resp["_meta"] = {"early_opt_in": True, "reason": "severe_anxiety"}
+                return resp
 
             # ===== 反刍检测 =====
             # 2026-06: 阈值 4 → 6 + 加最小总轮次门槛 (避免新用户绕同一话题立刻被推到放松)
@@ -1733,6 +1768,9 @@ Examples (reference only, do not copy verbatim):
             "phase_label": ui["label"],
             "phase_hint": ui["hint"],
             "step_index": ui["step"],
+            # P0-1 (2026-06): 焦虑基线偏离 (None = 冷启动). 前端可据此提示
+            # "看你今晚跟平时不一样,要不要多陪陪你?"。无 baseline 不渲染。
+            "baseline_deviation": state.last_baseline_deviation,
         }
 
     PHASE_INSTRUCTIONS = {

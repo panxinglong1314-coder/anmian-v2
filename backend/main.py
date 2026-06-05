@@ -3403,6 +3403,33 @@ async def _chat_events(req: ChatRequest, user_id: str):
 
     yield {"event": "cbt_state", "data": cbt_result}
 
+    # P0-2a (2026-06): 危机时同步推前端一条 crisis_alert,
+    # 让前端铺一个"你不是一个人"+ 24h 援助资源面板。
+    # 触发条件:response_type == 'safety' 或 state.phase == 'safety_protocol'.
+    # 不阻断主流程; 客户端可选监听 (老前端没接的不影响兼容).
+    try:
+        _phase = (cbt_result.get("state_update") or {}).get("phase", "")
+        if cbt_result.get("response_type") == "safety" or _phase == "safety_protocol":
+            _meta = cbt_result.get("_meta") or {}
+            _locale = (req.locale or "zh").lower().split("-")[0]
+            _resources = cbt_manager.SAFETY_RESOURCES
+            yield {
+                "event": "crisis_alert",
+                "level": _meta.get("crisis_level", "high"),
+                "crisis_types": _meta.get("crisis_types", []),
+                "locale": _locale,
+                "message": (
+                    "你不是一个人。如果你有想法或冲动想伤害自己,请立刻联系下面任一专业资源。"
+                    if _locale == "zh" else
+                    "You're not alone. If you're thinking about hurting yourself, "
+                    "please reach out to one of these professional resources right now."
+                ),
+                "hotlines": _resources.get("crisis_hotlines", []),
+                "online_platforms": _resources.get("online_platforms", []),
+            }
+    except Exception as _e:
+        print(f"[crisis_alert push] non-fatal: {_e}")
+
     # 获取 TTS 参数（语速由 CBT 状态决定，不从 LLM 输出解析）
     tts_params = cbt_result.get('tts_params', {})
     base_tts_speed = tts_params.get('speed', -1)

@@ -1181,3 +1181,49 @@
   color: rgba(255,255,255,0.65) !important;
   margin-top: 8rpx !important;
 }
+
+/* ── P0-2a 危机援助资源面板 ── */
+.crisis-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(8, 12, 24, 0.78); backdrop-filter: blur(8rpx);
+  display: flex; align-items: center; justify-content: center;
+  padding: 40rpx; animation: fadeIn 0.25s ease;
+}
+.crisis-card {
+  width: 100%; max-width: 640rpx;
+  background: linear-gradient(180deg, rgba(36,50,82,0.96) 0%, rgba(20,30,55,0.96) 100%);
+  border: 1rpx solid rgba(245,200,105,0.28); border-radius: 32rpx;
+  padding: 36rpx 32rpx 24rpx; max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 24rpx 60rpx rgba(0,0,0,0.55);
+}
+.crisis-card-head { display: flex; align-items: center; gap: 14rpx; margin-bottom: 12rpx; }
+.crisis-card-icon { font-size: 44rpx; }
+.crisis-card-title { font-size: 36rpx; font-weight: 700; color: #F5E8C8; letter-spacing: 1rpx; }
+.crisis-card-msg { font-size: 28rpx; line-height: 1.55; color: rgba(245,232,200,0.88); margin-bottom: 24rpx; }
+.crisis-card-section-title { font-size: 22rpx; color: rgba(245,200,105,0.78); margin: 16rpx 0 8rpx; text-transform: uppercase; letter-spacing: 4rpx; }
+.crisis-hotline-list, .crisis-online-list { display: flex; flex-direction: column; gap: 10rpx; }
+.crisis-hotline-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18rpx 20rpx; border-radius: 16rpx;
+  background: rgba(245,200,105,0.08); border: 1rpx solid rgba(245,200,105,0.18);
+}
+.crisis-hotline-row:active { background: rgba(245,200,105,0.18); }
+.crisis-hotline-name { font-size: 28rpx; color: #F5E8C8; font-weight: 500; }
+.crisis-hotline-hours { font-size: 22rpx; color: rgba(245,232,200,0.55); margin-top: 4rpx; }
+.crisis-hotline-call { font-size: 26rpx; color: #FFD57A; font-weight: 600; tab-size: tabular-nums; }
+.crisis-online-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14rpx 20rpx; border-radius: 14rpx;
+  background: rgba(255,255,255,0.04); border: 1rpx solid rgba(255,255,255,0.06);
+}
+.crisis-online-name { font-size: 26rpx; color: rgba(245,232,200,0.88); }
+.crisis-online-type { font-size: 22rpx; color: rgba(245,232,200,0.48); }
+.crisis-card-close {
+  margin-top: 22rpx; padding: 22rpx; text-align: center;
+  border-radius: 999rpx; font-size: 28rpx; font-weight: 600;
+  color: #1a2238; background: linear-gradient(135deg,#f5c869,#c9956a);
+  box-shadow: 0 6rpx 18rpx rgba(245,200,105,0.32);
+}
+.crisis-card-close:active { filter: brightness(0.95); }
+.crisis-card-footer { font-size: 20rpx; text-align: center; color: rgba(245,232,200,0.35); margin-top: 16rpx; }
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }

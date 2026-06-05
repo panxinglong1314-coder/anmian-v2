@@ -60,6 +60,15 @@ export default function Chat() {
   const [ttsOn, setTtsOn] = useState(true);
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [crisis, setCrisis] = useState(false);
+  // P0-2a: 危机援助资源 (后端 SSE crisis_alert 事件填充)
+  type Hotline = { name: string; contact: string; hours?: string };
+  type OnlinePlatform = { name: string; contact: string; type?: string };
+  const [crisisResources, setCrisisResources] = useState<{
+    level: string;
+    message: string;
+    hotlines: Hotline[];
+    online_platforms: OnlinePlatform[];
+  } | null>(null);
   const [quotaReached, setQuotaReached] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
@@ -171,6 +180,17 @@ export default function Chat() {
               setCrisis(true);
               if (typeof data.content === "string") setLast(data.content);
             }
+          } else if (evt.event === "crisis_alert") {
+            // P0-2a: 后端在 safety 响应时同步推这一条 — 铺前端援助资源面板
+            const e = evt as Record<string, unknown>;
+            setCrisis(true);
+            setCrisisResources({
+              level: typeof e.level === "string" ? e.level : "high",
+              message: typeof e.message === "string" ? e.message : "",
+              hotlines: Array.isArray(e.hotlines) ? (e.hotlines as Hotline[]).slice(0, 6) : [],
+              online_platforms: Array.isArray(e.online_platforms)
+                ? (e.online_platforms as OnlinePlatform[]).slice(0, 4) : [],
+            });
           } else if (evt.event === "chunk") {
             if (typeof evt.data === "string") appendToLast(evt.data);
           } else if (evt.event === "tts_sentence" && ttsOn) {
@@ -414,13 +434,57 @@ export default function Chat() {
         ))}
 
         {crisis && (
-          <div className="rounded-xl border border-coral/50 bg-coral/10 px-4 py-3 text-sm">
-            <p className="text-coral font-medium">{t("chat.crisisTitle")}</p>
-            <p className="text-text/90 mt-1">
-              988 Suicide &amp; Crisis Lifeline — call or text <strong>988</strong>
-              <br />Crisis Text Line — text <strong>HOME to 741741</strong>
+          <div className="rounded-2xl border border-coral/40 bg-night-card/80 backdrop-blur px-4 py-4 text-sm space-y-3">
+            <p className="text-coral font-semibold flex items-center gap-2">
+              🤝 <span>{t("chat.crisisTitle")}</span>
             </p>
-            <p className="text-muted text-xs mt-1">{t("chat.crisisCta")}</p>
+            {crisisResources?.message && (
+              <p className="text-text/90 leading-relaxed text-[13.5px]">{crisisResources.message}</p>
+            )}
+            {crisisResources && crisisResources.hotlines.length > 0 ? (
+              <>
+                <p className="text-[11px] uppercase tracking-widest text-accent/70">24h 援助热线</p>
+                <ul className="space-y-1.5">
+                  {crisisResources.hotlines.slice(0, 6).map((h, i) => (
+                    <li key={i} className="flex items-center justify-between gap-2 rounded-lg bg-accent/8 border border-accent/15 px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-text text-[14px] truncate">{h.name}</div>
+                        {h.hours && <div className="text-muted text-[11px]">{h.hours}</div>}
+                      </div>
+                      <a href={`tel:${(h.contact || "").replace(/[^0-9+]/g, "")}`} className="text-accent text-[13px] font-semibold whitespace-nowrap tabular-nums hover:underline">
+                        {h.contact} ☎
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+                {crisisResources.online_platforms.length > 0 && (
+                  <>
+                    <p className="text-[11px] uppercase tracking-widest text-accent/70">在线咨询</p>
+                    <ul className="space-y-1">
+                      {crisisResources.online_platforms.map((p, i) => (
+                        <li key={i} className="flex items-center justify-between gap-2 text-[13px]">
+                          <a href={p.contact.startsWith("http") ? p.contact : `https://${p.contact}`} target="_blank" rel="noopener noreferrer" className="text-text/85 hover:text-accent">{p.name}</a>
+                          {p.type && <span className="text-muted text-[11px]">{p.type}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </>
+            ) : (
+              // 后端没推 crisis_alert(或 SSE 丢)时的兜底:US 用户场景
+              <p className="text-text/90 mt-1">
+                988 Suicide &amp; Crisis Lifeline — call or text <strong>988</strong>
+                <br />Crisis Text Line — text <strong>HOME to 741741</strong>
+              </p>
+            )}
+            <p className="text-muted text-[11px] pt-1 border-t border-night-line/60">{t("chat.crisisCta")}</p>
+            <button
+              onClick={() => { setCrisis(false); }}
+              className="w-full mt-1 rounded-full bg-accent/20 hover:bg-accent/30 text-accent text-[13px] font-medium py-2 transition"
+            >
+              我已了解,继续
+            </button>
           </div>
         )}
         {quotaReached && (

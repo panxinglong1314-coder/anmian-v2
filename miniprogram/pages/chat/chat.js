@@ -75,6 +75,15 @@ const VAD = {
 
 Page({
   data: {
+    // P0-2a 危机告警面板状态
+    crisisAlert: {
+      active: false,
+      level: 'high',
+      message: '',
+      hotlines: [],
+      online_platforms: [],
+      shownAt: 0,
+    },
     mode: 'sleep',
     // ✅ 预读 subscription，避免 banner 异步消失导致布局闪烁
     isPremium: (() => {
@@ -1216,6 +1225,22 @@ Page({
               this.setData({ showCbtPhase: false, cbtStepIndex: -1, cbtTrailText: '' })
             }
           }
+          // P0-2a (2026-06): 危机告警 — 后端在 safety 响应时同步推 crisis_alert,
+          // 这里铺一个全屏专业援助资源面板,跟 chat 流文案双保险。
+          if (data.event === 'crisis_alert') {
+            console.log('[crisis_alert] level=', data.level, 'types=', data.crisis_types)
+            try { wx.vibrateShort({ type: 'heavy' }) } catch (e) {}
+            this.setData({
+              crisisAlert: {
+                active: true,
+                level: data.level || 'high',
+                message: data.message || '你不是一个人。',
+                hotlines: (data.hotlines || []).slice(0, 6),
+                online_platforms: (data.online_platforms || []).slice(0, 4),
+                shownAt: Date.now(),
+              }
+            })
+          }
           // 兼容新版按句合成（tts_sentence：完整 MP3）
           if (data.event === 'tts_sentence') {
             console.log('[SSE] tts_sentence event: index=', data.index, 'text=', data.text ? data.text.slice(0, 20) : '', 'audioLen=', data.audio_base64 ? data.audio_base64.length : 0)
@@ -2065,6 +2090,21 @@ Page({
       // 478 切换子阶段时轻震一下（吸→屏→呼 的节奏提示）
       try { wx.vibrateShort({ type: 'light' }) } catch (e) {}
     }, 1000)
+  },
+
+  // P0-2a: 危机面板交互
+  dismissCrisisAlert() {
+    console.log('[crisis_alert] dismissed by user')
+    this.setData({ 'crisisAlert.active': false })
+  },
+  callHotline(e) {
+    const phone = (e.currentTarget.dataset.phone || '').replace(/[^0-9\-]/g, '')
+    if (!phone) return
+    try {
+      wx.makePhoneCall({ phoneNumber: phone.replace(/-/g, '') })
+    } catch (err) {
+      console.warn('[crisis_alert] makePhoneCall fail:', err)
+    }
   },
 
   _stopRelaxSequence() {
