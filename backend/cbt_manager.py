@@ -17,7 +17,7 @@ from pathlib import Path
 
 # ============ 加载语料库 ============
 
-CORPUS_DIR = Path(__file__).parent.parent / "corpus"
+CORPUS_DIR = (Path(__file__).resolve().parent.parent / "corpus")  # .resolve() 防 sys.path 含 '..' 时 parent.parent 误解析
 
 SUPPORTED_LOCALES = ("zh", "en")
 DEFAULT_LOCALE = "zh"
@@ -158,6 +158,11 @@ class SessionState:
     detected_distortion_id: Optional[str] = None
     distortion_challenged: bool = False
     logical_chain: List[str] = field(default_factory=list)  # 苏格拉底推理链
+    # 2026-06 (P1-5): 苏格拉底问题注入
+    # asked_socratic: 已问过的问题文本列表(避免重复); 跨会话保留
+    # next_socratic_questions: 本轮选好的 1-2 个问题, 给 LLM prompt 注入用
+    asked_socratic: List[str] = field(default_factory=list)
+    next_socratic_questions: List[str] = field(default_factory=list)
     
     # 放松
     relaxation_technique: Optional[str] = None
@@ -631,6 +636,9 @@ Examples (reference only, do not copy verbatim):
                 "conversation_history": state.conversation_history[-20:],  # 只存最近20轮
                 "session_start_time": state.session_start_time,
                 "triggers": state.triggers,
+                # P1-5: 苏格拉底问题轮换状态(跨会话保留, 避免一上来又问同一问题)
+                "asked_socratic": state.asked_socratic[-50:],  # 上限 50 防无限增长
+                "next_socratic_questions": state.next_socratic_questions,
             })
             self._redis.set(
                 self._redis_key(state.user_id, state.session_id),
@@ -1030,9 +1038,51 @@ Examples (reference only, do not copy verbatim):
         return 3.0
 
     def _cognitive_restructure_response(self, state: SessionState, distortion: Dict) -> Dict[str, Any]:
-        """认知重构阶段的响应——由 LLM 动态生成，此处仅更新状态"""
+        """认知重构阶段的响应——由 LLM 动态生成，此处仅更新状态。
+
+        P1-5 (2026-06): 选 1-2 个针对该扭曲的苏格拉底问题, 写入
+        state.next_socratic_questions, 后续 get_cbt_system_prompt 会注入 LLM。
+        已问过的问题不再选; 全问完则重置后再选(避免长会话沉默)。
+        """
         state.logical_chain.append(distortion.get("name", ""))
+        # 选苏格拉底问题
+        try:
+            self._select_socratic_questions(state, distortion.get("id", ""))
+        except Exception as e:
+            # 注入是增强项,失败不阻断主流程
+            print(f"[CBT] socratic select fail (non-fatal): {e}")
         return self._build_response("text", "[cognitive_restructuring]", state)
+
+    def _select_socratic_questions(self, state: SessionState,
+                                    distortion_id: str,
+                                    locale: str = DEFAULT_LOCALE,
+                                    pick: int = 2) -> None:
+        """从 corpus 选 N 个未问过的苏格拉底问题写入 state.next_socratic_questions。
+
+        - distortion_id 命中不到(如 generic_worry fallback) → 清空 next, 不注入
+        - 全部问完 → 重置 asked_socratic(只针对该扭曲的范围) 再选
+        """
+        if not distortion_id:
+            state.next_socratic_questions = []
+            return
+        corpus = COGNITIVE_DISTORTIONS_BY_LOCALE.get(locale, COGNITIVE_DISTORTIONS)
+        match = next((d for d in corpus if d.get("id") == distortion_id), None)
+        if not match:
+            state.next_socratic_questions = []
+            return
+        all_qs = list(match.get("socratic_questions", []))
+        if not all_qs:
+            state.next_socratic_questions = []
+            return
+        asked_set = set(state.asked_socratic)
+        candidates = [q for q in all_qs if q not in asked_set]
+        if not candidates:
+            # 全问完, 把该扭曲范围的问题从 asked 移出 (其他扭曲历史保留)
+            state.asked_socratic = [q for q in state.asked_socratic if q not in all_qs]
+            candidates = all_qs
+        chosen = candidates[:pick]
+        state.next_socratic_questions = chosen
+        state.asked_socratic.extend(chosen)
 
     def _select_relaxation_technique(self, anxiety_level: AnxietyLevel, insomnia_subtype: str = "mixed", 
                                      worry_category: str = "general", 
@@ -1724,6 +1774,16 @@ Examples (reference only, do not copy verbatim):
                 "safety": "\n[PHASE] Safety priority. Share 988 / Crisis Text Line. Stay present.",
             }
             phase_instruction = phase_en_map.get(phase, "") if phase else ""
+            # P1-5: inject socratic questions during cognitive restructuring (EN)
+            socratic_instruction = ""
+            if phase in ("cognitive_restructuring", "cognitive") and state.next_socratic_questions:
+                qs = state.next_socratic_questions[:2]
+                bullets = "\n".join(f"  - {q}" for q in qs)
+                socratic_instruction = (
+                    "\n[SOCRATIC INJECTION] Use one of these questions (paraphrasing is OK), "
+                    "tailored to the user's last message. Must end with a question mark; "
+                    "do NOT lecture or restate user's words verbatim.\n" + bullets
+                )
             relationship_instruction = ""
             if profile:
                 depth = profile.get("relationship_depth", 0)
@@ -1735,7 +1795,7 @@ Examples (reference only, do not copy verbatim):
                     relationship_instruction = "\n[Relationship: trusted] Looser tone; may reference earlier sessions when helpful."
                 elif depth >= 10:
                     relationship_instruction = "\n[Relationship: deep] Old-friend warmth; reference their history naturally."
-            return self.CBT_SYSTEM_PROMPT_V2_EN + phase_instruction + relationship_instruction
+            return self.CBT_SYSTEM_PROMPT_V2_EN + phase_instruction + socratic_instruction + relationship_instruction
 
         # 中文路径（原逻辑）
         context_addition = ""
@@ -1756,6 +1816,19 @@ Examples (reference only, do not copy verbatim):
         if phase:
             phase_instruction = f"\n[阶段指令] {self.PHASE_INSTRUCTIONS.get(phase, '')}"
 
+        # P1-5 (2026-06): 认知重构阶段注入针对具体扭曲的苏格拉底问题。
+        # state.next_socratic_questions 在 _cognitive_restructure_response 中已选好,
+        # 这里只读 + 拼接。LLM 必须用其中一个问题(或精神改写) 引导用户反思。
+        socratic_instruction = ""
+        if phase == "cognitive_restructuring" and state.next_socratic_questions:
+            qs = state.next_socratic_questions[:2]
+            bullets = "\n".join(f"  · {q}" for q in qs)
+            socratic_instruction = (
+                "\n[苏格拉底注入] 本轮必须用以下问题之一引导用户反思(可按用户语气微调措辞):\n"
+                + bullets
+                + "\n要求:必须以问号结尾、不评判、不复述用户原话开头、整体不超过40字。"
+            )
+
         persona_instruction = self.PERSONA_INSTRUCTIONS_BY_STYLE.get(state.user_style, "")
 
         # ── 关系深度动态语气调整 ───────────────────────────
@@ -1771,7 +1844,7 @@ Examples (reference only, do not copy verbatim):
             elif depth >= 10:
                 relationship_instruction = "\n【关系阶段：深度】像老朋友一样陪伴，自然提及用户的历史偏好和有效技术，但不过度侵入。"
 
-        return self.CBT_SYSTEM_PROMPT_V2 + context_addition + phase_instruction + persona_instruction + relationship_instruction
+        return self.CBT_SYSTEM_PROMPT_V2 + context_addition + phase_instruction + socratic_instruction + persona_instruction + relationship_instruction
     def reset_session(self, user_id: str, session_id: str) -> None:
         """重置会话状态（本地 + Redis）"""
         key = f"{user_id}:{session_id}"
@@ -1838,6 +1911,9 @@ def _deserialize_state(data: Dict[str, Any]) -> SessionState:
     state.conversation_history = data.get("conversation_history", [])
     state.session_start_time = data.get("session_start_time", time.time())
     state.triggers = data.get("triggers", {})
+    # P1-5: 苏格拉底问题轮换状态
+    state.asked_socratic = data.get("asked_socratic", [])
+    state.next_socratic_questions = data.get("next_socratic_questions", [])
     return state
 
 

@@ -151,3 +151,108 @@ class TestSessionStateMachine:
         state = manager.get_or_create_session("u3", "s3")
         assert len(state.anxiety_scores) == 2
         assert all(isinstance(s, float) for s in state.anxiety_scores)
+
+
+# ============================ P1-5 苏格拉底问题注入 ============================
+# 验证项:
+# - _select_socratic_questions 命中 distortion id → next_socratic_questions 非空
+# - asked_socratic 写入新选的问题, 不再重复选同一条
+# - 全部问完会重置(避免长会话沉默)
+# - 未知 distortion (generic_worry fallback) → 不抛错, next 为空
+# - get_cbt_system_prompt 在 cognitive_restructuring 阶段会嵌入苏格拉底问题
+# - _serialize_state / _deserialize_state 跨会话保留状态
+
+class TestSocraticInjection:
+
+    @pytest.fixture
+    def manager(self):
+        return CBTManager()
+
+    def _seed_state_with_distortion(self, manager, user_id, session_id, distortion_id):
+        """工具:创建 session, 让 state 进入 cognitive 阶段并设 distortion id。"""
+        state = manager.get_or_create_session(user_id, session_id)
+        state.phase = SessionPhase.COGNITIVE_RESTRUCTURING
+        state.detected_distortion_id = distortion_id
+        return state
+
+    def test_select_known_distortion_populates_next(self, manager):
+        from cbt_manager import COGNITIVE_DISTORTIONS
+        # 取一个真实存在的扭曲 id
+        known_id = COGNITIVE_DISTORTIONS[0]["id"]
+        state = self._seed_state_with_distortion(manager, "u_s1", "s_s1", known_id)
+        manager._select_socratic_questions(state, known_id)
+        assert len(state.next_socratic_questions) > 0
+        # 选的问题确实在 corpus 中
+        all_qs = set(COGNITIVE_DISTORTIONS[0]["socratic_questions"])
+        for q in state.next_socratic_questions:
+            assert q in all_qs
+
+    def test_asked_socratic_avoids_repeat(self, manager):
+        from cbt_manager import COGNITIVE_DISTORTIONS
+        known_id = COGNITIVE_DISTORTIONS[0]["id"]
+        state = self._seed_state_with_distortion(manager, "u_s2", "s_s2", known_id)
+        # 第一次选
+        manager._select_socratic_questions(state, known_id, pick=2)
+        first_batch = list(state.next_socratic_questions)
+        # 第二次选 — 不应跟第一批重叠
+        manager._select_socratic_questions(state, known_id, pick=2)
+        second_batch = list(state.next_socratic_questions)
+        # 不全相同, 且 asked 累积了两批
+        assert first_batch != second_batch
+        # asked_socratic 至少含两批共 ≥ 3 个 (取决于该扭曲 socratic 数)
+        assert len(set(state.asked_socratic)) >= min(3, len(COGNITIVE_DISTORTIONS[0]["socratic_questions"]))
+
+    def test_unknown_distortion_returns_empty(self, manager):
+        state = self._seed_state_with_distortion(manager, "u_s3", "s_s3", "generic_worry")
+        manager._select_socratic_questions(state, "generic_worry")
+        assert state.next_socratic_questions == []
+
+    def test_exhausted_questions_reset(self, manager):
+        """全问完会重置 asked, 下次再次能选出问题(避免空)"""
+        from cbt_manager import COGNITIVE_DISTORTIONS
+        known_id = COGNITIVE_DISTORTIONS[0]["id"]
+        all_qs = COGNITIVE_DISTORTIONS[0]["socratic_questions"]
+        state = self._seed_state_with_distortion(manager, "u_s4", "s_s4", known_id)
+        # 模拟已经全问完
+        state.asked_socratic = list(all_qs)
+        manager._select_socratic_questions(state, known_id, pick=2)
+        # 仍能选出问题(重置 + 再选)
+        assert len(state.next_socratic_questions) > 0
+
+    def test_system_prompt_injects_socratic(self, manager):
+        from cbt_manager import COGNITIVE_DISTORTIONS
+        known_id = COGNITIVE_DISTORTIONS[0]["id"]
+        first_q = COGNITIVE_DISTORTIONS[0]["socratic_questions"][0]
+        state = self._seed_state_with_distortion(manager, "u_s5", "s_s5", known_id)
+        manager._select_socratic_questions(state, known_id, pick=1)
+        prompt = manager.get_cbt_system_prompt(
+            "u_s5", "s_s5", phase="cognitive_restructuring",
+        )
+        assert "苏格拉底注入" in prompt
+        # 选好的问题应该出现在 prompt 里 (前 8 字匹配, 避免标点差异)
+        assert state.next_socratic_questions[0][:8] in prompt
+
+    def test_system_prompt_non_cognitive_phase_no_injection(self, manager):
+        """非 cognitive 阶段不应注入,即使 next_socratic_questions 有值"""
+        from cbt_manager import COGNITIVE_DISTORTIONS
+        known_id = COGNITIVE_DISTORTIONS[0]["id"]
+        state = self._seed_state_with_distortion(manager, "u_s6", "s_s6", known_id)
+        manager._select_socratic_questions(state, known_id, pick=1)
+        prompt = manager.get_cbt_system_prompt(
+            "u_s6", "s_s6", phase="assessment",
+        )
+        assert "苏格拉底注入" not in prompt
+
+    def test_serialize_roundtrip_preserves_socratic_state(self, manager):
+        from cbt_manager import _serialize_state, _deserialize_state, COGNITIVE_DISTORTIONS
+        known_id = COGNITIVE_DISTORTIONS[0]["id"]
+        state = self._seed_state_with_distortion(manager, "u_s7", "s_s7", known_id)
+        manager._select_socratic_questions(state, known_id, pick=2)
+        # 序列化 + 反序列化
+        data = _serialize_state(state)
+        # _serialize_state 只写部分字段, _save_state 才补全 — 模拟完整 dump
+        data["asked_socratic"] = state.asked_socratic
+        data["next_socratic_questions"] = state.next_socratic_questions
+        restored = _deserialize_state(data)
+        assert restored.asked_socratic == state.asked_socratic
+        assert restored.next_socratic_questions == state.next_socratic_questions
