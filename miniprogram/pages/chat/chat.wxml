@@ -3,18 +3,6 @@
 
 <view class="page">
 
-  <!-- Premium 订阅 Banner（非会员可见）-->
-  <view wx:if="{{!isPremium}}" class="sub-banner" bindtap="goToSubscribe">
-    <view class="sub-banner-left">
-      <text class="sub-banner-icon">👑</text>
-      <view class="sub-banner-text">
-        <text class="sub-banner-title">解锁全部功能</text>
-        <text class="sub-banner-sub">AI语音·AI文本·睡眠日报·熄灯仪式</text>
-      </view>
-    </view>
-    <text class="sub-banner-cta">开通 ¥50/月起</text>
-  </view>
-
   <!-- 用量配额提示 -->
   <view wx:if="{{usageQuota || usageDisplay}}" class="quota-hint">
     <text class="quota-text">

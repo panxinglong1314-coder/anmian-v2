@@ -85,13 +85,8 @@ Page({
       shownAt: 0,
     },
     mode: 'sleep',
-    // ✅ 预读 subscription，避免 banner 异步消失导致布局闪烁
-    isPremium: (() => {
-      try {
-        const sub = wx.getStorageSync('subscription') || {}
-        return !!(sub.isPremium && sub.expireDate && new Date(sub.expireDate) > new Date())
-      } catch (e) { return false }
-    })(),
+    // 所有功能对所有用户开放
+    isPremium: true,
 
     // 睡眠模式
     sleepModeActive: false,
@@ -228,7 +223,7 @@ Page({
   // 模式切换
   // ================================================
   goToSubscribe() {
-    wx.navigateTo({ url: '/pages/subscribe/subscribe' })
+    // 功能全开放,此处保留为兼容旧引用
   },
 
   toggleMode() {
@@ -923,15 +918,9 @@ Page({
   // 用量配额管理（按分钟计费）
   // ================================================
   // 获取当前配额限制（返回秒数）
+  // 所有用户按月度大额度发放
   _getUsageLimit() {
-    const sub = wx.getStorageSync('subscription') || {}
-    if (sub.isPremium) {
-      if (sub.planType === 'core') {
-        return { voice: 108000, text: 108000, period: 'month' } // 30小时/月
-      }
-      return { voice: 54000, text: 54000, period: 'month' } // 15小时/月
-    }
-    return { voice: 180, text: 600, period: 'day' } // 免费版：3分钟/天语音，10分钟/天文本
+    return { voice: 108000, text: 108000, period: 'month' } // 30小时/月,事实上不限制
   },
 
   // 获取已使用时长（秒）
@@ -1828,20 +1817,7 @@ Page({
   // ==========================================
 
   startPMR() {
-    // PMR 需 Premium
-    if (!this.data.isPremium) {
-      wx.showModal({
-        title: '👑 升级 Premium',
-        content: 'PMR 身体扫描是 Premium 功能，升级后即可使用',
-        confirmText: '去升级',
-        cancelText: '稍后',
-        success: res => {
-          if (res.confirm) wx.navigateTo({ url: '/pages/subscribe/subscribe' })
-          else { this.setData({ closureStep: 2 }) }
-        }
-      })
-      return
-    }
+    // PMR 全用户开放
     // MiniMax TTS 引导文本（完整版 6 分钟）
     const PMR_SCRIPT = `现在，轻轻闭上眼睛。
 
@@ -2303,7 +2279,7 @@ Page({
     this.onUserMessage(text)
   },
 
-  // 检查是否还能发送消息（试用期/非付费用户每日限制3次）
+  // 检查是否还能发送消息(所有用户月度大额度)
   canSendMessage(type = 'text') {
     const limit = this._getUsageLimit()
     const used = this._getUsedSeconds(type)
@@ -2317,24 +2293,7 @@ Page({
   },
 
   async onUserMessage(text) {
-    // 检查文本时长限制
-    const check = this.canSendMessage('text')
-    if (!check.canSend) {
-      const period = this._getUsageLimit().period === 'month' ? '本月' : '今日'
-      wx.showModal({
-        title: `${period}文本时长已用完`,
-        content: `免费版${period}文本对话限制已用完，升级 Pro 享更多时长`,
-        confirmText: '升级 Pro',
-        cancelText: '明天再来',
-        success: (res) => {
-          if (res.confirm) {
-            wx.navigateTo({ url: '/pages/subscribe/subscribe' })
-          }
-        }
-      })
-      return
-    }
-    
+    // 所有用户按月度大额度,事实上不限制
     // 记录文本使用（每次约30秒）
     this.recordChatUsage('text', 30)
     
@@ -3109,15 +3068,6 @@ Page({
         this.onPMRAutoDone()
       }
     })
-
-    // 检查订阅状态（data 初始化时已预读，这里仅做过期校验）
-    const sub = wx.getStorageSync('subscription') || {}
-    if (sub.isPremium && sub.expireDate) {
-      const expired = new Date(sub.expireDate) <= new Date()
-      if (expired && this.data.isPremium) {
-        this.setData({ isPremium: false })
-      }
-    }
 
     // 首次加载历史记录（仅一次）
     this._historyLoaded = false

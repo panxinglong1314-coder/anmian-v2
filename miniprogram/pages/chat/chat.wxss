@@ -9,15 +9,6 @@
   overscroll-behavior: none;
 }
 
-/* Premium Banner */
-.sub-banner { display: flex; align-items: center; justify-content: space-between; padding: 12rpx 20rpx; background: linear-gradient(90deg,rgba(245,200,105,0.15),rgba(245,200,105,0.08)); border-bottom: 1rpx solid rgba(245,200,105,0.15); cursor: pointer; flex-shrink: 0; }
-.sub-banner-left { display: flex; align-items: center; gap: 10rpx; }
-.sub-banner-icon { font-size: 36rpx; }
-.sub-banner-text { display: flex; flex-direction: column; gap: 2rpx; }
-.sub-banner-title { font-size: 24rpx; color: #F5C869; font-weight: 500; }
-.sub-banner-sub { font-size: 20rpx; color: rgba(245,200,105,0.7); }
-.sub-banner-cta { font-size: 22rpx; color: #F5C869; padding: 6rpx 14rpx; border-radius: 999rpx; background: rgba(245,200,105,0.25); border: 1rpx solid rgba(245,200,105,0.3); white-space: nowrap; }
-
 /* 顶部模式切换按钮 - 悬浮在"今晚聊聊"旁边 */
 .mode-toggle-float {
   position: absolute;
@@ -964,8 +955,7 @@
   transition: opacity 1s ease;
 }
 
-/* 非核心元素让位（sub-banner / 白噪音 / 大按钮 / 声波）*/
-.sleep-mode.closure-active ~ .sub-banner,
+/* 非核心元素让位（白噪音 / 大按钮 / 声波）*/
 .sleep-mode.closure-active .sound-section,
 .sleep-mode.closure-active .sleep-btn-area,
 .sleep-mode.closure-active .sound-viz,
