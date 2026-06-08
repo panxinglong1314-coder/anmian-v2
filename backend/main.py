@@ -3799,6 +3799,72 @@ async def get_usage_status(user: AuthUser = Depends(get_current_user)):
     }
 
 
+@app.get("/api/v1/session/summary")
+async def get_session_summary(user_id: str = Query(""), user: AuthUser = Depends(get_current_user)):
+    """
+    返回跨会话关系状态:
+      - session_count: 历史会话数
+      - greeting: 关系开场白 (首次空; 二次以上根据 last_topic_domain + last_session_summary 生成)
+      - has_relation: session_count >= 3
+      - memory_check: ≥3 次时追加 "还记得吗" 钩子
+    供小程序文字模式进入 chat 页时显示欢迎语。
+    """
+    uid = (user_id or user.user_id or "").strip()
+    if not uid:
+        return {"session_count": 0, "greeting": "", "has_relation": False, "memory_check": ""}
+    try:
+        memory = get_user_memory(uid)
+    except Exception:
+        memory = {}
+    session_count = int(memory.get("session_count", 0) or 0)
+    last_topic_domain = memory.get("last_topic_domain", "") or ""
+    last_summary = memory.get("last_session_summary", "") or ""
+    last_time = memory.get("last_session_time", "") or ""
+
+    if session_count <= 0:
+        return {"session_count": 0, "greeting": "", "has_relation": False, "memory_check": ""}
+
+    # 时间感知短语
+    time_phrase = ""
+    try:
+        if last_time:
+            from datetime import datetime as _dt
+            t = _dt.fromisoformat(last_time.replace("Z", "+00:00")) if "T" in last_time else None
+            if t:
+                delta_days = (datetime.now() - t.replace(tzinfo=None)).days
+                if delta_days <= 0:
+                    time_phrase = "今天"
+                elif delta_days == 1:
+                    time_phrase = "昨晚"
+                elif delta_days <= 3:
+                    time_phrase = f"{delta_days} 天前"
+                elif delta_days <= 14:
+                    time_phrase = "上次"
+                else:
+                    time_phrase = "好久没见"
+    except Exception:
+        time_phrase = ""
+
+    # 关系开场白
+    domain_label = _label_domain(last_topic_domain) if last_topic_domain else ""
+    if domain_label:
+        greeting = f"{time_phrase}我们聊了{domain_label},今晚怎么样?".lstrip()
+    else:
+        greeting = f"{time_phrase}见,今晚怎么样?".lstrip() if time_phrase else "又见面了,今晚怎么样?"
+
+    has_relation = session_count >= 3
+    memory_check = ""
+    if has_relation and last_summary:
+        memory_check = f"还记得吗,上次你说:「{last_summary[:60]}」,后来怎么样了?"
+
+    return {
+        "session_count": session_count,
+        "greeting": greeting,
+        "has_relation": has_relation,
+        "memory_check": memory_check,
+    }
+
+
 @app.post("/api/v1/chat/cbt/reset")
 async def chat_cbt_reset(req: ChatRequest, user: AuthUser = Depends(get_current_user)):
     """重置 CBT-I 会话状态"""
