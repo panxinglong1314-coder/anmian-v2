@@ -530,9 +530,23 @@ class UserAuthMiddleware(BaseHTTPMiddleware):
                 or request.method == "OPTIONS"):
             return await call_next(request)
         auth = request.headers.get("Authorization", "")
-        if not auth.lower().startswith("bearer ") or not verify_jwt_token(auth[7:].strip()):
+        if not auth.lower().startswith("bearer "):
             from fastapi.responses import JSONResponse
             return JSONResponse({"error": "未授权，请先登录"}, status_code=401)
+        user = verify_jwt_token(auth[7:].strip())
+        if not user:
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"error": "未授权，请先登录"}, status_code=401)
+        # 被管理员禁用 → 403
+        try:
+            if redis_client.exists(f"user:disabled:{user.user_id}"):
+                from fastapi.responses import JSONResponse
+                return JSONResponse(
+                    {"error": "账号已被停用,请联系客服", "code": "account_disabled"},
+                    status_code=403,
+                )
+        except Exception:
+            pass  # Redis 故障时不阻塞,fail open
         return await call_next(request)
 
 
@@ -6865,6 +6879,63 @@ async def admin_user_toggle(user_id: str, action: str = Query(...)):
     except Exception as e:
         print(f"[admin_user_toggle error] {e}")
         return {"success": False, "error": "操作失败"}
+
+
+class AdminSubscriptionBody(BaseModel):
+    plan: str = "free"   # "free" | "basic" | "core"
+    months: int = 0      # 订阅期数(月); plan=free 时忽略此字段并清除订阅
+
+
+@app.patch("/api/v1/admin/users/{user_id}/subscription")
+async def admin_user_subscription_update(user_id: str, body: AdminSubscriptionBody):
+    """
+    管理员修复用户套餐:
+      - plan='free' → 清除 subscription:{user_id} key (用户回到免费版)
+      - plan='basic' / 'core' + months ≥ 1 → 写入有效订阅,过期日 = now + months
+    用于处理:
+      a) stale 订阅清理 (测试期留下的 mock 数据)
+      b) 客服补偿/赠送 (审核通过后)
+    """
+    if not _ADMIN_UID_RE.match(user_id) or len(user_id) > 80:
+        raise HTTPException(status_code=400, detail="无效的 user_id")
+    plan = (body.plan or "free").lower()
+    if plan not in ("free", "basic", "core"):
+        raise HTTPException(status_code=400, detail="plan 必须是 free/basic/core")
+
+    key = f"subscription:{user_id}"
+    try:
+        if plan == "free":
+            redis_client.delete(key)
+            return {"success": True, "user_id": user_id, "plan": "free", "expire_date": ""}
+
+        months = max(1, min(int(body.months or 1), 36))
+        now = datetime.now()
+        # 月份算术 + 边界日处理
+        from calendar import monthrange as _mr
+        new_year = now.year + (now.month + months - 1) // 12
+        new_month = (now.month + months - 1) % 12 + 1
+        new_day = min(now.day, _mr(new_year, new_month)[1])
+        expire = now.replace(year=new_year, month=new_month, day=new_day)
+
+        sub_data = {
+            "plan": plan,
+            "is_active": True,
+            "expire_date": expire.isoformat(),
+            "activated_at": now.isoformat(),
+            "billing_cycle": "yearly" if months >= 12 else "monthly" if months == 1 else "custom",
+            "set_by": "admin",
+        }
+        redis_client.set(key, json.dumps(sub_data, ensure_ascii=False))
+        return {
+            "success": True,
+            "user_id": user_id,
+            "plan": plan,
+            "expire_date": expire.strftime("%Y-%m-%d"),
+            "months": months,
+        }
+    except Exception as e:
+        print(f"[admin_user_subscription_update error] {e}")
+        raise HTTPException(status_code=500, detail="修改失败")
 
 
 # ==================== 睡眠数据大盘 Admin API ====================

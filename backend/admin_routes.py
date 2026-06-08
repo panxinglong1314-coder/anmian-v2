@@ -851,9 +851,13 @@ def get_user_list(days: int = 30, limit: int = 500) -> List[Dict]:
             users[uid]["subscription_plan"] = "free"
             users[uid]["subscription_active"] = None
             users[uid]["subscription_expire"] = ""
-    # 标记测试用户（命名约定）
+    # 标记测试用户（命名约定）+ 禁用状态
     for uid in users:
         users[uid]["is_test"] = is_test_user(uid)
+        try:
+            users[uid]["is_disabled"] = bool(_get_redis().exists(f"user:disabled:{uid}"))
+        except Exception:
+            users[uid]["is_disabled"] = False
     return list(users.values())[:limit]
 
 def toggle_user_status(user_id: str, action: str = "disable") -> Dict[str, Any]:
@@ -948,9 +952,42 @@ def get_user_detail(user_id: str, limit: int = 20) -> Dict[str, Any]:
 
     user_sessions.sort(key=lambda x: x.get("start_time", ""), reverse=True)
 
+    # first_seen / last_seen 从 sessions 算
+    start_times = [s.get("start_time", "") for s in user_sessions if s.get("start_time")]
+    first_seen = min(start_times) if start_times else ""
+    last_seen = max(start_times) if start_times else ""
+    total_turns = sum(s.get("turn_count", 0) for s in user_sessions)
+
+    # 订阅 + 禁用状态
+    sub_plan = "free"
+    sub_active = None
+    sub_expire = ""
+    is_disabled = False
+    try:
+        import json as _js
+        sub_raw = r.get(f"subscription:{user_id}")
+        if sub_raw:
+            sd = _js.loads(sub_raw)
+            sub_plan = sd.get("plan", "basic")
+            sub_active = sd.get("is_active", False)
+            sub_expire = (sd.get("expire_date", "") or "")[:10]
+    except Exception:
+        pass
+    try:
+        is_disabled = bool(r.exists(f"user:disabled:{user_id}"))
+    except Exception:
+        is_disabled = False
+
     return {
         "user_id": user_id,
         "total_sessions": len(user_evals) or len(user_sessions),
+        "total_turns": total_turns,
+        "first_seen": first_seen,
+        "last_seen": last_seen,
+        "subscription_plan": sub_plan,
+        "subscription_active": sub_active,
+        "subscription_expire": sub_expire,
+        "is_disabled": is_disabled,
         "sessions": user_sessions[:limit],
     }
 

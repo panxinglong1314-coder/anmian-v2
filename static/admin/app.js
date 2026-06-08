@@ -1008,6 +1008,74 @@ async function toggleUser(userId, action) {
   } catch (e) { toast('请求失败: ' + e.message, 'error'); }
 }
 
+// 改套餐 - 弹窗选 plan + 时长
+function editSubscription(userId, currentPlan) {
+  const safeId = (userId || '').replace(/'/g, "\\'");
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.onclick = (e) => { if (e.target === e.currentTarget) modal.remove(); };
+  modal.innerHTML = `
+    <div class="modal-box" style="max-width:420px" onclick="event.stopPropagation()">
+      <div class="modal-head">
+        <span class="modal-title">改套餐 · ${_escapeHtml(userId)}</span>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+      </div>
+      <div class="modal-body" style="padding:16px">
+        <div class="mb-3 text-xs text-gray-500">当前套餐: <span class="font-medium text-gray-700">${_escapeHtml(currentPlan || 'free')}</span></div>
+        <div class="mb-3">
+          <label class="block text-xs text-gray-600 mb-1">目标套餐</label>
+          <select id="sub-plan" class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" onchange="document.getElementById('sub-months-row').style.display = this.value === 'free' ? 'none' : 'block'">
+            <option value="free" ${currentPlan === 'free' || !currentPlan ? 'selected' : ''}>免费版 (清除订阅)</option>
+            <option value="basic" ${currentPlan === 'basic' ? 'selected' : ''}>基础 Pro</option>
+            <option value="core" ${currentPlan === 'core' ? 'selected' : ''}>核心 Pro</option>
+          </select>
+        </div>
+        <div id="sub-months-row" class="mb-4" style="display:${currentPlan === 'free' || !currentPlan ? 'none' : 'block'}">
+          <label class="block text-xs text-gray-600 mb-1">订阅期数</label>
+          <select id="sub-months" class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+            <option value="1">1 个月</option>
+            <option value="3">3 个月</option>
+            <option value="6">6 个月</option>
+            <option value="12" selected>12 个月 (1 年)</option>
+          </select>
+        </div>
+        <div class="text-[11px] text-gray-400 mb-3">
+          提示: 选"免费版"会清除 subscription 记录,用户回到 free 档。<br>
+          (内测期 _get_tier 强制 free, 改 Pro 不会立即生效, 待支付能力开放后启用。)
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button class="btn btn-default btn-sm" onclick="this.closest('.modal-overlay').remove()">取消</button>
+          <button class="btn btn-primary btn-sm" onclick="submitSubscription('${safeId}')">确认修改</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function submitSubscription(userId) {
+  const plan = document.getElementById('sub-plan').value;
+  const months = parseInt(document.getElementById('sub-months').value || '1', 10);
+  try {
+    const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/subscription`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
+      body: JSON.stringify({ plan, months: plan === 'free' ? 0 : months })
+    });
+    const data = await r.json();
+    if (data.success) {
+      const msg = plan === 'free'
+        ? `已清除订阅,${userId} 已回到免费版`
+        : `已设为 ${plan},${data.expire_date ? '到期 ' + data.expire_date : ''}`;
+      toast(msg, 'success');
+      document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+      loadUsers();
+    } else {
+      toast('修改失败: ' + (data.error || data.detail || '未知错误'), 'error');
+    }
+  } catch (e) { toast('请求失败: ' + e.message, 'error'); }
+}
+
 async function loadUsers() {
   const data = await fetchJSON(`${API_BASE}/users?days=30`);
   usersCache = Array.isArray(data) ? data : [];
@@ -1043,17 +1111,26 @@ function renderUsersPage() {
   pageData.forEach(u => {
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td><span class="truncate-id font-mono text-xs text-gray-600">${_escapeHtml(u.user_id || '--')}</span>${u.is_test ? ' <span class="text-[10px] px-1 py-0.5 rounded bg-purple-100 text-purple-600">🧪测试</span>' : ''}</td>
+      <td>
+        <span class="truncate-id font-mono text-xs text-gray-600">${_escapeHtml(u.user_id || '--')}</span>${u.is_test ? ' <span class="text-[10px] px-1 py-0.5 rounded bg-purple-100 text-purple-600">🧪测试</span>' : ''}
+        ${u.is_disabled ? ' <span class="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-600">⛔ 已停用</span>' : ''}
+      </td>
       <td class="text-gray-500 text-xs">${(u.first_seen || '').slice(0, 10)}</td>
       <td class="text-gray-500 text-xs">${(u.last_seen || '').slice(0, 10)}</td>
       <td class="font-medium text-sm">${u.session_count || 0}</td>
       <td>${u.total_turns ? `<span class="text-xs text-gray-500">${u.total_turns}轮</span>` : '--'}</td>
       <td>${u.avg_rating ? '<span class="text-yellow-500 text-xs">★ ' + u.avg_rating + '</span>' : '<span class="text-gray-300 text-xs">--</span>'}</td>
-      <td>${u.subscription_plan ? (u.subscription_plan === "free" ? '<span class="text-gray-400 text-xs">免费</span>' : '<span class="text-blue-500 text-xs">' + _escapeHtml(u.subscription_plan) + '</span>') : '<span class="text-gray-300 text-xs">--</span>'}</td>
       <td>
+        ${u.subscription_plan ? (u.subscription_plan === "free" ? '<span class="text-gray-400 text-xs">免费</span>' : '<span class="text-blue-500 text-xs font-medium">' + _escapeHtml(u.subscription_plan) + '</span>') : '<span class="text-gray-300 text-xs">--</span>'}
+        ${u.subscription_expire ? '<div class="text-[10px] text-gray-400">至 ' + _escapeHtml(u.subscription_expire) + '</div>' : ''}
+      </td>
+      <td>
+        <button class="text-purple-600 text-xs hover:underline mr-1" onclick="editSubscription('${(u.user_id || '').replace(/'/g, "\\'")}', '${u.subscription_plan || 'free'}')">改套餐</button>
         <button class="text-red-500 text-xs hover:underline mr-1" onclick="deleteUser('${(u.user_id || '').replace(/'/g, "\\'")}')">删除</button>
-        <button class="text-orange-500 text-xs hover:underline mr-1" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\\'")}', 'disable')">禁用</button>
-        <button class="text-green-600 text-xs hover:underline mr-1" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\\'")}', 'enable')">启用</button>
+        ${u.is_disabled
+          ? `<button class="text-green-600 text-xs hover:underline mr-1" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\\'")}', 'enable')">启用</button>`
+          : `<button class="text-orange-500 text-xs hover:underline mr-1" onclick="toggleUser('${(u.user_id || '').replace(/'/g, "\\'")}', 'disable')">停用</button>`
+        }
         <button class="text-blue-600 text-xs hover:underline" onclick="showUserDetail('${(u.user_id || '').replace(/'/g, "\\'")}')">详情</button>
       </td>
 
@@ -1105,9 +1182,14 @@ async function showUserDetail(userId) {
         <button onclick="this.closest('.modal-overlay').remove()" class="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
       </div>
       <div class="modal-body overflow-auto flex-1">
-        <p class="text-xs text-gray-400 font-mono mb-3 break-all">${_escapeHtml(userId)}</p>
-        <div class="grid grid-cols-3 gap-2 mb-3">
+        <p class="text-xs text-gray-400 font-mono mb-2 break-all">
+          ${_escapeHtml(userId)}
+          ${data.is_disabled ? ' <span class="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-600">⛔ 已停用</span>' : ''}
+          ${data.subscription_plan && data.subscription_plan !== 'free' ? ` <span class="text-[10px] px-1 py-0.5 rounded bg-blue-100 text-blue-600">👑 ${_escapeHtml(data.subscription_plan)}${data.subscription_expire ? ' · 至 ' + _escapeHtml(data.subscription_expire) : ''}</span>` : ''}
+        </p>
+        <div class="grid grid-cols-4 gap-2 mb-3">
           <div class="bg-gray-50 rounded p-2 text-center"><div class="text-gray-500 text-xs">总会话</div><div class="font-bold text-gray-800 text-sm mt-0.5">${data.total_sessions || 0}</div></div>
+          <div class="bg-gray-50 rounded p-2 text-center"><div class="text-gray-500 text-xs">总轮次</div><div class="font-bold text-gray-800 text-sm mt-0.5">${data.total_turns || 0}</div></div>
           <div class="bg-gray-50 rounded p-2 text-center"><div class="text-gray-500 text-xs">首次使用</div><div class="font-bold text-gray-800 text-sm mt-0.5">${(data.first_seen || '').slice(0, 10) || '--'}</div></div>
           <div class="bg-gray-50 rounded p-2 text-center"><div class="text-gray-500 text-xs">最后活跃</div><div class="font-bold text-gray-800 text-sm mt-0.5">${(data.last_seen || '').slice(0, 10) || '--'}</div></div>
         </div>
