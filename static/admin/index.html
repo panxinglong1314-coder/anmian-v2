@@ -332,6 +332,9 @@
       <div class="nav-item" data-page="kb" onclick="showPage('kb')">
         <span class="icon">📚</span>知识库
       </div>
+      <div class="nav-item" data-page="analytics" onclick="showPage('analytics')">
+        <span class="icon">📊</span>网站监控
+      </div>
     </nav>
     <div class="border-t border-gray-700/50 p-3">
       <div class="flex items-center justify-between text-xs text-gray-500">
@@ -1269,6 +1272,69 @@
         </div>
       </div>
 
+      <!-- 网站监控 -->
+      <div id="page-analytics" class="page hidden space-y-4">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">sleepai.chat 流量</span>
+            <div class="flex items-center gap-2">
+              <select id="analytics-days" onchange="loadAnalytics()" class="border border-gray-300 rounded px-2 py-1 text-xs">
+                <option value="1">今天</option>
+                <option value="7" selected>近 7 天</option>
+                <option value="14">近 14 天</option>
+                <option value="30">近 30 天</option>
+              </select>
+              <button onclick="loadAnalytics()" class="btn btn-default btn-sm">刷新</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="grid grid-cols-4 gap-3 mb-4">
+              <div class="bg-blue-50 rounded p-3">
+                <div class="text-xs text-gray-500">PV (总访问)</div>
+                <div class="text-2xl font-bold text-blue-600" id="a-pv">--</div>
+              </div>
+              <div class="bg-green-50 rounded p-3">
+                <div class="text-xs text-gray-500">UV (独立访客)</div>
+                <div class="text-2xl font-bold text-green-600" id="a-uv">--</div>
+              </div>
+              <div class="bg-purple-50 rounded p-3">
+                <div class="text-xs text-gray-500">会话数</div>
+                <div class="text-2xl font-bold text-purple-600" id="a-sessions">--</div>
+              </div>
+              <div class="bg-orange-50 rounded p-3">
+                <div class="text-xs text-gray-500">平均停留</div>
+                <div class="text-2xl font-bold text-orange-600" id="a-duration">--</div>
+              </div>
+            </div>
+            <div id="a-trend-chart" style="height:200px"></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="card">
+            <div class="card-header"><span class="card-title">热门页面</span></div>
+            <div class="card-body p-0">
+              <table class="data-table">
+                <thead><tr><th>页面</th><th class="text-right">PV</th></tr></thead>
+                <tbody id="a-top-pages"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">实时访问 (最近 50 条)</span>
+              <button onclick="loadAnalyticsRecent()" class="btn btn-default btn-sm">刷新</button>
+            </div>
+            <div class="card-body p-0" style="max-height:400px;overflow-y:auto">
+              <table class="data-table">
+                <thead><tr><th>时间</th><th>页面</th><th>停留</th><th>来源</th></tr></thead>
+                <tbody id="a-recent"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
 </div>
   </main>
 </div>
@@ -1288,6 +1354,6 @@
   </div>
 </div>
 
-<script src="app.js?v=44"></script>
+<script src="app.js?v=45"></script>
 </body>
 </html>

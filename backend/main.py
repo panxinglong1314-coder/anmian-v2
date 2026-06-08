@@ -520,6 +520,9 @@ class UserAuthMiddleware(BaseHTTPMiddleware):
         # v2.5 B2B: 公开的销售线索接收(/enterprise 页 CTA 提交)
         "/api/v1/sales/lead",
         "/api/v1/version",
+        # 网站流量埋点 (匿名访客,无 JWT)
+        "/api/v1/analytics/pv",
+        "/api/v1/analytics/end",
     }
 
     async def dispatch(self, request, call_next):
@@ -5420,6 +5423,64 @@ async def admin_delete_subscribe_interest(ts: int):
         return {"ok": True, "removed": int(removed)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"redis error: {e}")
+
+
+# ==============================================================================
+# 网站流量分析 (sleepai.chat 监控)
+# - 前端 /track.js 发送 pv + end 两类事件 (无 JWT, 白名单)
+# - 后端聚合写 Redis, admin 拉取看板
+# ==============================================================================
+class AnalyticsPVBody(BaseModel):
+    visitor_id: str = ""
+    session_id: str = ""
+    page: str = "/"
+    ref: str = ""
+
+
+@app.post("/api/v1/analytics/pv")
+async def analytics_pv(body: AnalyticsPVBody, request: Request):
+    """埋点: 单页 PV (匿名,无 JWT)"""
+    from services.web_analytics import record_pageview
+    vid = (body.visitor_id or "").strip()[:64]
+    sid = (body.session_id or "").strip()[:64]
+    if not vid or not sid:
+        return {"ok": False, "error": "invalid id"}
+    ip = (request.client.host if request.client else "") or ""
+    # 取真实客户端 IP (经 nginx 代理时拿 X-Forwarded-For 首段)
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        ip = xff.split(",")[0].strip() or ip
+    ua = request.headers.get("user-agent", "")[:200]
+    return record_pageview(redis_client, vid, sid, body.page, body.ref, ua, ip)
+
+
+class AnalyticsEndBody(BaseModel):
+    session_id: str = ""
+    duration_s: int = 0
+
+
+@app.post("/api/v1/analytics/end")
+async def analytics_end(body: AnalyticsEndBody):
+    """埋点: session 结束 (用户关页/失焦)"""
+    from services.web_analytics import record_session_end
+    sid = (body.session_id or "").strip()[:64]
+    if not sid:
+        return {"ok": False, "error": "invalid sid"}
+    return record_session_end(redis_client, sid, body.duration_s or 0)
+
+
+@app.get("/api/v1/admin/analytics/overview")
+async def admin_analytics_overview(days: int = Query(7, ge=1, le=30)):
+    """N 天聚合: PV/UV/sessions/avg_duration/top_pages/daily_trend"""
+    from services.web_analytics import get_overview
+    return get_overview(redis_client, days=days)
+
+
+@app.get("/api/v1/admin/analytics/recent")
+async def admin_analytics_recent(limit: int = Query(50, ge=10, le=200)):
+    """实时访问流: 今日最近 N 条 PV"""
+    from services.web_analytics import get_recent_visits
+    return {"visits": get_recent_visits(redis_client, limit=limit)}
 
 
 class SubscriptionRequest(BaseModel):

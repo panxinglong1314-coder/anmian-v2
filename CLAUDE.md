@@ -68,7 +68,16 @@ There are two paths:
    ```
    SSH gets rate-limited after a few connection failures — wait ~30-60s and retry; do not chain short `sleep`s in Bash (the harness blocks that pattern — use `ScheduleWakeup` or `run_in_background` instead).
 
-Server paths: code at `/home/ubuntu/anmian/`, Python venv at `/home/ubuntu/venv/`, static files (Nginx) at `/home/ubuntu/anmian/static/{avatars,sounds}/`, secrets in `/home/ubuntu/anmian/backend/.env`.
+   **Deploy footgun (踩过坑) — `/tmp/` 中转同名覆盖**: When deploying multiple files with the same basename (e.g. `static/admin/index.html` AND `web/index.html`) via `scp local /tmp/`, the second scp silently overwrites the first. Subsequent `cp /tmp/index.html dest1/` deploys the wrong content — no error, nginx still 200. **Rule**: scp 直接落到最终路径,不要走 `/tmp/`. If `/tmp/` 中转 is necessary, use unique prefixes (`/tmp/admin_index.html`, `/tmp/web_index.html`). After每次 admin/web static 改动, **curl 验证关键 marker** (e.g. `curl /admin/ | grep "app.js?v=N"`). 这条规则是 2026-06 因覆盖 `/admin/index.html` 导致后台白屏后总结的。
+
+Server paths:
+- backend code: `/home/ubuntu/anmian/backend/`
+- venv: `/home/ubuntu/venv/`
+- admin static (FastAPI mount /admin → static/admin/): `/home/ubuntu/anmian/static/admin/`
+- public static (avatars/sounds): `/home/ubuntu/anmian/static/{avatars,sounds}/`
+- web SPA (nginx root): `/home/ubuntu/anmian/web_dist/`
+- hr-admin SPA: `/home/ubuntu/anmian/hr-admin-dist/`
+- secrets: `/home/ubuntu/anmian/backend/.env`
 
 ### Pre-push hook
 

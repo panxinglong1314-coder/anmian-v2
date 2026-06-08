@@ -160,6 +160,7 @@ const pageTitles = {
   feedback: '📮 用户反馈',
   leads: '💼 销售线索 (B2B)',
   orgs: '🏢 企业管理 (B2B)',
+  analytics: '📊 网站监控',
 };
 
 function showPage(name) {
@@ -173,7 +174,7 @@ function showPage(name) {
                      users: loadUsers, health: loadHealth, retention: loadRetention,
                      crisis: loadCrisis, abconfig: loadABConfig, pricing: loadPricing,
                      sleep: loadSleepDashboard, kb: loadKB, feedback: loadFeedback,
-                     leads: loadLeads, orgs: loadOrgs };
+                     leads: loadLeads, orgs: loadOrgs, analytics: loadAnalytics };
   if (loaders[name]) loaders[name](loaders[name] === loadDashboard ? 7 : 30);
 
   // 切到危机页面后，停止标题闪烁（视为"已读"）
@@ -1440,6 +1441,84 @@ async function loadSleepDashboard(days = 30) {
 }
 
 // ========== RAG 知识库版本管理 ==========
+// ============================================================
+// 📊 网站监控 (sleepai.chat 流量)
+// ============================================================
+let _aTrendChart = null;
+
+async function loadAnalytics() {
+  const days = parseInt(document.getElementById('analytics-days')?.value || '7', 10);
+  try {
+    const d = await fetchJSON(`${API_BASE}/analytics/overview?days=${days}`);
+    document.getElementById('a-pv').textContent = d.total_pv || 0;
+    document.getElementById('a-uv').textContent = d.total_uv || 0;
+    document.getElementById('a-sessions').textContent = d.total_sessions || 0;
+    const dur = d.avg_duration_s || 0;
+    const m = Math.floor(dur / 60), s = dur % 60;
+    document.getElementById('a-duration').textContent = m > 0 ? `${m}分${s}秒` : `${s}秒`;
+
+    // 趋势图
+    const trend = d.daily_trend || [];
+    const chartEl = document.getElementById('a-trend-chart');
+    if (chartEl && window.echarts) {
+      if (!_aTrendChart) _aTrendChart = echarts.init(chartEl);
+      _aTrendChart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['PV', 'UV'], top: 0, textStyle: { fontSize: 11 } },
+        grid: { left: 36, right: 16, top: 32, bottom: 24 },
+        xAxis: { type: 'category', data: trend.map(x => x.date.slice(5)), axisLabel: { fontSize: 10 } },
+        yAxis: { type: 'value', axisLabel: { fontSize: 10 } },
+        series: [
+          { name: 'PV', type: 'line', smooth: true, data: trend.map(x => x.pv), itemStyle: { color: '#3b82f6' } },
+          { name: 'UV', type: 'line', smooth: true, data: trend.map(x => x.uv), itemStyle: { color: '#10b981' } },
+        ],
+      });
+    }
+
+    // 热门页面
+    const tpBody = document.getElementById('a-top-pages');
+    tpBody.innerHTML = (d.top_pages || []).map(p => `
+      <tr>
+        <td class="font-mono text-xs text-gray-700">${_escapeHtml(p.page || '/')}</td>
+        <td class="text-right font-medium">${p.pv}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="2" class="text-center text-xs text-gray-400 py-4">暂无数据</td></tr>`;
+
+    loadAnalyticsRecent();
+  } catch (e) {
+    toast('加载失败: ' + e.message, 'error');
+  }
+}
+
+async function loadAnalyticsRecent() {
+  try {
+    const r = await fetchJSON(`${API_BASE}/analytics/recent?limit=50`);
+    const tbody = document.getElementById('a-recent');
+    const visits = r.visits || [];
+    if (!visits.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="text-center text-xs text-gray-400 py-4">今日还没有访问</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = visits.map(v => {
+      const t = new Date(v.ts || 0);
+      const hh = String(t.getHours()).padStart(2, '0');
+      const mm = String(t.getMinutes()).padStart(2, '0');
+      const ss = String(t.getSeconds()).padStart(2, '0');
+      const dur = v.duration_s || 0;
+      const durStr = dur > 0 ? (dur >= 60 ? `${Math.floor(dur/60)}m${dur%60}s` : `${dur}s`) : '--';
+      const ref = v.ref ? new URL(v.ref).hostname : '直接';
+      return `
+        <tr>
+          <td class="text-xs text-gray-500 font-mono">${hh}:${mm}:${ss}</td>
+          <td class="text-xs font-mono">${_escapeHtml(v.page || '/').slice(0, 40)}</td>
+          <td class="text-xs text-gray-600">${durStr}</td>
+          <td class="text-xs text-gray-500">${_escapeHtml(ref).slice(0, 24)}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) { /* silent */ }
+}
+
 async function loadKB() {
   try {
     const status = await fetchJSON(`${API_BASE}/kb/status`);
