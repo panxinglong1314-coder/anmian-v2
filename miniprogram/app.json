@@ -4,6 +4,7 @@
     "pages/record/record",
     "pages/worries/worries",
     "pages/profile/profile",
+    "pages/subscribe/subscribe",
     "pages/train/train",
     "pages/privacy/privacy",
     "pages/morning/morning"

@@ -147,6 +147,7 @@
           <text class="del-item">· 担忧箱内容</text>
           <text class="del-item">· 个人资料、头像、紧急联系人</text>
         </view>
+        <text class="del-sub">若你有有效会员订阅，将一并失效且不退还费用。</text>
       </view>
       <view class="del-btns">
         <view class="del-btn-cancel" bindtap="closeDeleteAccount">再想想</view>

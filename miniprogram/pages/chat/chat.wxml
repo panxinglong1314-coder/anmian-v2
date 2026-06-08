@@ -3,10 +3,22 @@
 
 <view class="page">
 
+  <!-- 套餐预览 Banner(点击查看完整功能与套餐) -->
+  <view class="sub-banner" bindtap="goToSubscribe">
+    <view class="sub-banner-left">
+      <text class="sub-banner-icon">👑</text>
+      <view class="sub-banner-text">
+        <text class="sub-banner-title">知眠 Pro · 即将开放</text>
+        <text class="sub-banner-sub">AI 语音 · AI 文本 · 睡眠日报 · 熄灯仪式</text>
+      </view>
+    </view>
+    <text class="sub-banner-cta">¥50/月起</text>
+  </view>
+
   <!-- 用量配额提示 -->
   <view wx:if="{{usageQuota || usageDisplay}}" class="quota-hint">
     <text class="quota-text">
-      <block wx:if="{{usageQuota}}">今日剩余：语音 {{usageQuota.voice.remaining_minutes}} 分钟 · 文本 {{usageQuota.text.remaining_minutes}} 分钟</block>
+      <block wx:if="{{usageQuota}}">{{usageQuota.period === 'month' ? '本月' : '今日'}}剩余:语音 {{usageQuota.voice.remaining_minutes}} 分钟 · 文本 {{usageQuota.text.remaining_minutes}} 分钟</block>
       <block wx:else>{{usageDisplay}}</block>
     </text>
   </view>

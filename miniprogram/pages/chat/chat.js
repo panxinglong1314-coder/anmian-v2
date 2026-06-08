@@ -85,8 +85,8 @@ Page({
       shownAt: 0,
     },
     mode: 'sleep',
-    // 所有功能对所有用户开放
-    isPremium: true,
+    // 默认 free 档 (内测期); 实际是否 Premium 待支付能力开放后启用
+    isPremium: false,
 
     // 睡眠模式
     sleepModeActive: false,
@@ -223,7 +223,18 @@ Page({
   // 模式切换
   // ================================================
   goToSubscribe() {
-    // 功能全开放,此处保留为兼容旧引用
+    // 顺带上报 banner 点击意向(fire-and-forget)
+    try {
+      app.authRequest({
+        url: `${app.globalData.apiBaseUrl}/api/v1/interest/subscribe`,
+        method: 'POST',
+        data: { plan: '', billing_cycle: '', source: 'banner' },
+        timeout: 4000,
+        success: () => {},
+        fail: () => {},
+      })
+    } catch (e) {}
+    wx.navigateTo({ url: '/pages/subscribe/subscribe' })
   },
 
   toggleMode() {
@@ -917,10 +928,11 @@ Page({
   // ================================================
   // 用量配额管理（按分钟计费）
   // ================================================
-  // 获取当前配额限制（返回秒数）
-  // 所有用户按月度大额度发放
+  // 获取当前配额限制（返回秒数, text 也用秒,300字/分钟换算）
   _getUsageLimit() {
-    return { voice: 108000, text: 108000, period: 'month' } // 30小时/月,事实上不限制
+    // 免费版: 10分钟语音/天 + 30分钟文本/天 (内测期成本控制)
+    // Pro 套餐数字保留待支付能力开放后启用
+    return { voice: 600, text: 1800, period: 'day' }
   },
 
   // 获取已使用时长（秒）
@@ -2293,7 +2305,20 @@ Page({
   },
 
   async onUserMessage(text) {
-    // 所有用户按月度大额度,事实上不限制
+    // 软门:免费版 30 分钟文本/天,达额后引导次日再来或预览套餐
+    const check = this.canSendMessage('text')
+    if (!check.canSend) {
+      wx.showModal({
+        title: '今日免费时长已用',
+        content: '明日 0 点重置即可继续。Pro 套餐即将开放,可先查看价目预览。',
+        confirmText: '查看套餐',
+        cancelText: '明日再来',
+        success: (res) => {
+          if (res.confirm) wx.navigateTo({ url: '/pages/subscribe/subscribe' })
+        }
+      })
+      return
+    }
     // 记录文本使用（每次约30秒）
     this.recordChatUsage('text', 30)
     

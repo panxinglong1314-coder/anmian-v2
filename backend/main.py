@@ -287,20 +287,20 @@ def _get_tts_cache_key(text: str, voice: str, speed: int) -> str:
 # ── 订阅方案限额配置 ─────────────────────────────────────────
 # 免费版按天计费，Pro 版按月计费
 # AI 回复「字数」限额（字符数），按阅读速度 300字/分钟 换算
-# Free:    10分钟/天 = 3000字/天
-# Basic:   15小时/月 = 900分钟/月 = 270000字/月
-# Core:    30小时/月 = 1800分钟/月 = 540000字/月
-TEXT_LIMIT_FREE   = 3000    # 免费版：10分钟/天
-TEXT_LIMIT_BASIC  = 270000  # 基础 Pro：15小时/月
-TEXT_LIMIT_CORE   = 540000  # 核心 Pro：30小时/月
+# Free:    30分钟/天 = 9000字/天 (内测期免费版,日重置,控成本)
+# Basic:   30小时/月 = 1800分钟/月 = 540000字/月
+# Core:    60小时/月 = 3600分钟/月 = 1080000字/月
+TEXT_LIMIT_FREE   = 9000     # 免费版：30分钟文本/天
+TEXT_LIMIT_BASIC  = 540000   # 基础 Pro：30小时/月
+TEXT_LIMIT_CORE   = 1080000  # 核心 Pro：60小时/月
 
 # AI 语音（TTS 音频秒数）
-# Free:    3分钟 = 180秒/天
-# Basic:   15小时/月 = 54000秒/月
-# Core:    30小时/月 = 108000秒/月
-VOICE_LIMIT_FREE  = 180     # 免费版：3分钟语音/天
-VOICE_LIMIT_BASIC = 54000   # 基础 Pro：15小时/月
-VOICE_LIMIT_CORE  = 108000  # 核心 Pro：30小时/月
+# Free:    10分钟 = 600秒/天 (内测期免费版,日重置,控成本)
+# Basic:   10小时/月 = 36000秒/月
+# Core:    25小时/月 = 90000秒/月
+VOICE_LIMIT_FREE  = 600     # 免费版：10分钟语音/天
+VOICE_LIMIT_BASIC = 36000   # 基础 Pro：10小时/月
+VOICE_LIMIT_CORE  = 90000   # 核心 Pro：25小时/月
 
 # ==================== 后台定时任务 ====================
 
@@ -1457,7 +1457,14 @@ def _get_tier(user_id: str) -> str:
     """
     获取用户订阅档位: 'free' | 'basic' | 'core'
     未订阅 / 已过期 / plan 字段无效 → 'free'
+
+    【2026-06 内测期】支付能力暂未开放(微信个人主体),所有用户强制 free 档,
+    忽略 stale 的 subscription 记录。待企业主体审核通过 + 微信支付接入后,
+    把下面 RETURN 'free' 改回去即可恢复 Pro 档识别。
     """
+    return 'free'  # ← 内测期强制 free,临时
+
+    # 待恢复的原逻辑:
     sub = _get_subscription(user_id)
     if not sub.get('is_active'):
         return 'free'
@@ -5247,6 +5254,92 @@ async def admin_sales_lead_delete(lead_id: str):
     if not ok:
         raise HTTPException(status_code=404, detail="lead not found")
     return {"success": True, "lead_id": lead_id}
+
+
+# ==============================================================================
+# 付费意向上报 — 小程序"敬请期待"按钮点击日志
+# 作用: 个人主体未开放支付,记录用户点击意向供日后定向通知
+# ==============================================================================
+class InterestSubscribeBody(BaseModel):
+    plan: str = ""               # 'basic' | 'core' | 'free' | ''
+    billing_cycle: str = ""      # 'monthly' | 'yearly' | ''
+    source: str = "button"       # 'button' | 'restore' | 'banner' | 'view'
+
+
+@app.post("/api/v1/interest/subscribe")
+async def log_subscribe_interest(
+    body: InterestSubscribeBody,
+    user: AuthUser = Depends(get_current_user),
+):
+    """记录用户对付费套餐的意向点击。fire-and-forget,前端不依赖返回值。"""
+    import time as _time
+    ts = int(_time.time() * 1000)
+    record = json.dumps({
+        "user_id": user.user_id,
+        "plan": body.plan,
+        "billing_cycle": body.billing_cycle,
+        "source": body.source,
+        "ts": ts,
+    }, ensure_ascii=False)
+    try:
+        # 全局 zset 按 ts 排序,保留最新 5000 条
+        redis_client.zadd("subscribe_interest:all", {record: ts})
+        redis_client.zremrangebyrank("subscribe_interest:all", 0, -5001)
+        # per-user list (cap 20) 供用户画像
+        user_key = f"subscribe_interest:user:{user.user_id}"
+        redis_client.lpush(user_key, record)
+        redis_client.ltrim(user_key, 0, 19)
+        redis_client.expire(user_key, 365 * 86400)
+        return {"ok": True, "ts": ts}
+    except Exception as e:
+        print(f"[interest_subscribe] redis write failed: {e}")
+        return {"ok": False}
+
+
+@app.get("/api/v1/admin/interest/list")
+async def admin_list_subscribe_interest(limit: int = Query(100, le=500)):
+    """admin 查看付费意向列表 (最新优先)。"""
+    try:
+        raw = redis_client.zrevrange("subscribe_interest:all", 0, limit - 1, withscores=True)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"redis error: {e}")
+    items = []
+    for member, score in raw:
+        try:
+            m = member.decode("utf-8") if isinstance(member, (bytes, bytearray)) else member
+            d = json.loads(m)
+            d["_score"] = int(score)
+            items.append(d)
+        except Exception:
+            continue
+    total = redis_client.zcard("subscribe_interest:all")
+    # 简单聚合:按 plan / source / billing_cycle 计数
+    agg_plan: Dict[str, int] = {}
+    agg_source: Dict[str, int] = {}
+    agg_cycle: Dict[str, int] = {}
+    for d in items:
+        agg_plan[d.get("plan", "")] = agg_plan.get(d.get("plan", ""), 0) + 1
+        agg_source[d.get("source", "")] = agg_source.get(d.get("source", ""), 0) + 1
+        agg_cycle[d.get("billing_cycle", "")] = agg_cycle.get(d.get("billing_cycle", ""), 0) + 1
+    return {
+        "items": items,
+        "total": int(total or 0),
+        "stats": {
+            "by_plan": agg_plan,
+            "by_source": agg_source,
+            "by_billing_cycle": agg_cycle,
+        },
+    }
+
+
+@app.delete("/api/v1/admin/interest/{ts}")
+async def admin_delete_subscribe_interest(ts: int):
+    """admin 删除某条意向 (按 score=ts 匹配)。"""
+    try:
+        removed = redis_client.zremrangebyscore("subscribe_interest:all", ts, ts)
+        return {"ok": True, "removed": int(removed)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"redis error: {e}")
 
 
 class SubscriptionRequest(BaseModel):
