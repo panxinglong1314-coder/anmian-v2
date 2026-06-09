@@ -625,12 +625,18 @@ function setMetricCard(id, value, sub, barPercent, barColor) {
 
 // ========== 仪表盘 ==========
 async function loadDashboard(days) {
+  // 同步顶部 tab 按钮 active 状态 (修 "今日/近7天/近30天" 点击看似无反应的 bug)
+  document.querySelectorAll('#page-dashboard .tab-btn').forEach(b => b.classList.remove('active'));
+  const _activeBtn = document.getElementById('tab-d-' + days);
+  if (_activeBtn) _activeBtn.classList.add('active');
+
   const data = await fetchJSON(`${API_BASE}/dashboard?days=${days}`);
   const hasData = data && !data.error && !data.message;
 
   if (!hasData) {
+    const emptyHint = days === 1 ? '今日暂无会话' : '此区间暂无数据';
     ['active-users', 'sessions', 'avg-turns', 'avg-duration', 'night-ratio', 'avg-rating'].forEach(id => {
-      setMetricCard('d-' + id, '--', '暂无数据', 0, '#3b82f6');
+      setMetricCard('d-' + id, '--', emptyHint, 0, '#9ca3af');
     });
     document.getElementById('last-update').textContent = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
     return;
