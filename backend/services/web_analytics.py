@@ -22,6 +22,73 @@ EVENTS_TTL_DAYS = 90
 SESSION_TTL_HOURS = 24
 EVENTS_CAP_PER_DAY = 5000
 
+# 反 bot 过滤 — UA 或路径命中即丢弃 (不写 Redis)
+_BOT_UA_TOKENS = (
+    "bot", "crawl", "spider", "scrap", "scan", "monitor", "fetch",
+    "zgrab", "curl/", "wget", "python-requests", "go-http-client",
+    "headlesschrome", "phantomjs", "slurp", "yandex", "bingpreview",
+    "ahrefs", "semrush", "mj12", "dotbot", "petalbot", "googlebot",
+    "baiduspider", "sogou web spider", "yisouspider", "duckduckbot",
+)
+_BOT_PATH_PREFIXES = (
+    "/wp-",         # WordPress 漏洞扫描
+    "/wordpress",
+    "/.env",        # 配置泄露扫描
+    "/.git",
+    "/.well-known/", # 部分 OK,大部分扫描器也用 — 暂屏蔽
+    "/admin.php",
+    "/phpmyadmin",
+    "/xmlrpc.php",
+    "/cgi-bin",
+    "/vendor/",
+    "/.aws/",
+    "/.ssh/",
+    "/server-status",
+    "/license.txt",
+    "/readme.html",
+)
+
+
+# 数据中心 / 已知扫描器 IP 段 (CIDR-loose,前缀匹配即可)
+# 这些 IP 段不是消费者宽带,几乎 100% 是机房扫描器/爬虫/反向探测
+_BOT_IP_PREFIXES = (
+    "180.101.244.", "180.101.245.", "180.101.246.", "180.101.247.",  # 腾讯云上海/南京 BGP 段
+    "159.75.198.", "159.75.199.", "159.75.196.", "159.75.197.",       # 腾讯云广州
+    "49.234.",      # 腾讯云北京
+    "124.221.", "124.222.", "124.223.",  # 腾讯云轻量
+    "150.158.",     # 腾讯云
+    "39.96.", "39.97.", "39.98.", "39.99.", "39.100.", "39.101.", "39.102.", "39.103.", "39.104.", "39.105.", "39.106.", "39.107.", "39.108.",  # 阿里云
+    "47.94.", "47.95.", "47.96.", "47.97.", "47.98.", "47.99.", "47.100.", "47.101.", "47.102.", "47.103.", "47.104.", "47.105.", "47.106.", "47.107.", "47.108.", "47.109.", "47.110.", "47.111.",  # 阿里云
+    "220.181.",     # 百度
+    "111.13.",      # 百度
+    "27.44.",       # 移动机房扫描段
+    "14.152.",      # 中国电信机房段
+    "120.233.",     # 中国移动机房段
+    "127.0.0.",     # 本地
+)
+
+
+def _is_bot_request(page: str, ua: str, ip: str = "") -> bool:
+    """返回 True 则丢弃,不写入 analytics."""
+    if not page and not ua:
+        return True
+    # IP 段
+    if ip:
+        for pre in _BOT_IP_PREFIXES:
+            if ip.startswith(pre):
+                return True
+    # 路径
+    p = (page or "").lower()
+    for pre in _BOT_PATH_PREFIXES:
+        if p.startswith(pre):
+            return True
+    # UA
+    u = (ua or "").lower()
+    for tok in _BOT_UA_TOKENS:
+        if tok in u:
+            return True
+    return False
+
 
 def _today() -> str:
     return datetime.now().strftime("%Y-%m-%d")
@@ -45,6 +112,9 @@ def record_pageview(
     ip: str = "",
 ) -> Dict[str, Any]:
     """记录单次 PV;同时更新 UV/sessions/session_meta/page 计数"""
+    # 反 bot 过滤 — 静默丢弃 (前端无感知)
+    if _is_bot_request(page, ua, ip):
+        return {"ok": True, "filtered": "bot"}
     now = int(time.time() * 1000)
     today = _today()
     event = {
@@ -190,6 +260,62 @@ def get_overview(redis_client, days: int = 7) -> Dict[str, Any]:
         "top_pages": [{"page": p, "pv": c} for p, c in top_pages],
         "daily_trend": list(reversed(daily)),  # 早→晚
     }
+
+
+def purge_bot_data(redis_client, days: int = 30) -> Dict[str, Any]:
+    """回溯清理 N 天内已写入的 bot 数据 (供 admin 一键修正历史)"""
+    now = datetime.now()
+    purged_events = 0
+    purged_pages = 0
+    for i in range(days):
+        d = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+        # 过滤 events list
+        k_events = f"web:events:{d}"
+        raws = redis_client.lrange(k_events, 0, -1) or []
+        if not raws:
+            continue
+        kept_raws = []
+        bot_visitor_ids = set()
+        bot_session_ids = set()
+        bot_pages = set()
+        for raw in raws:
+            try:
+                ev = json.loads(_decode(raw))
+                if _is_bot_request(ev.get("page", ""), ev.get("ua", ""), ev.get("ip", "")):
+                    purged_events += 1
+                    bot_visitor_ids.add(ev.get("visitor_id", ""))
+                    bot_session_ids.add(ev.get("session_id", ""))
+                    bot_pages.add(ev.get("page", "")[:100])
+                else:
+                    kept_raws.append(raw)
+            except Exception:
+                kept_raws.append(raw)
+        if purged_events:
+            # 重写 events list (保持时间顺序: lrange 是头插序,重写也用 rpush + 反转)
+            redis_client.delete(k_events)
+            if kept_raws:
+                # 原本是 lpush 头插,所以 lrange 0..-1 是新→旧 — 这里要恢复同样的存储顺序
+                pipe = redis_client.pipeline()
+                # 反序后 rpush 保证 lrange 0..-1 仍然是新→旧
+                for raw in reversed(kept_raws):
+                    pipe.rpush(k_events, raw if isinstance(raw, str) else _decode(raw))
+                pipe.expire(k_events, EVENTS_TTL_DAYS * 86400)
+                pipe.execute()
+        # 从 UV / sessions set 移除
+        if bot_visitor_ids:
+            redis_client.srem(f"web:visitors:{d}", *bot_visitor_ids)
+        if bot_session_ids:
+            redis_client.srem(f"web:sessions:{d}", *bot_session_ids)
+            for sid in bot_session_ids:
+                if sid:
+                    redis_client.delete(f"web:session_meta:{sid}")
+        # 删 page-level 计数 (整页 key 删除)
+        for p in bot_pages:
+            if p:
+                k_page = f"web:page:{d}:{p}"
+                if redis_client.delete(k_page):
+                    purged_pages += 1
+    return {"ok": True, "purged_events": purged_events, "purged_page_keys": purged_pages}
 
 
 def get_recent_visits(redis_client, limit: int = 50) -> List[Dict[str, Any]]:

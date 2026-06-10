@@ -150,7 +150,7 @@ async function downloadCSV(type) {
 
 // ========== Router ==========
 const pageTitles = {
-  dashboard: '仪表盘', safety: '安全中心', quality: 'AI 质量监控',
+  dashboard: '仪表盘', safety: '🛡️ 会话审计 (AI 复盘)', quality: 'AI 质量监控',
   users: '用户列表', health: '服务器监控', retention: '留存分析',
   crisis: '🚨 危机告警',
   abconfig: 'A/B 配置',
@@ -160,7 +160,6 @@ const pageTitles = {
   feedback: '📮 用户反馈',
   leads: '💼 销售线索 (B2B)',
   orgs: '🏢 企业管理 (B2B)',
-  analytics: '📊 网站监控',
 };
 
 function showPage(name) {
@@ -174,7 +173,7 @@ function showPage(name) {
                      users: loadUsers, health: loadHealth, retention: loadRetention,
                      crisis: loadCrisis, abconfig: loadABConfig, pricing: loadPricing,
                      sleep: loadSleepDashboard, kb: loadKB, feedback: loadFeedback,
-                     leads: loadLeads, orgs: loadOrgs, analytics: loadAnalytics };
+                     leads: loadLeads, orgs: loadOrgs };
   if (loaders[name]) loaders[name](loaders[name] === loadDashboard ? 7 : 30);
 
   // 切到危机页面后，停止标题闪烁（视为"已读"）
@@ -723,6 +722,9 @@ async function loadDashboard(days) {
   }
 
   document.getElementById('last-update').textContent = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+  // 仪表盘内嵌的 "📊 网站流量" section 一并加载
+  if (typeof loadAnalytics === 'function') loadAnalytics();
 }
 
 // ========== 安全中心 ==========
@@ -1494,6 +1496,23 @@ async function loadAnalytics() {
   } catch (e) {
     toast('加载失败: ' + e.message, 'error');
   }
+}
+
+async function purgeBots() {
+  if (!confirm('清理近 30 天历史里命中 bot 规则的访问数据?\n(扫描器路径如 /wp-* + UA 含 bot/crawl/zgrab 等)')) return;
+  try {
+    const r = await fetch(`${API_BASE}/analytics/purge_bots?days=30`, {
+      method: 'POST',
+      headers: { 'X-Admin-Token': adminToken }
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast(`已清理 ${d.purged_events || 0} 条事件 + ${d.purged_page_keys || 0} 个页面计数`, 'success');
+      loadAnalytics();
+    } else {
+      toast('清理失败: ' + (d.error || '未知'), 'error');
+    }
+  } catch (e) { toast('请求失败: ' + e.message, 'error'); }
 }
 
 async function loadAnalyticsRecent() {

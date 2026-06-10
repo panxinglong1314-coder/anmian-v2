@@ -5483,6 +5483,13 @@ async def admin_analytics_recent(limit: int = Query(50, ge=10, le=200)):
     return {"visits": get_recent_visits(redis_client, limit=limit)}
 
 
+@app.post("/api/v1/admin/analytics/purge_bots")
+async def admin_analytics_purge_bots(days: int = Query(30, ge=1, le=90)):
+    """一键清理 N 天内历史 bot 数据 (UA/路径命中规则的)"""
+    from services.web_analytics import purge_bot_data
+    return purge_bot_data(redis_client, days=days)
+
+
 class SubscriptionRequest(BaseModel):
     user_id: str
     plan: str
